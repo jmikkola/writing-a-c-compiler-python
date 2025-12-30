@@ -27,7 +27,7 @@ class Parser:
         self.expect('{')
         body = self.parse_statement()
         self.expect('}')
-        return syntax.Function(name=name, body=body)
+        return syntax.Function(name=name.text, body=body)
 
     def parse_statement(self) -> syntax.Statement:
         ''' parse a single statement '''

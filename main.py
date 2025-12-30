@@ -3,6 +3,7 @@ import sys
 import lexer
 import parser
 import codegen
+import emit
 
 
 def main(args):
@@ -18,7 +19,8 @@ def main(args):
     if not names:
         print('Usage: compiler <filename.c> [--lex|--parse|--codegen]')
         sys.exit(1)
-    with open(names[0]) as inf:
+    name = names[0]
+    with open(name) as inf:
         text = inf.read()
 
     tokens = lexer.tokenize(text)
@@ -30,9 +32,10 @@ def main(args):
         return
 
     asm = codegen.gen(syntax)
-    print(asm)
     if stage == 'codegen':
         return
+
+    emit.emit(asm, name)
 
 
 if __name__ == "__main__":
