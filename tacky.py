@@ -43,3 +43,31 @@ class UnaryNegate(UnaryOp, namedtuple('UnaryNegate', [])):
 
 class UnaryInvert(UnaryOp, namedtuple('UnaryInvert', [])):
     pass
+
+
+class Binary(Instruction, namedtuple('Binary', ['operator', 'left', 'right', 'dst'])):
+    pass
+
+
+class BinaryOp:
+    pass
+
+
+class BinaryAdd(BinaryOp, namedtuple('BinaryAdd', [])):
+    pass
+
+
+class BinarySubtract(BinaryOp, namedtuple('BinarySubtract', [])):
+    pass
+
+
+class BinaryMultiply(BinaryOp, namedtuple('BinaryMultiply', [])):
+    pass
+
+
+class BinaryDivide(BinaryOp, namedtuple('BinaryDivide', [])):
+    pass
+
+
+class BinaryRemainder(BinaryOp, namedtuple('BinaryRemainder', [])):
+    pass

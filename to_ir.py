@@ -47,8 +47,31 @@ class ToTacky:
                 result_var = self.new_temp_var()
                 instruction = tacky.Unary(unary_operator=op, src=val, dst=result_var)
                 return (instructions + [instruction], result_var)
+            case syntax.Binary(operator, left, right):
+                instructions_left, val_left = self.convert_expression(left)
+                instructions_right, val_right = self.convert_expression(right)
+                op = self.convert_binary_op(operator)
+                result_var = self.new_temp_var()
+                instruction = tacky.Binary(operator=op, left=val_left, right=val_right, dst=result_var)
+                instructions = instructions_left + instructions_right + [instruction]
+                return (instructions, result_var)
             case _:
                 raise Exception(f'unhandled expression type, {expr}')
+
+    def convert_binary_op(self, op: syntax.BinaryOp) -> tacky.BinaryOp:
+        match op:
+            case syntax.BinaryAdd():
+                return tacky.BinaryAdd()
+            case syntax.BinarySubtract():
+                return tacky.BinarySubtract()
+            case syntax.BinaryMultiply():
+                return tacky.BinaryMultiply()
+            case syntax.BinaryDivide():
+                return tacky.BinaryDivide()
+            case syntax.BinaryRemainder():
+                return tacky.BinaryRemainder()
+            case _:
+                raise Exception(f'unhandled binary operator {op}')
 
     def convert_unary_op(self, op: syntax.UnaryOp) -> tacky.UnaryOp:
         match op:
