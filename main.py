@@ -2,6 +2,7 @@ import sys
 
 import lexer
 import parser
+import codegen
 
 
 def main(args):
@@ -25,8 +26,12 @@ def main(args):
         return
 
     syntax = parser.parse(tokens)
-    print(syntax)
     if stage == 'parse':
+        return
+
+    asm = codegen.gen(syntax)
+    print(asm)
+    if stage == 'codegen':
         return
 
 
