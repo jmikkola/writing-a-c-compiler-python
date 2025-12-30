@@ -7,6 +7,8 @@ IDENTIFIER = re.compile(r'[a-zA-Z_]\w*\b')
 CONSTANT   = re.compile(r'[0-9]+\b')
 
 LINE_COMMENT = re.compile(r'//[^\n]*\n?')
+# The *? is non-greedy, so it will stop at the first */ not the last one
+MULTILINE_COMENT = re.compile(r'/\*.*?\*/')
 
 KEYWORDS = ['int', 'void', 'return']
 PUNCTUATION = ['(', ')', '{', '}', ';']
@@ -20,6 +22,8 @@ def tokenize(text):
             continue
 
         comment_match = LINE_COMMENT.match(text)
+        if comment_match is None:
+            comment_match = MULTILINE_COMENT.match(text)
         if comment_match is not None:
             comment = comment_match.group()
             text = text[len(comment):]

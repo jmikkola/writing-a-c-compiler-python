@@ -4,14 +4,23 @@ import lexer
 
 
 def main(args):
-    if not args:
-        print('Usage: compiler <filename.c>')
+    stage = 'all'
+    if '--codegen' in args:
+        stage = 'codegen'
+    if '--parse' in args:
+        stage = 'parse'
+    if '--lex' in args:
+        stage = 'lex'
+
+    names = [a for a in args if not a.startswith('-')]
+    if not names:
+        print('Usage: compiler <filename.c> [--lex|--parse|--codegen]')
         sys.exit(1)
-    with open(args[0]) as inf:
+    with open(names[0]) as inf:
         text = inf.read()
     tokens = lexer.tokenize(text)
-    for t in tokens:
-        print(f'{t.kind} {t.text}')
+    if stage == 'lex':
+        return
 
 
 if __name__ == "__main__":
