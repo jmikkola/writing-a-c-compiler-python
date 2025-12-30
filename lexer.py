@@ -1,4 +1,5 @@
 import re
+import itertools
 
 from token import Token
 
@@ -11,7 +12,8 @@ LINE_COMMENT = re.compile(r'//[^\n]*\n?')
 MULTILINE_COMENT = re.compile(r'/\*.*?\*/')
 
 KEYWORDS = ['int', 'void', 'return']
-PUNCTUATION = ['(', ')', '{', '}', ';']
+TWO_PART_SYMBOLS = ['--']
+PUNCTUATION = ['(', ')', '{', '}', ';', '-', '~']
 
 
 def tokenize(text):
@@ -47,7 +49,7 @@ def tokenize(text):
             continue
 
         found_punctuation = False
-        for p in PUNCTUATION:
+        for p in itertools.chain(TWO_PART_SYMBOLS, PUNCTUATION):
             if text.startswith(p):
                 found_punctuation = True
                 text = text[len(p):]
