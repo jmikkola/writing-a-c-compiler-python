@@ -15,7 +15,7 @@ class ToTacky:
     def new_temp_var(self):
         name = f'tmp.{self.n_temp_vars}'
         self.n_temp_vars += 1
-        return name
+        return tacky.Identifier(name)
 
     def convert(self):
         function = self.convert_function(self.syntax.function_definition)

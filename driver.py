@@ -49,7 +49,7 @@ def compile(stage, preprocessed_file, assembly_file):
     if stage == 'tacky':
         return
 
-    asm = codegen.gen(syntax)
+    asm = codegen.gen(ir)
     if stage == 'codegen':
         return
 
