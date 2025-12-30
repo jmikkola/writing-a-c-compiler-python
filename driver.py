@@ -3,6 +3,7 @@ import subprocess
 
 import lexer
 import parser
+import to_ir
 import codegen
 import emit
 
@@ -42,6 +43,10 @@ def compile(stage, preprocessed_file, assembly_file):
 
     syntax = parser.parse(tokens)
     if stage == 'parse':
+        return
+
+    ir = to_ir.to_ir(syntax)
+    if stage == 'tacky':
         return
 
     asm = codegen.gen(syntax)

@@ -17,7 +17,7 @@ class Return(Instruction, namedtuple('Constant', ['val'])):
     pass
 
 
-class Unary(Expression, namedtuple('Unary', ['unary_operator', 'src', 'dst'])):
+class Unary(Instruction, namedtuple('Unary', ['unary_operator', 'src', 'dst'])):
     pass
 
 

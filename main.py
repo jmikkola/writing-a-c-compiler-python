@@ -12,6 +12,8 @@ def parse_args(args):
     stage = 'all'
     if '--codegen' in args:
         stage = 'codegen'
+    if '--tacky' in args:
+        stage = 'tacky'
     if '--parse' in args:
         stage = 'parse'
     if '--lex' in args:
