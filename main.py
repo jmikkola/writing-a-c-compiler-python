@@ -1,6 +1,7 @@
 import sys
 
 import lexer
+import parser
 
 
 def main(args):
@@ -18,8 +19,14 @@ def main(args):
         sys.exit(1)
     with open(names[0]) as inf:
         text = inf.read()
+
     tokens = lexer.tokenize(text)
     if stage == 'lex':
+        return
+
+    syntax = parser.parse(tokens)
+    print(syntax)
+    if stage == 'parse':
         return
 
 
