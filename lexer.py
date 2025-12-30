@@ -1,0 +1,57 @@
+import re
+
+from token import Token
+
+
+IDENTIFIER = re.compile(r'[a-zA-Z_]\w*\b')
+CONSTANT   = re.compile(r'[0-9]+\b')
+
+LINE_COMMENT = re.compile(r'//[^\n]*\n?')
+
+KEYWORDS = ['int', 'void', 'return']
+PUNCTUATION = ['(', ')', '{', '}', ';']
+
+
+def tokenize(text):
+    tokens = []
+    while text:
+        if text[0].isspace():
+            text = text[1:]
+            continue
+
+        comment_match = LINE_COMMENT.match(text)
+        if comment_match is not None:
+            comment = comment_match.group()
+            text = text[len(comment):]
+            continue
+
+        identifier_match = IDENTIFIER.match(text)
+        if identifier_match is not None:
+            identifier = identifier_match.group()
+            text = text[len(identifier):]
+            if identifier in KEYWORDS:
+                tokens.append(Token('keyword', identifier))
+            else:
+                tokens.append(Token('identifier', identifier))
+            continue
+
+        constant_match = CONSTANT.match(text)
+        if constant_match is not None:
+            constant = constant_match.group()
+            text = text[len(constant):]
+            tokens.append(Token('constant', constant))
+            continue
+
+        found_punctuation = False
+        for p in PUNCTUATION:
+            if text.startswith(p):
+                found_punctuation = True
+                text = text[len(p):]
+                tokens.append(Token(p, p))
+                break
+        if found_punctuation:
+            continue
+
+        raise Exception(f'Invalid token starting at {text[:20]}')
+
+    return tokens

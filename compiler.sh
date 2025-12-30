@@ -3,4 +3,4 @@
 set -e
 
 cd "$(dirname "$0")"
-uv run main.py
+uv run main.py "$@"
