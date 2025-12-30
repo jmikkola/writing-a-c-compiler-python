@@ -4,8 +4,7 @@ import assembly
 INDENT = '    '
 
 
-def emit(program: assembly.Program, name: str):
-    output_name = name.replace('.c', '.s')
+def emit(program: assembly.Program, output_name: str):
     with open(output_name, 'w') as out:
         e = Emit(out)
         e.emit_program(program)

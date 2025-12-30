@@ -1,12 +1,14 @@
 import sys
 
-import lexer
-import parser
-import codegen
-import emit
+import driver
 
 
 def main(args):
+    name, stage = parse_args(args)
+    driver.run_compiler(name, stage)
+
+
+def parse_args(args):
     stage = 'all'
     if '--codegen' in args:
         stage = 'codegen'
@@ -20,22 +22,8 @@ def main(args):
         print('Usage: compiler <filename.c> [--lex|--parse|--codegen]')
         sys.exit(1)
     name = names[0]
-    with open(name) as inf:
-        text = inf.read()
 
-    tokens = lexer.tokenize(text)
-    if stage == 'lex':
-        return
-
-    syntax = parser.parse(tokens)
-    if stage == 'parse':
-        return
-
-    asm = codegen.gen(syntax)
-    if stage == 'codegen':
-        return
-
-    emit.emit(asm, name)
+    return (name, stage)
 
 
 if __name__ == "__main__":
