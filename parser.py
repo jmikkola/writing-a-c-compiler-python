@@ -47,8 +47,31 @@ class Parser:
         ''' parse an expression '''
         if self.peek('constant'):
             return self.parse_constant()
+        if self.peek('-') or self.peek('~'):
+            return self.parse_unary_expression()
+        if self.peek('('):
+            return self.paren_expression()
         else:
             self.fail('expected an expression')
+
+    def paren_expression(self) -> syntax.Expression:
+        self.expect('(')
+        expr = self.parse_expression()
+        self.expect(')')
+        return expr
+
+    def parse_unary_expression(self) -> syntax.Unary:
+        operator = self.parse_unary_operator()
+        expr = self.parse_expression()
+        return syntax.Unary(operator, expr)
+
+    def parse_unary_operator(self) -> syntax.UnaryOp:
+        token = self.consume()
+        if token.text == '-':
+            return syntax.UnaryNegate()
+        if token.text == '~':
+            return syntax.UnaryInvert()
+        raise Exception(f'unhandled unary operator {token.text}')
 
     def parse_constant(self) -> syntax.Constant:
         ''' parse a constant (an integer) '''
@@ -56,11 +79,11 @@ class Parser:
         value = int(const.text)
         return syntax.Constant(value=value)
 
-    def peek(self, kind, value=None):
+    def peek(self, kind=None, value=None):
         if not self.tokens:
             return None
         token = self.tokens[0]
-        if token.kind != kind:
+        if kind is not None and token.kind != kind:
             return None
         if value is not None and token.text != value:
             return None
@@ -70,6 +93,14 @@ class Parser:
         token = self.peek(kind, value)
         if token is None:
             self.fail('syntax error', kind, value)
+        self.tokens = self.tokens[1:]
+        self.parsed_tokens.append(token)
+        return token
+
+    def consume(self):
+        if not self.tokens:
+            self.fail('unexpected EOF')
+        token = self.tokens[0]
         self.tokens = self.tokens[1:]
         self.parsed_tokens.append(token)
         return token
