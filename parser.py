@@ -43,8 +43,42 @@ class Parser:
         self.expect(';')
         return syntax.Return(expr=expression)
 
-    def parse_expression(self) -> syntax.Expression:
+    def parse_expression(self, min_prec=0) -> syntax.Expression:
         ''' parse an expression '''
+        left = self.parse_factor()
+        while True:
+            token = self.peek()
+            if token.text not in ['+', '-', '*', '/', '%']:
+                break
+            token_precedence = self.precedence(token.text)
+            if token_precedence < min_prec:
+                break
+            op = self.parse_binary_op()
+            right = self.parse_expression(min_prec=token_precedence + 1)
+            left = syntax.Binary(op, left, right)
+        return left
+
+    def precedence(self, text):
+        if text in ['+', '-']:
+            return 45
+        return 50
+
+    def parse_binary_op(self) -> syntax.BinaryOp:
+        token = self.consume()
+        if token.text == '+':
+            return syntax.BinaryAdd()
+        if token.text == '-':
+            return syntax.BinarySubtract()
+        if token.text == '*':
+            return syntax.BinaryMultiply()
+        if token.text == '/':
+            return syntax.BinaryDivide()
+        if token.text == '%':
+            return syntax.BinaryRemainder()
+        raise Exception(f'Unhandled binary op {token.text}')
+
+    def parse_factor(self) -> syntax.Expression:
+        ''' parse a factor (anything without a binary expression) '''
         if self.peek('constant'):
             return self.parse_constant()
         if self.peek('-') or self.peek('~'):
@@ -62,7 +96,7 @@ class Parser:
 
     def parse_unary_expression(self) -> syntax.Unary:
         operator = self.parse_unary_operator()
-        expr = self.parse_expression()
+        expr = self.parse_factor()
         return syntax.Unary(operator, expr)
 
     def parse_unary_operator(self) -> syntax.UnaryOp:
