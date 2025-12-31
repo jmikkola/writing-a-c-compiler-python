@@ -11,11 +11,17 @@ class ToTacky:
     def __init__(self, syntax):
         self.syntax = syntax
         self.n_temp_vars = 0
+        self.n_labels = 0
 
     def new_temp_var(self):
         name = f'tmp.{self.n_temp_vars}'
         self.n_temp_vars += 1
         return tacky.Identifier(name)
+
+    def new_label(self, name):
+        name = f'L_{name}_{self.n_labels}'
+        self.n_labels += 1
+        return name
 
     def convert(self):
         function = self.convert_function(self.syntax.function_definition)
@@ -47,6 +53,38 @@ class ToTacky:
                 result_var = self.new_temp_var()
                 instruction = tacky.Unary(unary_operator=op, src=val, dst=result_var)
                 return (instructions + [instruction], result_var)
+            case syntax.Binary(syntax.BinaryAnd(), left, right):
+                false_label = self.new_label('and_false')
+                end_label = self.new_label('and_end')
+                instructions_left, val_left = self.convert_expression(left)
+                instructions_right, val_right = self.convert_expression(right)
+                result_var = self.new_temp_var()
+                instructions = instructions_left + [tacky.JumpIfZero(val_left, false_label)]
+                instructions += instructions_right + [tacky.JumpIfZero(val_right, false_label)]
+                instructions += [
+                    tacky.Copy(tacky.Constant(1), result_var),
+                    tacky.Jump(end_label),
+                    tacky.Label(false_label),
+                    tacky.Copy(tacky.Constant(0), result_var),
+                    tacky.Label(end_label),
+                ]
+                return (instructions, result_var)
+            case syntax.Binary(syntax.BinaryOr(), left, right):
+                true_label = self.new_label('or_true')
+                end_label = self.new_label('or_end')
+                instructions_left, val_left = self.convert_expression(left)
+                instructions_right, val_right = self.convert_expression(right)
+                result_var = self.new_temp_var()
+                instructions = instructions_left + [tacky.JumpIfNotZero(val_left, true_label)]
+                instructions += instructions_right + [tacky.JumpIfNotZero(val_right, true_label)]
+                instructions += [
+                    tacky.Copy(tacky.Constant(0), result_var),
+                    tacky.Jump(end_label),
+                    tacky.Label(true_label),
+                    tacky.Copy(tacky.Constant(1), result_var),
+                    tacky.Label(end_label),
+                ]
+                return (instructions, result_var)
             case syntax.Binary(operator, left, right):
                 instructions_left, val_left = self.convert_expression(left)
                 instructions_right, val_right = self.convert_expression(right)
@@ -80,6 +118,18 @@ class ToTacky:
                 return tacky.ShiftLeft()
             case syntax.ShiftRight():
                 return tacky.ShiftRight()
+            case syntax.Less():
+                return tacky.Less()
+            case syntax.LessEqual():
+                return tacky.LessEqual()
+            case syntax.Greater():
+                return tacky.Greater()
+            case syntax.GreaterEqual():
+                return tacky.GreaterEqual()
+            case syntax.Equals():
+                return tacky.Equals()
+            case syntax.NotEquals():
+                return tacky.NotEquals()
             case _:
                 raise Exception(f'unhandled binary operator {op}')
 
@@ -89,5 +139,7 @@ class ToTacky:
                 return tacky.UnaryNegate()
             case syntax.UnaryInvert():
                 return tacky.UnaryInvert()
+            case syntax.UnaryNot():
+                return tacky.UnaryNot()
             case _:
                 raise Exception(f'unhandled unary operator {op}')
