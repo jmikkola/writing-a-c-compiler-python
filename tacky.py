@@ -139,11 +139,3 @@ class Equals(BinaryOp, namedtuple('Equals', [])):
 
 class NotEquals(BinaryOp, namedtuple('NotEquals', [])):
     pass
-
-
-class BinaryAnd(BinaryOp, namedtuple('BinaryAnd', [])):
-    pass
-
-
-class BinaryOr(BinaryOp, namedtuple('BinaryOr', [])):
-    pass

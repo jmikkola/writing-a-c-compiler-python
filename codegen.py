@@ -29,6 +29,8 @@ class Codegen:
             match instr:
                 case assembly.Ret() | assembly.Cdq():
                     pass
+                case assembly.Jmp() | assembly.JmpCC() | assembly.Label():
+                    pass
                 case assembly.Mov(src, dst):
                     src = self.convert_pseudo_register(pseudo_registers, src)
                     dst = self.convert_pseudo_register(pseudo_registers, dst)
@@ -45,6 +47,13 @@ class Codegen:
                 case assembly.Idiv(operand):
                     operand = self.convert_pseudo_register(pseudo_registers, operand)
                     instr = assembly.Idiv(operand)
+                case assembly.Cmp(left, right):
+                    left = self.convert_pseudo_register(pseudo_registers, left)
+                    right = self.convert_pseudo_register(pseudo_registers, right)
+                    instr = assembly.Cmp(left, right)
+                case assembly.SetCC(cond_code, operand):
+                    operand = self.convert_pseudo_register(pseudo_registers, operand)
+                    instr = assembly.SetCC(cond_code, operand)
                 case _:
                     raise Exception(f'unhandled instruction type {instr}')
             updated_instructions.append(instr)
@@ -75,6 +84,18 @@ class Codegen:
                     updated_instructions.extend([
                         assembly.Mov(src, r10),
                         assembly.Mov(r10, dst),
+                    ])
+
+                case assembly.Cmp(assembly.Stack(_) as left, assembly.Stack(_) as right):
+                    updated_instructions.extend([
+                        assembly.Mov(left, r10),
+                        assembly.Cmp(r10, right)
+                    ])
+
+                case assembly.Cmp(left, assembly.Immediate(_) as right):
+                    updated_instructions.extend([
+                        assembly.Mov(right, r11),
+                        assembly.Cmp(left, r11),
                     ])
 
                 case assembly.Idiv(assembly.Immediate(_) as imm):
@@ -118,8 +139,26 @@ class Codegen:
                 return self.gen_unary(instr)
             case tacky.Binary(_, _, _, _):
                 return self.gen_binary(instr)
+            case tacky.Copy(src, dst):
+                return [
+                    assembly.Mov(self.convert_operand(src), self.convert_operand(dst)),
+                ]
+            case tacky.Jump(target):
+                return [assembly.Jmp(target)]
+            case tacky.JumpIfZero(cond, target):
+                return [
+                    assembly.Cmp(assembly.Immediate(0), self.convert_operand(cond)),
+                    assembly.JmpCC('E', target),
+                ]
+            case tacky.JumpIfNotZero(cond, target):
+                return [
+                    assembly.Cmp(assembly.Immediate(0), self.convert_operand(cond)),
+                    assembly.JmpCC('NE', target),
+                ]
+            case tacky.Label(name):
+                return [assembly.Label(name)]
             case _:
-                raise Exception(f'unhandled statement type, {instr}')
+                raise Exception(f'unhandled instruction type, {instr}')
 
     def gen_return(self, instr: tacky.Return) -> list:
         src = self.convert_operand(instr.val)
@@ -129,9 +168,19 @@ class Codegen:
         ]
 
     def gen_unary(self, instr: tacky.Unary) -> list:
-        op = self.convert_unary_operator(instr.unary_operator)
         src = self.convert_operand(instr.src)
         dst = self.convert_operand(instr.dst)
+
+        if instr.unary_operator == tacky.UnaryNot():
+            return [
+                assembly.Cmp(assembly.Immediate(0), src),
+                # Zero the destination because the 'set' instruction only
+                # updates the lowest 8 bits.
+                assembly.Mov(assembly.Immediate(0), dst),
+                assembly.SetCC('E', dst),
+            ]
+
+        op = self.convert_unary_operator(instr.unary_operator)
         return [
             assembly.Mov(src, dst),
             assembly.Unary(op, dst),
@@ -185,8 +234,33 @@ class Codegen:
                     assembly.Idiv(right),
                     assembly.Mov(assembly.Register('DX'), dst),
                 ]
+            case tacky.Less() | tacky.LessEqual() | tacky.Equals() | \
+                 tacky.NotEquals() | tacky.Greater() | tacky.GreaterEqual():
+                comparison = self.convert_comparison(instr.operator)
+                return [
+                    assembly.Cmp(right, left),
+                    assembly.Mov(assembly.Immediate(0), dst),
+                    assembly.SetCC(comparison, dst),
+                ]
             case _:
                 raise Exception(f'unhandled binary expression op {instr.operator}')
+
+    def convert_comparison(self, op: tacky.BinaryOp) -> str:
+        match op:
+            case tacky.Less():
+                return 'L'
+            case tacky.LessEqual():
+                return 'LE'
+            case tacky.Equals():
+                return 'E'
+            case tacky.NotEquals():
+                return 'NE'
+            case tacky.GreaterEqual():
+                return 'GE'
+            case tacky.Greater():
+                return 'G'
+            case _:
+                raise Exception(f'invalid op to convert to a comparison {op}')
 
     def convert_binary_operator(self, op: tacky.BinaryOp) -> assembly.BinaryOperator:
         match op:
