@@ -29,6 +29,18 @@ class Unary(Instruction, namedtuple('Unary', ['unary_operator', 'operand'])):
     pass
 
 
+class Binary(Instruction, namedtuple('Binary', ['binary_operator', 'src', 'dst'])):
+    pass
+
+
+class Idiv(Instruction, namedtuple('Idiv', ['operand'])):
+    pass
+
+
+class Cdq(Instruction, namedtuple('Cdq', [])):
+    pass
+
+
 class UnaryOperator:
     pass
 
@@ -38,10 +50,6 @@ class Not(UnaryOperator, namedtuple('Not', [])):
 
 
 class Neg(UnaryOperator, namedtuple('Neg', [])):
-    pass
-
-
-class Binary(Instruction, namedtuple('Binary', ['binary_operator', 'src', 'dst'])):
     pass
 
 
@@ -78,14 +86,6 @@ class ShiftLeft(BinaryOperator, namedtuple('ShiftLeft', [])):
 
 
 class ShiftRight(BinaryOperator, namedtuple('ShiftRight', [])):
-    pass
-
-
-class Idiv(Instruction, namedtuple('Idiv', ['operand'])):
-    pass
-
-
-class Cdq(Instruction, namedtuple('Cdq', [])):
     pass
 
 
