@@ -19,7 +19,7 @@ class Codegen:
         instructions = self.gen_instructions(function.body)
         instructions, stack_size = self.replace_pseudo_registers(instructions)
         instructions = [assembly.AllocateStack(stack_size)] + instructions
-        instructions = self.fix_mov(instructions)
+        instructions = self.fix_invalid_instructions(instructions)
         return assembly.Function(name=function.name, instructions=instructions)
 
     def replace_pseudo_registers(self, instructions):
@@ -27,7 +27,7 @@ class Codegen:
         updated_instructions = []
         for instr in instructions:
             match instr:
-                case assembly.Ret():
+                case assembly.Ret() | assembly.Cdq():
                     pass
                 case assembly.Mov(src, dst):
                     src = self.convert_pseudo_register(pseudo_registers, src)
@@ -38,6 +38,13 @@ class Codegen:
                 case assembly.Unary(unary_operator, operand):
                     operand = self.convert_pseudo_register(pseudo_registers, operand)
                     instr = assembly.Unary(unary_operator, operand)
+                case assembly.Binary(binary_operator, left, right):
+                    left = self.convert_pseudo_register(pseudo_registers, left)
+                    right = self.convert_pseudo_register(pseudo_registers, right)
+                    instr = assembly.Binary(binary_operator, left, right)
+                case assembly.Idiv(operand):
+                    operand = self.convert_pseudo_register(pseudo_registers, operand)
+                    instr = assembly.Idiv(operand)
                 case _:
                     raise Exception(f'unhandled instruction type {instr}')
             updated_instructions.append(instr)
@@ -52,16 +59,46 @@ class Codegen:
         offset = pseudo_registers[name]
         return assembly.Stack(offset)
 
-    def fix_mov(self, instructions):
-        ''' Fix mov instructions that use a memory address as both the source and destination '''
+    def fix_invalid_instructions(self, instructions):
+        ''' Fix invalid instructions.
+
+        E.g. mov instructions that use a memory address as both
+        the source and destination
+        '''
+        r10 = assembly.Register('R10')
+        r11 = assembly.Register('R11')
+
         updated_instructions = []
         for instr in instructions:
             match instr:
                 case assembly.Mov(assembly.Stack(src_offset), assembly.Stack(dst_offset)):
                     updated_instructions.extend([
-                        assembly.Mov(assembly.Stack(src_offset), assembly.Register('R10')),
-                        assembly.Mov(assembly.Register('R10'),   assembly.Stack(dst_offset)),
+                        assembly.Mov(assembly.Stack(src_offset), r10),
+                        assembly.Mov(r10, assembly.Stack(dst_offset)),
                     ])
+
+                case assembly.Idiv(assembly.Immediate(value) as imm):
+                    updated_instructions.extend([
+                        assembly.Mov(imm, r10),
+                        assembly.Idiv(r10),
+                    ])
+
+                case assembly.Binary(
+                        assembly.Add() | assembly.Sub() as op,
+                        assembly.Stack(src_offset),
+                        assembly.Stack(dst_offset)):
+                    updated_instructions.extend([
+                        assembly.Mov(assembly.Stack(src_offset), r10),
+                        assembly.Binary(op, r10, assembly.Stack(dst_offset)),
+                    ])
+
+                case assembly.Binary(assembly.Mult(), src, assembly.Stack(dst_offset)):
+                    updated_instructions.extend([
+                        assembly.Mov(assembly.Stack(dst_offset), r11),
+                        assembly.Binary(assembly.Mult(), src, r11),
+                        assembly.Mov(r11, assembly.Stack(dst_offset)),
+                    ])
+
                 case _:
                     updated_instructions.append(instr)
         return updated_instructions
@@ -79,8 +116,10 @@ class Codegen:
                 return self.gen_return(instr)
             case tacky.Unary(_, _, _):
                 return self.gen_unary(instr)
+            case tacky.Binary(_, _, _, _):
+                return self.gen_binary(instr)
             case _:
-                raise Exception(f'unhandled statement type, {body}')
+                raise Exception(f'unhandled statement type, {instr}')
 
     def gen_return(self, instr: tacky.Return) -> list:
         src = self.convert_operand(instr.val)
@@ -106,6 +145,46 @@ class Codegen:
                 return assembly.Not()
             case _:
                 raise Exception(f'unhandled unary op type {op}')
+
+    def gen_binary(self, instr: tacky.Binary) -> list:
+        left = self.convert_operand(instr.left)
+        right = self.convert_operand(instr.right)
+        dst = self.convert_operand(instr.dst)
+
+        match instr.operator:
+            case tacky.BinaryAdd() | tacky.BinarySubtract() | tacky.BinaryMultiply():
+                op = self.convert_binary_operator(instr.operator)
+                return [
+                    assembly.Mov(left, dst),
+                    assembly.Binary(op, right, dst),
+                ]
+            case tacky.BinaryDivide():
+                return [
+                    assembly.Mov(left, assembly.Register('AX')),
+                    assembly.Cdq(),
+                    assembly.Idiv(right),
+                    assembly.Mov(assembly.Register('AX'), dst),
+                ]
+            case tacky.BinaryRemainder():
+                return [
+                    assembly.Mov(left, assembly.Register('AX')),
+                    assembly.Cdq(),
+                    assembly.Idiv(right),
+                    assembly.Mov(assembly.Register('DX'), dst),
+                ]
+            case _:
+                raise Exception(f'unhandled binary expression op {instr.operator}')
+
+    def convert_binary_operator(self, op: tacky.BinaryOp) -> assembly.BinaryOperator:
+        match op:
+            case tacky.BinaryAdd():
+                return assembly.Add()
+            case tacky.BinarySubtract():
+                return assembly.Sub()
+            case tacky.BinaryMultiply():
+                return assembly.Mult()
+            case _:
+                raise Exception(f'invalid op to convert to assembly binary op {op}')
 
     def convert_operand(self, value: tacky.Value) -> assembly.Operand:
         match value:

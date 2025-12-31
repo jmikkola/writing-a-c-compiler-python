@@ -41,6 +41,34 @@ class Neg(UnaryOperator, namedtuple('Neg', [])):
     pass
 
 
+class Binary(Instruction, namedtuple('Binary', ['binary_operator', 'src', 'dst'])):
+    pass
+
+
+class BinaryOperator:
+    pass
+
+
+class Add(BinaryOperator, namedtuple('Add', [])):
+    pass
+
+
+class Sub(BinaryOperator, namedtuple('Sub', [])):
+    pass
+
+
+class Mult(BinaryOperator, namedtuple('Mult', [])):
+    pass
+
+
+class Idiv(Instruction, namedtuple('Idiv', ['operand'])):
+    pass
+
+
+class Cdq(Instruction, namedtuple('Cdq', [])):
+    pass
+
+
 class Operand:
     pass
 
@@ -50,7 +78,7 @@ class Immediate(Operand, namedtuple('Immediate', ['value'])):
 
 
 class Register(Operand, namedtuple('Register', ['reg'])):
-    ''' reg can be 'AX' or 'R10' '''
+    ''' reg can be 'AX', 'DX', 'R10', or 'R11' '''
     pass
 
 
