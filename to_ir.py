@@ -28,15 +28,32 @@ class ToTacky:
         return tacky.Program(function_definition=function)
 
     def convert_function(self, function: syntax.Function) -> tacky.Function:
-        instructions = self.convert_instructions(function.body)
+        instructions = []
+        for block_item in function.body:
+            instructions.extend(self.convert_instructions(block_item))
+        instructions.append(tacky.Return(tacky.Constant(0)))
         return tacky.Function(name=function.name, body=instructions)
 
-    def convert_instructions(self, body: syntax.Statement) -> list:
+    def convert_instructions(self, body: syntax.BlockItem) -> list:
         match body:
-            case syntax.Return(expr=_):
+            case syntax.Return(_):
                 return self.convert_return(body)
+            case syntax.ExprStmt(expr):
+                instructions, _ = self.convert_expression(expr)
+                return instructions
+            case syntax.NullStatement():
+                return []
+            case syntax.Declaration(name, init):
+                return self.convert_declaration(name, init)
             case _:
                 raise Exception(f'unhandled statement type, {body}')
+
+    def convert_declaration(self, name, init):
+        if init is None:
+            return []
+        instructions, result = self.convert_expression(init)
+        instructions.append(tacky.Copy(result, tacky.Identifier(name)))
+        return instructions
 
     def convert_return(self, stmt: syntax.Return) -> list:
         instructions, val = self.convert_expression(stmt.expr)
@@ -47,6 +64,12 @@ class ToTacky:
         match expr:
             case syntax.Constant(value):
                 return ([], tacky.Constant(value))
+            case syntax.Variable(name):
+                return ([], tacky.Identifier(name))
+            case syntax.Assignment(syntax.Variable(name), rhs):
+                instructions, result = self.convert_expression(rhs)
+                instructions += [tacky.Copy(result, tacky.Identifier(name))]
+                return (instructions, result)
             case syntax.Unary(operator, expr=inner):
                 instructions, val = self.convert_expression(inner)
                 op = self.convert_unary_op(operator)

@@ -132,6 +132,7 @@ class Codegen:
 
     def gen_instruction(self, instr: tacky.Instruction) -> list:
         ''' returns a list of assembly instructions '''
+        assert(isinstance(instr, tacky.Instruction))
         match instr:
             case tacky.Return(_):
                 return self.gen_return(instr)
