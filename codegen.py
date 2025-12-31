@@ -71,13 +71,13 @@ class Codegen:
         updated_instructions = []
         for instr in instructions:
             match instr:
-                case assembly.Mov(assembly.Stack(src_offset), assembly.Stack(dst_offset)):
+                case assembly.Mov(assembly.Stack(_) as src, assembly.Stack(_) as dst):
                     updated_instructions.extend([
-                        assembly.Mov(assembly.Stack(src_offset), r10),
-                        assembly.Mov(r10, assembly.Stack(dst_offset)),
+                        assembly.Mov(src, r10),
+                        assembly.Mov(r10, dst),
                     ])
 
-                case assembly.Idiv(assembly.Immediate(value) as imm):
+                case assembly.Idiv(assembly.Immediate(_) as imm):
                     updated_instructions.extend([
                         assembly.Mov(imm, r10),
                         assembly.Idiv(r10),
@@ -85,18 +85,18 @@ class Codegen:
 
                 case assembly.Binary(
                         assembly.Add() | assembly.Sub() as op,
-                        assembly.Stack(src_offset),
-                        assembly.Stack(dst_offset)):
+                        assembly.Stack(_) as src,
+                        assembly.Stack(_) as dst):
                     updated_instructions.extend([
-                        assembly.Mov(assembly.Stack(src_offset), r10),
-                        assembly.Binary(op, r10, assembly.Stack(dst_offset)),
+                        assembly.Mov(src, r10),
+                        assembly.Binary(op, r10, dst),
                     ])
 
-                case assembly.Binary(assembly.Mult(), src, assembly.Stack(dst_offset)):
+                case assembly.Binary(assembly.Mult() as op, src, assembly.Stack(_) as dst):
                     updated_instructions.extend([
-                        assembly.Mov(assembly.Stack(dst_offset), r11),
-                        assembly.Binary(assembly.Mult(), src, r11),
-                        assembly.Mov(r11, assembly.Stack(dst_offset)),
+                        assembly.Mov(dst, r11),
+                        assembly.Binary(op, src, r11),
+                        assembly.Mov(r11, dst),
                     ])
 
                 case _:
