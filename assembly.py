@@ -33,11 +33,32 @@ class Binary(Instruction, namedtuple('Binary', ['binary_operator', 'src', 'dst']
     pass
 
 
+class Cmp(Instruction, namedtuple('Cmp', ['left', 'right'])):
+    pass
+
+
 class Idiv(Instruction, namedtuple('Idiv', ['operand'])):
     pass
 
 
 class Cdq(Instruction, namedtuple('Cdq', [])):
+    pass
+
+
+class Jmp(Instruction, namedtuple('Jmp', ['label'])):
+    pass
+
+
+class JmpCC(Instruction, namedtuple('JmpCC', ['cond_code', 'label'])):
+    ''' cond_code can be one of E, NE, G, GE, L, or LE '''
+    pass
+
+
+class SetCC(Instruction, namedtuple('SetCC', ['cond_code', 'operand'])):
+    pass
+
+
+class Label(Instruction, namedtuple('Label', ['name'])):
     pass
 
 
