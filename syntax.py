@@ -9,13 +9,35 @@ class Function(namedtuple('Function', ['name', 'body'])):
     pass
 
 
-class Statement:
+class BlockItem:
+    pass
+
+
+class Declaration(BlockItem, namedtuple('Declaration', ['name', 'init'])):
+    pass
+
+##
+## Statements
+##
+
+class Statement(BlockItem):
     pass
 
 
 class Return(Statement, namedtuple('Return', ['expr'])):
     pass
 
+
+class ExprStmt(Statement, namedtuple('ExprStmt', ['expr'])):
+    pass
+
+
+class NullStatement(Statement, namedtuple('NullStatement', [])):
+    pass
+
+##
+## Expressions
+##
 
 class Expression:
     pass
@@ -25,9 +47,24 @@ class Constant(Expression, namedtuple('Constant', ['value'])):
     pass
 
 
+class Variable(Expression, namedtuple('Variable', ['name'])):
+    pass
+
+
 class Unary(Expression, namedtuple('Unary', ['operator', 'expr'])):
     pass
 
+
+class Binary(Expression, namedtuple('Binary', ['operator', 'left', 'right'])):
+    pass
+
+
+class Assignment(Expression, namedtuple('Assignment', ['lhs', 'rhs'])):
+    pass
+
+##
+## Unary ops
+##
 
 class UnaryOp:
     pass
@@ -47,9 +84,9 @@ class UnaryNot(UnaryOp, namedtuple('UnaryNot', [])):
     ''' !n '''
     pass
 
-
-class Binary(Expression, namedtuple('Binary', ['operator', 'left', 'right'])):
-    pass
+##
+## Binary Ops
+##
 
 
 class BinaryOp:

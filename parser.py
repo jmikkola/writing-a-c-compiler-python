@@ -24,17 +24,45 @@ class Parser:
         self.expect('(')
         self.expect('keyword', 'void')
         self.expect(')')
-        self.expect('{')
-        body = self.parse_statement()
-        self.expect('}')
+        body = self.parse_block()
         return syntax.Function(name=name.text, body=body)
+
+    def parse_block(self):
+        self.expect('{')
+        block_items = []
+        while not self.peek('}'):
+            block_items.append(self.parse_block_item())
+        self.expect('}')
+        return block_items
+
+    def parse_block_item(self) -> syntax.BlockItem:
+        if self.peek('keyword', 'int'):
+            return self.parse_declaration()
+        return self.parse_statement()
+
+    def parse_declaration(self) -> syntax.Declaration:
+        self.expect('keyword', 'int')
+        name_token = self.expect('identifier')
+        init = None
+        if self.peek('='):
+            self.expect('=')
+            init = self.parse_expression()
+        self.expect(';')
+        return syntax.Declaration(name_token.text, init)
 
     def parse_statement(self) -> syntax.Statement:
         ''' parse a single statement '''
         if self.peek('keyword', 'return'):
             return self.parse_return()
-        else:
-            self.fail('expected a statement')
+        if self.peek(';'):
+            self.consume()
+            return syntax.NullStatement()
+        return self.parse_expression_statement()
+
+    def parse_expression_statement(self) -> syntax.ExprStmt:
+        expr = self.parse_expression()
+        self.expect(';')
+        return syntax.ExprStmt(expr)
 
     def parse_return(self) -> syntax.Return:
         ''' parse a return statement '''
@@ -51,6 +79,7 @@ class Parser:
             '&&', '||',
             '<<', '>>',
             '<', '<=', '==', '!=', '>=', '>',
+            '=',
         ]
         left = self.parse_factor()
         while True:
@@ -60,12 +89,21 @@ class Parser:
             token_precedence = self.precedence(token.text)
             if token_precedence < min_prec:
                 break
-            op = self.parse_binary_op()
-            right = self.parse_expression(min_prec=token_precedence + 1)
-            left = syntax.Binary(op, left, right)
+
+            # Handle = differently because it is right-associative.
+            if self.peek('='):
+                self.expect('=')
+                right = self.parse_expression(min_prec=token_precedence)
+                return syntax.Assignment(lhs=left, rhs=right)
+            else:
+                op = self.parse_binary_op()
+                right = self.parse_expression(min_prec=token_precedence + 1)
+                left = syntax.Binary(op, left, right)
         return left
 
     def precedence(self, text):
+        if text == '=':
+            return 1
         if text == '||':
             return 31
         if text == '&&':
@@ -132,6 +170,9 @@ class Parser:
         ''' parse a factor (anything without a binary expression) '''
         if self.peek('constant'):
             return self.parse_constant()
+        if self.peek('identifier'):
+            token = self.consume()
+            return syntax.Variable(token.text)
         if self.peek('-') or self.peek('~') or self.peek('!'):
             return self.parse_unary_expression()
         if self.peek('('):
