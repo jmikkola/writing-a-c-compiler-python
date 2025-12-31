@@ -42,6 +42,16 @@ class Emit:
                 operation = self.convert_unary_operator(unary_operator)
                 operand = self.render_operand(operand)
                 self.indented(f'{operation} {operand}')
+            case assembly.Binary(binary_operator, src, dst):
+                operation = self.convert_binary_operator(binary_operator)
+                src = self.render_operand(src)
+                dst = self.render_operand(dst)
+                self.indented(f'{operation} {src}, {dst}')
+            case assembly.Cdq():
+                self.indented('cdq')
+            case assembly.Idiv(operand):
+                operand = self.render_operand(operand)
+                self.indented(f'idivl {operand}')
             case _:
                 raise Exception(f'unhandled instruction type {instruction}')
 
@@ -54,14 +64,29 @@ class Emit:
             case _:
                 raise Exception(f'unhandled unary operator {unary_operator}')
 
+    def convert_binary_operator(self, binary_operator: assembly.BinaryOperator) -> str:
+        match binary_operator:
+            case assembly.Add():
+                return 'addl'
+            case assembly.Sub():
+                return 'subl'
+            case assembly.Mult():
+                return 'imull'
+            case _:
+                raise Exception(f'invalid binary operation to convert to an instruction {binary_operator}')
+
     def render_operand(self, operand: assembly.Operand):
         match operand:
             case assembly.Immediate(value):
                 return '$' + str(value)
             case assembly.Register(reg='AX'):
                 return '%eax'
+            case assembly.Register(reg='DX'):
+                return '%edx'
             case assembly.Register(reg='R10'):
                 return '%r10d'
+            case assembly.Register(reg='R11'):
+                return '%r11d'
             case assembly.Pseudo():
                 raise Exception('bug - there should not be a pseudo register by this phase')
             case assembly.Stack(offset):
