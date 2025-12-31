@@ -45,7 +45,13 @@ class Parser:
 
     def parse_expression(self, min_prec=0) -> syntax.Expression:
         ''' parse an expression '''
-        operators = ['+', '-', '*', '/', '%', '&', '|', '^', '<<', '>>']
+        operators = [
+            '+', '-', '*', '/', '%',
+            '&', '|', '^',
+            '&&', '||',
+            '<<', '>>',
+            '<', '<=', '==', '!=', '>=', '>',
+        ]
         left = self.parse_factor()
         while True:
             token = self.peek()
@@ -60,17 +66,27 @@ class Parser:
         return left
 
     def precedence(self, text):
+        if text == '||':
+            return 31
+        if text == '&&':
+            return 32
         if text == '|':
             return 33
         if text == '^':
             return 34
         if text == '&':
             return 35
+        if text in ['==', '!=']:
+            return 38
+        if text in ['<', '<=', '>', '>=']:
+            return 39
         if text in ['<<', '>>']:
             return 40
         if text in ['+', '-']:
             return 45
-        return 50
+        if text in ['*', '%', '/']:
+            return 50
+        raise Exception(f'undefined precedence for {text}')
 
     def parse_binary_op(self) -> syntax.BinaryOp:
         token = self.consume()
@@ -94,13 +110,29 @@ class Parser:
             return syntax.ShiftLeft()
         if token.text == '>>':
             return syntax.ShiftRight()
+        if token.text == '<':
+            return syntax.Less()
+        if token.text == '<=':
+            return syntax.LessEqual()
+        if token.text == '>':
+            return syntax.Greater()
+        if token.text == '>=':
+            return syntax.GreaterEqual()
+        if token.text == '==':
+            return syntax.Equals()
+        if token.text == '!=':
+            return syntax.NotEquals()
+        if token.text == '&&':
+            return syntax.BinaryAnd()
+        if token.text == '||':
+            return syntax.BinaryOr()
         raise Exception(f'Unhandled binary op {token.text}')
 
     def parse_factor(self) -> syntax.Expression:
         ''' parse a factor (anything without a binary expression) '''
         if self.peek('constant'):
             return self.parse_constant()
-        if self.peek('-') or self.peek('~'):
+        if self.peek('-') or self.peek('~') or self.peek('!'):
             return self.parse_unary_expression()
         if self.peek('('):
             return self.paren_expression()
@@ -124,6 +156,8 @@ class Parser:
             return syntax.UnaryNegate()
         if token.text == '~':
             return syntax.UnaryInvert()
+        if token.text == '!':
+            return syntax.UnaryNot()
         raise Exception(f'unhandled unary operator {token.text}')
 
     def parse_constant(self) -> syntax.Constant:

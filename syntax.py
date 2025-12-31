@@ -34,10 +34,17 @@ class UnaryOp:
 
 
 class UnaryNegate(UnaryOp, namedtuple('UnaryNegate', [])):
+    ''' -n '''
     pass
 
 
 class UnaryInvert(UnaryOp, namedtuple('UnaryInvert', [])):
+    ''' ~n '''
+    pass
+
+
+class UnaryNot(UnaryOp, namedtuple('UnaryNot', [])):
+    ''' !n '''
     pass
 
 
@@ -86,4 +93,36 @@ class ShiftLeft(BinaryOp, namedtuple('ShiftLeft', [])):
 
 
 class ShiftRight(BinaryOp, namedtuple('ShiftRight', [])):
+    pass
+
+
+class Less(BinaryOp, namedtuple('Less', [])):
+    pass
+
+
+class LessEqual(BinaryOp, namedtuple('LessEqual', [])):
+    pass
+
+
+class Greater(BinaryOp, namedtuple('Greater', [])):
+    pass
+
+
+class GreaterEqual(BinaryOp, namedtuple('GreaterEqual', [])):
+    pass
+
+
+class Equals(BinaryOp, namedtuple('Equals', [])):
+    pass
+
+
+class NotEquals(BinaryOp, namedtuple('NotEquals', [])):
+    pass
+
+
+class BinaryAnd(BinaryOp, namedtuple('BinaryAnd', [])):
+    pass
+
+
+class BinaryOr(BinaryOp, namedtuple('BinaryOr', [])):
     pass
