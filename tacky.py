@@ -21,6 +21,30 @@ class Unary(Instruction, namedtuple('Unary', ['unary_operator', 'src', 'dst'])):
     pass
 
 
+class Binary(Instruction, namedtuple('Binary', ['operator', 'left', 'right', 'dst'])):
+    pass
+
+
+class Copy(Instruction, namedtuple('Copy', ['src', 'dst'])):
+    pass
+
+
+class Jump(Instruction, namedtuple('Jump', ['target'])):
+    pass
+
+
+class JumpIfZero(Instruction, namedtuple('JumpIfZero', ['condition', 'target'])):
+    pass
+
+
+class JumpIfNotZero(Instruction, namedtuple('JumpIfNotZero', ['condition', 'target'])):
+    pass
+
+
+class Label(Instruction, namedtuple('Label', ['name'])):
+    pass
+
+
 class Value:
     pass
 
@@ -45,7 +69,7 @@ class UnaryInvert(UnaryOp, namedtuple('UnaryInvert', [])):
     pass
 
 
-class Binary(Instruction, namedtuple('Binary', ['operator', 'left', 'right', 'dst'])):
+class UnaryNot(UnaryOp, namedtuple('UnaryNot', [])):
     pass
 
 
@@ -90,4 +114,36 @@ class ShiftLeft(BinaryOp, namedtuple('ShiftLeft', [])):
 
 
 class ShiftRight(BinaryOp, namedtuple('ShiftRight', [])):
+    pass
+
+
+class Less(BinaryOp, namedtuple('Less', [])):
+    pass
+
+
+class LessEqual(BinaryOp, namedtuple('LessEqual', [])):
+    pass
+
+
+class Greater(BinaryOp, namedtuple('Greater', [])):
+    pass
+
+
+class GreaterEqual(BinaryOp, namedtuple('GreaterEqual', [])):
+    pass
+
+
+class Equals(BinaryOp, namedtuple('Equals', [])):
+    pass
+
+
+class NotEquals(BinaryOp, namedtuple('NotEquals', [])):
+    pass
+
+
+class BinaryAnd(BinaryOp, namedtuple('BinaryAnd', [])):
+    pass
+
+
+class BinaryOr(BinaryOp, namedtuple('BinaryOr', [])):
     pass
