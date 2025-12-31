@@ -70,6 +70,16 @@ class ToTacky:
                 return tacky.BinaryDivide()
             case syntax.BinaryRemainder():
                 return tacky.BinaryRemainder()
+            case syntax.BitOr():
+                return tacky.BitOr()
+            case syntax.BitAnd():
+                return tacky.BitAnd()
+            case syntax.BitXor():
+                return tacky.BitXor()
+            case syntax.ShiftLeft():
+                return tacky.ShiftLeft()
+            case syntax.ShiftRight():
+                return tacky.ShiftRight()
             case _:
                 raise Exception(f'unhandled binary operator {op}')
 

@@ -72,6 +72,16 @@ class Emit:
                 return 'subl'
             case assembly.Mult():
                 return 'imull'
+            case assembly.BitAnd():
+                return 'andl'
+            case assembly.BitOr():
+                return 'orl'
+            case assembly.BitXor():
+                return 'xorl'
+            case assembly.ShiftLeft():
+                return 'sall'
+            case assembly.ShiftRight():
+                return 'sarl'
             case _:
                 raise Exception(f'invalid binary operation to convert to an instruction {binary_operator}')
 
@@ -81,6 +91,8 @@ class Emit:
                 return '$' + str(value)
             case assembly.Register(reg='AX'):
                 return '%eax'
+            case assembly.Register(reg='CX'):
+                return '%ecx'
             case assembly.Register(reg='DX'):
                 return '%edx'
             case assembly.Register(reg='R10'):

@@ -61,6 +61,26 @@ class Mult(BinaryOperator, namedtuple('Mult', [])):
     pass
 
 
+class BitAnd(BinaryOperator, namedtuple('BitAnd', [])):
+    pass
+
+
+class BitOr(BinaryOperator, namedtuple('BitOr', [])):
+    pass
+
+
+class BitXor(BinaryOperator, namedtuple('BitXor', [])):
+    pass
+
+
+class ShiftLeft(BinaryOperator, namedtuple('ShiftLeft', [])):
+    pass
+
+
+class ShiftRight(BinaryOperator, namedtuple('ShiftRight', [])):
+    pass
+
+
 class Idiv(Instruction, namedtuple('Idiv', ['operand'])):
     pass
 

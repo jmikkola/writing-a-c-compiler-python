@@ -45,10 +45,11 @@ class Parser:
 
     def parse_expression(self, min_prec=0) -> syntax.Expression:
         ''' parse an expression '''
+        operators = ['+', '-', '*', '/', '%', '&', '|', '^', '<<', '>>']
         left = self.parse_factor()
         while True:
             token = self.peek()
-            if token.text not in ['+', '-', '*', '/', '%']:
+            if token.text not in operators:
                 break
             token_precedence = self.precedence(token.text)
             if token_precedence < min_prec:
@@ -59,6 +60,14 @@ class Parser:
         return left
 
     def precedence(self, text):
+        if text == '|':
+            return 33
+        if text == '^':
+            return 34
+        if text == '&':
+            return 35
+        if text in ['<<', '>>']:
+            return 40
         if text in ['+', '-']:
             return 45
         return 50
@@ -75,6 +84,16 @@ class Parser:
             return syntax.BinaryDivide()
         if token.text == '%':
             return syntax.BinaryRemainder()
+        if token.text == '|':
+            return syntax.BitOr()
+        if token.text == '&':
+            return syntax.BitAnd()
+        if token.text == '^':
+            return syntax.BitXor()
+        if token.text == '<<':
+            return syntax.ShiftLeft()
+        if token.text == '>>':
+            return syntax.ShiftRight()
         raise Exception(f'Unhandled binary op {token.text}')
 
     def parse_factor(self) -> syntax.Expression:

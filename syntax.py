@@ -67,3 +67,23 @@ class BinaryDivide(BinaryOp, namedtuple('BinaryDivide', [])):
 
 class BinaryRemainder(BinaryOp, namedtuple('BinaryRemainder', [])):
     pass
+
+
+class BitAnd(BinaryOp, namedtuple('BitAnd', [])):
+    pass
+
+
+class BitOr(BinaryOp, namedtuple('BitOr', [])):
+    pass
+
+
+class BitXor(BinaryOp, namedtuple('BitXor', [])):
+    pass
+
+
+class ShiftLeft(BinaryOp, namedtuple('ShiftLeft', [])):
+    pass
+
+
+class ShiftRight(BinaryOp, namedtuple('ShiftRight', [])):
+    pass

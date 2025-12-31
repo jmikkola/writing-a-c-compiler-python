@@ -83,20 +83,20 @@ class Codegen:
                         assembly.Idiv(r10),
                     ])
 
-                case assembly.Binary(
-                        assembly.Add() | assembly.Sub() as op,
-                        assembly.Stack(_) as src,
-                        assembly.Stack(_) as dst):
-                    updated_instructions.extend([
-                        assembly.Mov(src, r10),
-                        assembly.Binary(op, r10, dst),
-                    ])
-
                 case assembly.Binary(assembly.Mult() as op, src, assembly.Stack(_) as dst):
+                    # It's important that Mult is handled differently from other
+                    # binary operations because it can't have a memory address
+                    # in the destination
                     updated_instructions.extend([
                         assembly.Mov(dst, r11),
                         assembly.Binary(op, src, r11),
                         assembly.Mov(r11, dst),
+                    ])
+
+                case assembly.Binary(op, assembly.Stack(_) as src, assembly.Stack(_) as dst):
+                    updated_instructions.extend([
+                        assembly.Mov(src, r10),
+                        assembly.Binary(op, r10, dst),
                     ])
 
                 case _:
@@ -158,6 +158,19 @@ class Codegen:
                     assembly.Mov(left, dst),
                     assembly.Binary(op, right, dst),
                 ]
+            case tacky.BitOr() | tacky.BitXor() | tacky.BitAnd():
+                op = self.convert_binary_operator(instr.operator)
+                return [
+                    assembly.Mov(left, dst),
+                    assembly.Binary(op, right, dst),
+                ]
+            case tacky.ShiftLeft() | tacky.ShiftRight():
+                op = self.convert_binary_operator(instr.operator)
+                return [
+                    assembly.Mov(left, dst),
+                    assembly.Mov(right, assembly.Register('CX')),
+                    assembly.Binary(op, assembly.Register('CX'), dst),
+                ]
             case tacky.BinaryDivide():
                 return [
                     assembly.Mov(left, assembly.Register('AX')),
@@ -183,6 +196,16 @@ class Codegen:
                 return assembly.Sub()
             case tacky.BinaryMultiply():
                 return assembly.Mult()
+            case tacky.BitOr():
+                return assembly.BitOr()
+            case tacky.BitAnd():
+                return assembly.BitAnd()
+            case tacky.BitXor():
+                return assembly.BitXor()
+            case tacky.ShiftLeft():
+                return assembly.ShiftLeft()
+            case tacky.ShiftRight():
+                return assembly.ShiftRight()
             case _:
                 raise Exception(f'invalid op to convert to assembly binary op {op}')
 
