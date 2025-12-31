@@ -3,6 +3,7 @@ import subprocess
 
 import lexer
 import parser
+import validator
 import to_ir
 import codegen
 import emit
@@ -46,6 +47,12 @@ def compile(stage, preprocessed_file, assembly_file, print_output):
 
     syntax = parser.parse(tokens)
     if stage == 'parse':
+        if print_output:
+            print(syntax)
+        return
+
+    syntax = validator.validate(syntax)
+    if stage == 'validate':
         if print_output:
             print(syntax)
         return
