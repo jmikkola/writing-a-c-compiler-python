@@ -2,15 +2,19 @@ from collections import namedtuple
 
 
 class Program(namedtuple('Program', ['function_definition'])):
-    pass
+    def pretty_print(self):
+        return self.function_definition.pretty_print()
 
 
 class Function(namedtuple('Function', ['name', 'instructions'])):
-    pass
+    def pretty_print(self):
+        return f'function {self.name}():\n' + \
+            '\n'.join(i.pretty_print() for i in self.instructions)
 
 
 class Instruction:
-    pass
+    def pretty_print(self):
+        return '  ' + str(self)
 
 
 class Ret(Instruction, namedtuple('Ret', [])):

@@ -19,7 +19,7 @@ class ToTacky:
         return tacky.Identifier(name)
 
     def new_label(self, name):
-        name = f'L_{name}_{self.n_labels}'
+        name = f'_{name}_{self.n_labels}'
         self.n_labels += 1
         return name
 

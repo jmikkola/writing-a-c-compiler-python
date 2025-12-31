@@ -171,7 +171,7 @@ class Codegen:
         src = self.convert_operand(instr.src)
         dst = self.convert_operand(instr.dst)
 
-        if instr.unary_operator == tacky.UnaryNot():
+        if isinstance(instr.unary_operator, tacky.UnaryNot):
             return [
                 assembly.Cmp(assembly.Immediate(0), src),
                 # Zero the destination because the 'set' instruction only

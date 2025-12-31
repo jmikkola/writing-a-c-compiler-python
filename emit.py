@@ -2,6 +2,20 @@ import assembly
 
 
 INDENT = '    '
+BYTE_REGISTERS = {
+    'AX': '%al',
+    'CX': '%cl',
+    'DX': '%dl',
+    'R10': '%r10b',
+    'R11': '%r11b',
+}
+REGISTERS = {
+    'AX': '%eax',
+    'CX': '%ecx',
+    'DX': '%edx',
+    'R10': '%r10d',
+    'R11': '%r11d',
+}
 
 
 def emit(program: assembly.Program, output_name: str):
@@ -52,8 +66,29 @@ class Emit:
             case assembly.Idiv(operand):
                 operand = self.render_operand(operand)
                 self.indented(f'idivl {operand}')
+            case assembly.Cmp(left, right):
+                left = self.render_operand(left)
+                right = self.render_operand(right)
+                self.indented(f'cmpl {left}, {right}')
+            case assembly.Jmp(label):
+                label = self.add_label_prefix(label)
+                self.indented(f'jmp {label}')
+            case assembly.JmpCC(cond_code, label):
+                cond = cond_code.lower()
+                label = self.add_label_prefix(label)
+                self.indented(f'j{cond} {label}')
+            case assembly.SetCC(cond_code, operand):
+                cond = cond_code.lower()
+                operand = self.render_operand(operand, byte_size=True)
+                self.indented(f'set{cond} {operand}')
+            case assembly.Label(label):
+                label = self.add_label_prefix(label)
+                self.line(label + ':')
             case _:
                 raise Exception(f'unhandled instruction type {instruction}')
+
+    def add_label_prefix(self, name):
+        return '.L' + name
 
     def convert_unary_operator(self, unary_operator: assembly.UnaryOperator) -> str:
         match unary_operator:
@@ -85,20 +120,15 @@ class Emit:
             case _:
                 raise Exception(f'invalid binary operation to convert to an instruction {binary_operator}')
 
-    def render_operand(self, operand: assembly.Operand):
+    def render_operand(self, operand: assembly.Operand, byte_size=False):
         match operand:
             case assembly.Immediate(value):
                 return '$' + str(value)
-            case assembly.Register(reg='AX'):
-                return '%eax'
-            case assembly.Register(reg='CX'):
-                return '%ecx'
-            case assembly.Register(reg='DX'):
-                return '%edx'
-            case assembly.Register(reg='R10'):
-                return '%r10d'
-            case assembly.Register(reg='R11'):
-                return '%r11d'
+            case assembly.Register(reg):
+                if byte_size:
+                    return BYTE_REGISTERS[reg]
+                else:
+                    return REGISTERS[reg]
             case assembly.Pseudo():
                 raise Exception('bug - there should not be a pseudo register by this phase')
             case assembly.Stack(offset):

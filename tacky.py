@@ -2,15 +2,19 @@ from collections import namedtuple
 
 
 class Program(namedtuple('Program', ['function_definition'])):
-    pass
+    def pretty_print(self):
+        return self.function_definition.pretty_print()
 
 
 class Function(namedtuple('Function', ['name', 'body'])):
-    pass
+    def pretty_print(self):
+        return f'function {self.name}():\n' + \
+            '\n'.join(instr.pretty_print() for instr in self.body)
 
 
 class Instruction:
-    pass
+    def pretty_print(self):
+        return '  ' + str(self)
 
 
 class Return(Instruction, namedtuple('Constant', ['val'])):
