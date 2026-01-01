@@ -45,6 +45,11 @@ class ToTacky:
                 return []
             case syntax.IfStatement(_, _, _):
                 return self.convert_if(body)
+            case syntax.Goto(label):
+                return [tacky.Jump(label)]
+            case syntax.LabeledStmt(label, stmt):
+                instructions = self.convert_instructions(stmt)
+                return [tacky.Label(label)] + instructions
             case syntax.Declaration(name, init):
                 return self.convert_declaration(name, init)
             case _:

@@ -2,11 +2,12 @@ import syntax
 
 
 def validate(program: syntax.Program) -> syntax.Program:
-    v = Validator()
-    return v.validate(program)
+    program = VariableValidator().validate(program)
+    program = LabelValidator().validate(program)
+    return program
 
 
-class Validator:
+class VariableValidator:
     def __init__(self):
         self._n_vars = 0
 
@@ -25,12 +26,12 @@ class Validator:
     def validate_function(self, function: syntax.Function):
         variable_map = {}
         body = [
-            self.block_item(b, variable_map)
+            self.validate_statements(b, variable_map)
             for b in function.body
         ]
         return syntax.Function(function.name, body)
 
-    def block_item(self, block_item: syntax.BlockItem, variable_map: dict):
+    def validate_statements(self, block_item: syntax.BlockItem, variable_map: dict):
         match block_item:
             case syntax.Declaration(name, init):
                 if name in variable_map:
@@ -49,10 +50,15 @@ class Validator:
                 return block_item
             case syntax.IfStatement(test, t, e):
                 test = self.resolve_expr(test, variable_map)
-                t = self.block_item(t, variable_map)
+                t = self.validate_statements(t, variable_map)
                 if e:
-                    e = self.block_item(e, variable_map)
+                    e = self.validate_statements(e, variable_map)
                 return syntax.IfStatement(test, t, e)
+            case syntax.Goto(_):
+                return block_item
+            case syntax.LabeledStmt(label, stmt):
+                stmt = self.validate_statements(stmt, variable_map)
+                return syntax.LabeledStmt(label, stmt)
             case _:
                 raise Exception(f'unhandled type of block item {block_item}')
 
@@ -105,6 +111,50 @@ class Validator:
                 return True
             case _:
                 return False
+
+class LabelValidator:
+    def error(self, msg):
+        raise ValidationError(msg)
+
+    def validate(self, program):
+        function = self.validate_function(program.function_definition)
+        return syntax.Program(function)
+
+    def validate_function(self, function: syntax.Function):
+        labels_declared = set()
+        labels_used = set()
+        body = [
+            self.validate_statements(b, labels_declared, labels_used)
+            for b in function.body
+        ]
+        labels_not_defined = labels_used - labels_declared
+        if labels_not_defined:
+            self.error(f'labels are not defined: {labels_not_defined}')
+        return syntax.Function(function.name, body)
+
+    def validate_statements(self, block_item: syntax.BlockItem, labels_declared: set, labels_used: set):
+        match block_item:
+            case syntax.Declaration(_, _) | \
+                 syntax.Return(_) | \
+                 syntax.ExprStmt(_) | \
+                 syntax.NullStatement():
+                return block_item
+            case syntax.IfStatement(test, t, e):
+                t = self.validate_statements(t, labels_declared, labels_used)
+                if e:
+                    e = self.validate_statements(e, labels_declared, labels_used)
+                return syntax.IfStatement(test, t, e)
+            case syntax.Goto(label):
+                labels_used.add(label)
+                return block_item
+            case syntax.LabeledStmt(label, stmt):
+                if label in labels_declared:
+                    self.error(f'Duplicate definition of the label {label}')
+                labels_declared.add(label)
+                stmt = self.validate_statements(stmt, labels_declared, labels_used)
+                return syntax.LabeledStmt(label, stmt)
+            case _:
+                raise Exception(f'unhandled type of block item {block_item}')
 
 
 class ValidationError(Exception):

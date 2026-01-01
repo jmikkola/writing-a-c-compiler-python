@@ -1,5 +1,6 @@
 import pathlib
 import subprocess
+import sys
 
 import lexer
 import parser
@@ -19,7 +20,12 @@ def run_compiler(name, stage, print_output=False):
         to_clean_up.append(assembly_file)
 
     preprocess(name, preprocessed_file)
-    compile(stage, preprocessed_file, assembly_file, print_output)
+    try:
+        compile(stage, preprocessed_file, assembly_file, print_output)
+    except Exception as e:
+        print(e, file=sys.stderr)
+        sys.exit(1)
+
     if stage == 'all':
         assemble_and_link(assembly_file, compiled_file)
 
@@ -48,7 +54,7 @@ def compile(stage, preprocessed_file, assembly_file, print_output):
     syntax = parser.parse(tokens)
     if stage == 'parse':
         if print_output:
-            print(syntax)
+            print('\n'.join(syntax.pretty_print()))
         return
 
     syntax = validator.validate(syntax)

@@ -58,10 +58,20 @@ class Parser:
             return self.parse_return()
         if self.peek('keyword', 'if'):
             return self.parse_if()
+        if self.peek('keyword', 'goto'):
+            return self.parse_goto()
+        if self.peek('identifier') and self.peek(':', offset=1):
+            return self.parse_labeled_stmt()
         if self.peek(';'):
             self.consume()
             return syntax.NullStatement()
         return self.parse_expression_statement()
+
+    def parse_labeled_stmt(self) -> syntax.LabeledStmt:
+        label = self.expect('identifier').text
+        self.expect(':')
+        stmt = self.parse_statement()
+        return syntax.LabeledStmt(label, stmt)
 
     def parse_expression_statement(self) -> syntax.ExprStmt:
         expr = self.parse_expression()
@@ -74,6 +84,12 @@ class Parser:
         expression = self.parse_expression()
         self.expect(';')
         return syntax.Return(expr=expression)
+
+    def parse_goto(self) -> syntax.Goto:
+        self.expect('keyword', 'goto')
+        label = self.expect('identifier').text
+        self.expect(';')
+        return syntax.Goto(label)
 
     def parse_if(self) -> syntax.IfStatement:
         self.expect('keyword', 'if')
@@ -262,8 +278,8 @@ class Parser:
         value = int(const.text)
         return syntax.Constant(value=value)
 
-    def peek(self, kind=None, value=None):
-        return self.token_iter.peek(kind, value)
+    def peek(self, kind=None, value=None, offset=0):
+        return self.token_iter.peek(kind, value, offset)
 
     def expect(self, kind, value=None):
         return self.token_iter.expect(self, kind, value)
@@ -298,16 +314,16 @@ class TokenIterator:
         self.tokens = tokens
         self.next_token = 0
 
-    def at_end(self):
-        return self.next_token >= len(self.tokens)
+    def at_end(self, offset=0):
+        return self.next_token + offset >= len(self.tokens)
 
     def _next(self):
         return self.tokens[self.next_token]
 
-    def peek(self, kind=None, value=None):
-        if self.at_end():
+    def peek(self, kind=None, value=None, offset=0):
+        if self.at_end(offset):
             return None
-        token = self._next()
+        token = self.tokens[self.next_token + offset]
         if kind is not None and token.kind != kind:
             return None
         if value is not None and token.text != value:
@@ -334,7 +350,7 @@ class TokenIterator:
 
     def recent(self):
         start = max(0, self.next_token - 5)
-        return self.parsed_tokens[start:self.next_token]
+        return self.tokens[start:self.next_token]
 
 
 class SyntaxError(Exception):

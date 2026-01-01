@@ -1,16 +1,24 @@
 from collections import namedtuple
 
 
+def indent(lines):
+    return ['  ' + line for line in lines]
+
+
 class Program(namedtuple('Program', ['function_definition'])):
-    pass
+    def pretty_print(self):
+        return self.function_definition.pretty_print()
 
 
 class Function(namedtuple('Function', ['name', 'body'])):
-    pass
+    def pretty_print(self):
+        body = [line for bi in self.body for line in bi.pretty_print()]
+        return [f'function {self.name}():'] + indent(body)
 
 
 class BlockItem:
-    pass
+    def pretty_print(self):
+        return [str(self)]
 
 
 class Declaration(BlockItem, namedtuple('Declaration', ['name', 'init'])):
@@ -37,6 +45,14 @@ class NullStatement(Statement, namedtuple('NullStatement', [])):
 
 
 class IfStatement(Statement, namedtuple('IfStatement', ['condition', 't', 'e'])):
+    pass
+
+
+class Goto(Statement, namedtuple('Goto', ['label'])):
+    pass
+
+
+class LabeledStmt(Statement, namedtuple('LabeledExpr', ['label', 'stmt'])):
     pass
 
 ##
