@@ -11,8 +11,7 @@ ASSIGNMENT_OPS = ['=', '>>=', '<<=', '+=', '-=', '*=', '/=', '%=', '&=', '|=', '
 
 class Parser:
     def __init__(self, tokens):
-        self.tokens = tokens
-        self.parsed_tokens = []
+        self.token_iter = TokenIterator(tokens)
 
     def parse(self) -> syntax.Program:
         ''' parse a program '''
@@ -264,6 +263,42 @@ class Parser:
         return syntax.Constant(value=value)
 
     def peek(self, kind=None, value=None):
+        return self.token_iter.peek(kind, value)
+
+    def expect(self, kind, value=None):
+        return self.token_iter.expect(self, kind, value)
+
+    def consume(self):
+        return self.token_iter.consume(self)
+
+    def must_eof(self):
+        return self.token_iter.must_eof(self)
+
+    def fail(self, message, expected=None, value=None):
+        msg = 'Syntax error: ' + message
+        if value:
+            msg += f'\n  expected {value}'
+        elif expected:
+            msg += f'\n  expected a {expected}'
+
+        current = self.peek()
+        if current:
+            msg += f'\n  got {current.text}'
+
+        recent = self.token_iter.recent()
+        recent_text = ' '.join(r.text for r in recent)
+        if recent_text:
+            msg += f'\n  after {recent_text}'
+
+        raise SyntaxError(msg)
+
+
+class TokenIterator:
+    def __init__(self, tokens):
+        self.tokens = tokens
+        self.parsed_tokens = []
+
+    def peek(self, kind=None, value=None):
         if not self.tokens:
             return None
         token = self.tokens[0]
@@ -273,15 +308,15 @@ class Parser:
             return None
         return token
 
-    def expect(self, kind, value=None):
+    def expect(self, parser, kind, value=None):
         token = self.peek(kind, value)
         if token is None:
-            self.fail('syntax error', kind, value)
+            parser.fail('syntax error', kind, value)
         self.tokens = self.tokens[1:]
         self.parsed_tokens.append(token)
         return token
 
-    def consume(self):
+    def consume(self, parser):
         if not self.tokens:
             self.fail('unexpected EOF')
         token = self.tokens[0]
@@ -289,26 +324,12 @@ class Parser:
         self.parsed_tokens.append(token)
         return token
 
-    def must_eof(self):
+    def must_eof(self, parser):
         if self.tokens:
-            self.fail('extra junk', 'EOF')
+            parser.fail('extra junk', 'EOF')
 
-    def fail(self, message, expected=None, value=None):
-        msg = 'Syntax error: ' + message
-        if value:
-            msg += f'\n  expected {value}'
-        elif expected:
-            msg += f'\n  expected a {expected}'
-
-        if self.tokens:
-            msg += f'\n  got {self.tokens[0].text}'
-
-        recent = self.parsed_tokens[-5:]
-        recent_text = ' '.join(r.text for r in recent)
-        if recent_text:
-            msg += f'\n  after {recent_text}'
-
-        raise SyntaxError(msg)
+    def recent(self):
+        return self.parsed_tokens[-5:]
 
 
 class SyntaxError(Exception):
