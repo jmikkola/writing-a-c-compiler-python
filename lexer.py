@@ -11,7 +11,7 @@ LINE_COMMENT = re.compile(r'//[^\n]*\n?')
 # The *? is non-greedy, so it will stop at the first */ not the last one
 MULTILINE_COMENT = re.compile(r'/\*.*?\*/')
 
-KEYWORDS = ['int', 'void', 'return']
+KEYWORDS = ['int', 'void', 'return', 'if', 'else']
 
 THREE_PART_SYMBOLS = [
     '>>=', '<<=',
@@ -24,7 +24,12 @@ TWO_PART_SYMBOLS = [
     '+=', '-=', '*=', '/=', '%=',
     '&=', '|=', '^=',
 ]
-PUNCTUATION = ['(', ')', '{', '}', ';', '+', '-', '*', '/', '%', '~', '&', '|', '^', '!', '<', '>', '=']
+PUNCTUATION = [
+    '(', ')', '{', '}', ';',
+    '+', '-', '*', '/', '%', '~',
+    '&', '|', '^', '!', '<', '>',
+    '=', '?', ':',
+]
 
 
 def tokenize(text):
