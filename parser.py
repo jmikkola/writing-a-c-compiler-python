@@ -1,4 +1,5 @@
 import syntax
+from errors import SyntaxError
 
 
 def parse(tokens):
@@ -29,13 +30,13 @@ class Parser:
         body = self.parse_block()
         return syntax.Function(name=name.text, body=body)
 
-    def parse_block(self):
+    def parse_block(self) -> syntax.Block:
         self.expect('{')
         block_items = []
         while not self.peek('}'):
             block_items.append(self.parse_block_item())
         self.expect('}')
-        return block_items
+        return syntax.Block(block_items)
 
     def parse_block_item(self) -> syntax.BlockItem:
         if self.peek('keyword', 'int'):
@@ -65,6 +66,9 @@ class Parser:
         if self.peek(';'):
             self.consume()
             return syntax.NullStatement()
+        if self.peek('{'):
+            block = self.parse_block()
+            return syntax.Compound(block)
         return self.parse_expression_statement()
 
     def parse_labeled_stmt(self) -> syntax.LabeledStmt:
@@ -351,7 +355,3 @@ class TokenIterator:
     def recent(self):
         start = max(0, self.next_token - 5)
         return self.tokens[start:self.next_token]
-
-
-class SyntaxError(Exception):
-    pass

@@ -28,11 +28,15 @@ class ToTacky:
         return tacky.Program(function_definition=function)
 
     def convert_function(self, function: syntax.Function) -> tacky.Function:
-        instructions = []
-        for block_item in function.body:
-            instructions.extend(self.convert_instructions(block_item))
+        instructions = self.convert_block(function.body)
         instructions.append(tacky.Return(tacky.Constant(0)))
         return tacky.Function(name=function.name, body=instructions)
+
+    def convert_block(self, block: syntax.Block):
+        instructions = []
+        for block_item in block.block_items:
+            instructions.extend(self.convert_instructions(block_item))
+        return instructions
 
     def convert_instructions(self, body: syntax.BlockItem) -> list:
         match body:
@@ -52,6 +56,8 @@ class ToTacky:
                 return [tacky.Label(label)] + instructions
             case syntax.Declaration(name, init):
                 return self.convert_declaration(name, init)
+            case syntax.Compound(block):
+                return self.convert_block(block)
             case _:
                 raise Exception(f'unhandled statement type, {body}')
 

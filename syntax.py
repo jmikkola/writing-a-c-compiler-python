@@ -12,9 +12,14 @@ class Program(namedtuple('Program', ['function_definition'])):
 
 class Function(namedtuple('Function', ['name', 'body'])):
     def pretty_print(self):
-        body = [line for bi in self.body for line in bi.pretty_print()]
-        return [f'function {self.name}():'] + indent(body)
+        body = self.body.pretty_print()
+        body[0] = f'function {self.name}() ' + body[0]
+        return body
 
+class Block(namedtuple('Block', ['block_items'])):
+    def pretty_print(self):
+        inner = [line for bi in self.block_items for line in bi.pretty_print()]
+        return ['{'] + indent(inner) + ['}']
 
 class BlockItem:
     def pretty_print(self):
@@ -32,6 +37,12 @@ class Statement(BlockItem):
     pass
 
 
+class Compound(Statement, namedtuple('Compound', ['block'])):
+    ''' take a Block() as block '''
+    def pretty_print(self):
+        return self.block.pretty_print()
+
+
 class Return(Statement, namedtuple('Return', ['expr'])):
     pass
 
@@ -45,7 +56,22 @@ class NullStatement(Statement, namedtuple('NullStatement', [])):
 
 
 class IfStatement(Statement, namedtuple('IfStatement', ['condition', 't', 'e'])):
-    pass
+    def pretty_print(self):
+        first_line = f'if {self.condition.pretty_print()} '
+        lines = self.t.pretty_print()
+        if len(lines) > 1:
+            lines[0] = first_line + lines[0].strip()
+        else:
+            lines = [first_line] + indent(lines)
+        if self.e:
+            e_lines = self.e.pretty_print()
+            if len(e_lines) > 1:
+                e_lines[0] = 'else ' + e_lines[0]
+                lines += e_lines
+            else:
+                lines += ['else']
+                lines += indent(e_lines)
+        return lines
 
 
 class Goto(Statement, namedtuple('Goto', ['label'])):
@@ -53,14 +79,16 @@ class Goto(Statement, namedtuple('Goto', ['label'])):
 
 
 class LabeledStmt(Statement, namedtuple('LabeledExpr', ['label', 'stmt'])):
-    pass
+    def pretty_print(self):
+        return [f'label {self.label}:'] + self.stmt.pretty_print()
 
 ##
 ## Expressions
 ##
 
 class Expression:
-    pass
+    def pretty_print(self):
+        return str(self)
 
 
 class Constant(Expression, namedtuple('Constant', ['value'])):

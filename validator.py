@@ -1,10 +1,27 @@
+from collections import namedtuple
+
 import syntax
+from errors import ValidationError
 
 
 def validate(program: syntax.Program) -> syntax.Program:
     program = VariableValidator().validate(program)
     program = LabelValidator().validate(program)
     return program
+
+
+
+class MapEntry(namedtuple('MapEntry', ['new_name', 'from_current_block'])):
+    ''' for VariableValidator to track where a variable is from '''
+    def mark_old(self):
+        return MapEntry(self.new_name, False)
+
+
+def copy_variable_map(variable_map: dict) -> dict:
+    return {
+        name: entry.mark_old()
+        for (name, entry) in variable_map.items()
+    }
 
 
 class VariableValidator:
@@ -25,21 +42,26 @@ class VariableValidator:
 
     def validate_function(self, function: syntax.Function):
         variable_map = {}
-        body = [
-            self.validate_statements(b, variable_map)
-            for b in function.body
-        ]
+        body = self.validate_block(function.body, variable_map)
         return syntax.Function(function.name, body)
+
+    def validate_block(self, block: syntax.Block, variable_map: dict):
+        inner_variable_map = copy_variable_map(variable_map)
+        block_items = [
+            self.validate_statements(b, inner_variable_map)
+            for b in block.block_items
+        ]
+        return syntax.Block(block_items)
 
     def validate_statements(self, block_item: syntax.BlockItem, variable_map: dict):
         match block_item:
             case syntax.Declaration(name, init):
-                if name in variable_map:
+                if name in variable_map and variable_map[name].from_current_block:
                     self.error(f'{name} already declared')
-                variable_map[name] = self.make_unique(name)
+                variable_map[name] = MapEntry(self.make_unique(name), True)
                 if init:
                     init = self.resolve_expr(init, variable_map)
-                return syntax.Declaration(variable_map[name], init)
+                return syntax.Declaration(variable_map[name].new_name, init)
             case syntax.Return(expr):
                 expr = self.resolve_expr(expr, variable_map)
                 return syntax.Return(expr)
@@ -59,6 +81,9 @@ class VariableValidator:
             case syntax.LabeledStmt(label, stmt):
                 stmt = self.validate_statements(stmt, variable_map)
                 return syntax.LabeledStmt(label, stmt)
+            case syntax.Compound(block):
+                block = self.validate_block(block, variable_map)
+                return syntax.Compound(block)
             case _:
                 raise Exception(f'unhandled type of block item {block_item}')
 
@@ -69,7 +94,7 @@ class VariableValidator:
             case syntax.Variable(name):
                 if name not in variable_map:
                     self.error(f'undefined variable {name}')
-                return syntax.Variable(variable_map[name])
+                return syntax.Variable(variable_map[name].new_name)
             case syntax.Unary(op, expr):
                 if self.is_modifying_operator(op) and not self.is_variable(expr):
                     self.error(f'invaild to apply {op} to {expr}')
@@ -123,14 +148,21 @@ class LabelValidator:
     def validate_function(self, function: syntax.Function):
         labels_declared = set()
         labels_used = set()
-        body = [
-            self.validate_statements(b, labels_declared, labels_used)
-            for b in function.body
-        ]
+
+        body = self.validate_block(function.body, labels_declared, labels_used)
+
         labels_not_defined = labels_used - labels_declared
         if labels_not_defined:
             self.error(f'labels are not defined: {labels_not_defined}')
+
         return syntax.Function(function.name, body)
+
+    def validate_block(self, block: syntax.Block, labels_declared, labels_used):
+        block_items = [
+            self.validate_statements(b, labels_declared, labels_used)
+            for b in block.block_items
+        ]
+        return syntax.Block(block_items)
 
     def validate_statements(self, block_item: syntax.BlockItem, labels_declared: set, labels_used: set):
         match block_item:
@@ -153,9 +185,9 @@ class LabelValidator:
                 labels_declared.add(label)
                 stmt = self.validate_statements(stmt, labels_declared, labels_used)
                 return syntax.LabeledStmt(label, stmt)
+            case syntax.Compound(block):
+                block = self.validate_block(block, labels_declared, labels_used)
+                return syntax.Compound(block)
             case _:
                 raise Exception(f'unhandled type of block item {block_item}')
 
-
-class ValidationError(Exception):
-    pass

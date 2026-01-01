@@ -8,6 +8,7 @@ import validator
 import to_ir
 import codegen
 import emit
+from errors import WACCException
 
 
 def run_compiler(name, stage, print_output=False):
@@ -22,7 +23,7 @@ def run_compiler(name, stage, print_output=False):
     preprocess(name, preprocessed_file)
     try:
         compile(stage, preprocessed_file, assembly_file, print_output)
-    except Exception as e:
+    except WACCException as e:
         print(e, file=sys.stderr)
         sys.exit(1)
 
