@@ -43,6 +43,8 @@ class ToTacky:
                 return instructions
             case syntax.NullStatement():
                 return []
+            case syntax.IfStatement(_, _, _):
+                return self.convert_if(body)
             case syntax.Declaration(name, init):
                 return self.convert_declaration(name, init)
             case _:
@@ -53,6 +55,20 @@ class ToTacky:
             return []
         instructions, result = self.convert_expression(init)
         instructions.append(tacky.Copy(result, tacky.Identifier(name)))
+        return instructions
+
+    def convert_if(self, stmt: syntax.IfStatement) -> list:
+        after_then = self.new_label('if_false')
+        after_else = self.new_label('if_end')
+        instructions, val = self.convert_expression(stmt.condition)
+        instructions.append(tacky.JumpIfZero(val, after_then))
+        instructions += self.convert_instructions(stmt.t)
+        if stmt.e:
+            instructions.append(tacky.Jump(after_else))
+        instructions.append(tacky.Label(after_then))
+        if stmt.e:
+            instructions += self.convert_instructions(stmt.e)
+            instructions.append(tacky.Label(after_else))
         return instructions
 
     def convert_return(self, stmt: syntax.Return) -> list:
@@ -164,8 +180,32 @@ class ToTacky:
                 instructions = instructions_left + instructions_right + [instruction]
                 return (instructions, result_var)
 
+            case syntax.Conditional(_, _, _):
+                return self.convert_conditional(expr)
+
             case _:
                 raise Exception(f'unhandled expression type, {expr}')
+
+    def convert_conditional(self, expr: syntax.Conditional):
+        false_label = self.new_label('cond_false')
+        end_label = self.new_label('cond_end')
+        result_var = self.new_temp_var()
+
+        instructions, val = self.convert_expression(expr.condition)
+        instructions.append(tacky.JumpIfZero(val, false_label))
+
+        t_instructions, t_val = self.convert_expression(expr.t)
+        instructions += t_instructions
+        instructions.append(tacky.Copy(t_val, result_var))
+        instructions.append(tacky.Jump(end_label))
+
+        instructions.append(tacky.Label(false_label))
+        e_instructions, e_val = self.convert_expression(expr.e)
+        instructions += e_instructions
+        instructions.append(tacky.Copy(e_val, result_var))
+        instructions.append(tacky.Label(end_label))
+
+        return (instructions, result_var)
 
     def convert_binary_op(self, op: syntax.BinaryOp) -> tacky.BinaryOp:
         match op:
