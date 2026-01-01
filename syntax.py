@@ -35,6 +35,10 @@ class ExprStmt(Statement, namedtuple('ExprStmt', ['expr'])):
 class NullStatement(Statement, namedtuple('NullStatement', [])):
     pass
 
+
+class IfStatement(Statement, namedtuple('IfStatement', ['condition', 't', 'e'])):
+    pass
+
 ##
 ## Expressions
 ##
@@ -64,6 +68,10 @@ class Binary(Expression, namedtuple('Binary', ['operator', 'left', 'right'])):
 
 
 class Assignment(Expression, namedtuple('Assignment', ['lhs', 'rhs', 'op'])):
+    pass
+
+
+class Conditional(Expression, namedtuple('Conditional', ['condition', 't', 'e'])):
     pass
 
 ##

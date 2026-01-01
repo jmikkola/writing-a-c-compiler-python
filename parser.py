@@ -57,6 +57,8 @@ class Parser:
         ''' parse a single statement '''
         if self.peek('keyword', 'return'):
             return self.parse_return()
+        if self.peek('keyword', 'if'):
+            return self.parse_if()
         if self.peek(';'):
             self.consume()
             return syntax.NullStatement()
@@ -74,6 +76,18 @@ class Parser:
         self.expect(';')
         return syntax.Return(expr=expression)
 
+    def parse_if(self) -> syntax.IfStatement:
+        self.expect('keyword', 'if')
+        self.expect('(')
+        condition = self.parse_expression()
+        self.expect(')')
+        t = self.parse_statement()
+        e = None
+        if self.peek('keyword', 'else'):
+            self.expect('keyword', 'else')
+            e = self.parse_statement()
+        return syntax.IfStatement(condition, t, e)
+
     def parse_expression(self, min_prec=0) -> syntax.Expression:
         ''' parse an expression '''
         operators = [
@@ -85,7 +99,7 @@ class Parser:
             '+=', '-=', '*=', '/=', '%=',
             '&=', '|=', '^=',
             '>>=', '<<=',
-            '=',
+            '=', '?',
         ]
         left = self.parse_factor()
         while True:
@@ -106,6 +120,12 @@ class Parser:
                     # Take off the trailing '=' and convert it to an operator
                     op = self.to_binary_op(token.text[:-1])
                 return syntax.Assignment(lhs=left, rhs=right, op=op)
+            elif self.peek('?'):
+                self.expect('?')
+                middle = self.parse_expression(min_prec=0)
+                self.expect(':')
+                right = self.parse_expression(min_prec=token_precedence)
+                left = syntax.Conditional(left, middle, right)
             else:
                 op = self.parse_binary_op()
                 right = self.parse_expression(min_prec=token_precedence + 1)
@@ -115,6 +135,8 @@ class Parser:
     def precedence(self, text):
         if text in ASSIGNMENT_OPS:
             return 1
+        if text == '?':
+            return 3
         if text == '||':
             return 31
         if text == '&&':
