@@ -47,6 +47,12 @@ class Validator:
                 return syntax.ExprStmt(expr)
             case syntax.NullStatement():
                 return block_item
+            case syntax.IfStatement(test, t, e):
+                test = self.resolve_expr(test, variable_map)
+                t = self.block_item(t, variable_map)
+                if e:
+                    e = self.block_item(e, variable_map)
+                return syntax.IfStatement(test, t, e)
             case _:
                 raise Exception(f'unhandled type of block item {block_item}')
 
@@ -78,6 +84,11 @@ class Validator:
                 lhs = self.resolve_expr(lhs, variable_map)
                 rhs = self.resolve_expr(rhs, variable_map)
                 return syntax.Assignment(lhs, rhs, op)
+            case syntax.Conditional(test, t, e):
+                test = self.resolve_expr(test, variable_map)
+                t = self.resolve_expr(t, variable_map)
+                e = self.resolve_expr(e, variable_map)
+                return syntax.Conditional(test, t, e)
             case _:
                 raise Exception(f'unhandled type of expression {expr}')
 
