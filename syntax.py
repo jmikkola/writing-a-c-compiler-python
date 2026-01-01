@@ -5,6 +5,31 @@ def indent(lines):
     return ['  ' + line for line in lines]
 
 
+def headed(header, lines):
+    '''
+    Handles both
+        if (foo)
+          bar();
+    and
+        if (foo) {
+          bar();
+        }
+    '''
+    first = lines[0].strip()
+    if first == '{':
+        return [f'{header} {{'] + lines[1:]
+    else:
+        return [header] + indent(lines)
+
+
+def trailer(lines, trailer):
+    last = lines[-1].strip()
+    if last == '}':
+        return lines[:-1] + [f'}} {trailer}']
+    else:
+        return lines + [trailer]
+
+
 class Program(namedtuple('Program', ['function_definition'])):
     def pretty_print(self):
         return self.function_definition.pretty_print()
@@ -57,20 +82,11 @@ class NullStatement(Statement, namedtuple('NullStatement', [])):
 
 class IfStatement(Statement, namedtuple('IfStatement', ['condition', 't', 'e'])):
     def pretty_print(self):
-        first_line = f'if {self.condition.pretty_print()} '
-        lines = self.t.pretty_print()
-        if len(lines) > 1:
-            lines[0] = first_line + lines[0].strip()
-        else:
-            lines = [first_line] + indent(lines)
+        header = f'if {self.condition.pretty_print()}'
+        lines = headed(header, self.t.pretty_print())
         if self.e:
-            e_lines = self.e.pretty_print()
-            if len(e_lines) > 1:
-                e_lines[0] = 'else ' + e_lines[0]
-                lines += e_lines
-            else:
-                lines += ['else']
-                lines += indent(e_lines)
+            else_lines = headed('else', self.e.pretty_print())
+            lines = trailer(lines, else_lines[0]) + else_lines[1:]
         return lines
 
 
@@ -81,6 +97,57 @@ class Goto(Statement, namedtuple('Goto', ['label'])):
 class LabeledStmt(Statement, namedtuple('LabeledExpr', ['label', 'stmt'])):
     def pretty_print(self):
         return [f'label {self.label}:'] + self.stmt.pretty_print()
+
+
+class Break(Statement, namedtuple('Break', ['loop_label'])):
+    ''' loop_label is added by the validator pass '''
+    pass
+
+
+class Continue(Statement, namedtuple('Continue', ['loop_label'])):
+    ''' loop_label is added by the validator pass '''
+    pass
+
+
+class While(Statement, namedtuple('While', ['test', 'body'])):
+    def pretty_print(self):
+        header = f'while {self.test.pretty_print()}'
+        return headed(header, self.body.pretty_print())
+
+
+class DoWhile(Statement, namedtuple('DoWhile', ['body', 'test'])):
+    def pretty_print(self):
+        lines = headed('do', self.body.pretty_print())
+        return trailer(lines, f'while {self.test.pretty_print()}')
+
+
+class For(Statement, namedtuple('For', ['init', 'condition', 'post', 'body'])):
+    def pretty_print(self):
+        init = self.init.pretty_print()
+        cond = self.condition.pretty_print()
+        post = self.post.pretty_print()
+        header = f'for ({ini}; {cond}; {post})'
+        return headed(header, self.body.pretty_print())
+
+##
+## For initializers
+##
+
+class ForInit:
+    pass
+
+
+class InitDecl(ForInit, namedtuple('InitDecl', ['declaration'])):
+    def pretty_print(self):
+        return ' '.join(self.declaration.pretty_print())
+
+
+class InitExp(ForInit, namedtuple('InitExp', ['expression'])):
+    def pretty_print(self):
+        if not self.expression:
+            return ''
+        return self.expression.pretty_print()
+
 
 ##
 ## Expressions

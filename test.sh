@@ -2,4 +2,4 @@
 
 set -e
 
-../writing-a-c-compiler-tests/test_compiler ./compiler.sh --chapter 7 --extra-credit "$@"
+../writing-a-c-compiler-tests/test_compiler ./compiler.sh --chapter 8 "$@"

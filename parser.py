@@ -61,6 +61,20 @@ class Parser:
             return self.parse_if()
         if self.peek('keyword', 'goto'):
             return self.parse_goto()
+        if self.peek('keyword', 'break'):
+            self.consume()
+            self.expect(';')
+            return syntax.Break(None)
+        if self.peek('keyword', 'continue'):
+            self.consume()
+            self.expect(';')
+            return syntax.Continue(None)
+        if self.peek('keyword', 'for'):
+            return self.parse_for()
+        if self.peek('keyword', 'while'):
+            return self.parse_while()
+        if self.peek('keyword', 'do'):
+            return self.parse_do_while()
         if self.peek('identifier') and self.peek(':', offset=1):
             return self.parse_labeled_stmt()
         if self.peek(';'):
@@ -70,6 +84,51 @@ class Parser:
             block = self.parse_block()
             return syntax.Compound(block)
         return self.parse_expression_statement()
+
+    def parse_while(self) -> syntax.While:
+        self.expect('keyword', 'while')
+        self.expect('(')
+        test = self.parse_expression()
+        self.expect(')')
+        body = self.parse_statement()
+        return syntax.While(test, body)
+
+    def parse_do_while(self) -> syntax.DoWhile:
+        self.expect('keyword', 'do')
+        body = self.parse_statement()
+        self.expect('keyword', 'while')
+        self.expect('(')
+        test = self.parse_expression()
+        self.expect(')')
+        self.expect(';')
+        return syntax.DoWhile(body, test)
+
+    def parse_for(self) -> syntax.For:
+        self.expect('keyword', 'for')
+        self.expect('(')
+        #  Parsing the initializer eats the first ;
+        init = self.parse_for_init()
+        condition = None
+        if not self.peek(';'):
+            condition = self.parse_expression()
+        self.expect(';')
+        post = None
+        if not self.peek(')'):
+            post = self.parse_expression()
+        self.expect(')')
+        body = self.parse_statement()
+        return syntax.For(init, condition, post, body)
+
+    def parse_for_init(self) -> syntax.ForInit:
+        if self.peek('keyword', 'int'):
+            declaration = self.parse_declaration()
+            return syntax.InitDecl(declaration)
+        if self.peek(';'):
+            self.expect(';')
+            return syntax.InitExp(None)
+        expression = self.parse_expression()
+        self.expect(';')
+        return syntax.InitExp(expression)
 
     def parse_labeled_stmt(self) -> syntax.LabeledStmt:
         label = self.expect('identifier').text
