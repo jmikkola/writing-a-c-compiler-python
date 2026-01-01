@@ -72,12 +72,12 @@ class Validator:
                 left = self.resolve_expr(left, variable_map)
                 right = self.resolve_expr(right, variable_map)
                 return syntax.Binary(op, left, right)
-            case syntax.Assignment(lhs, rhs):
+            case syntax.Assignment(lhs, rhs, op):
                 if not isinstance(lhs, syntax.Variable):
                     self.error(f'invalid target for assignment: {lhs}')
                 lhs = self.resolve_expr(lhs, variable_map)
                 rhs = self.resolve_expr(rhs, variable_map)
-                return syntax.Assignment(lhs, rhs)
+                return syntax.Assignment(lhs, rhs, op)
             case _:
                 raise Exception(f'unhandled type of expression {expr}')
 

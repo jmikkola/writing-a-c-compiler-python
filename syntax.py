@@ -63,7 +63,7 @@ class Binary(Expression, namedtuple('Binary', ['operator', 'left', 'right'])):
     pass
 
 
-class Assignment(Expression, namedtuple('Assignment', ['lhs', 'rhs'])):
+class Assignment(Expression, namedtuple('Assignment', ['lhs', 'rhs', 'op'])):
     pass
 
 ##

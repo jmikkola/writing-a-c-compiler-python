@@ -68,10 +68,20 @@ class ToTacky:
             case syntax.Variable(name):
                 return ([], tacky.Identifier(name))
 
-            case syntax.Assignment(syntax.Variable(name), rhs):
+            case syntax.Assignment(syntax.Variable(name), rhs, None):
                 instructions, result = self.convert_expression(rhs)
                 instructions += [tacky.Copy(result, tacky.Identifier(name))]
                 return (instructions, result)
+
+            case syntax.Assignment(syntax.Variable(name), rhs, op):
+                # This logic only works because the assign target has no side effects
+                # (e.g. it isn't `a[i++]`) so it can safely be duplicated
+                updated_expression = syntax.Assignment(
+                    syntax.Variable(name),
+                    syntax.Binary(op, syntax.Variable(name), rhs),
+                    None
+                )
+                return self.convert_expression(updated_expression)
 
             case syntax.Unary(operator, expr=inner):
                 match operator:

@@ -6,6 +6,9 @@ def parse(tokens):
     return p.parse()
 
 
+ASSIGNMENT_OPS = ['=', '>>=', '<<=', '+=', '-=', '*=', '/=', '%=', '&=', '|=', '^=']
+
+
 class Parser:
     def __init__(self, tokens):
         self.tokens = tokens
@@ -79,6 +82,9 @@ class Parser:
             '&&', '||',
             '<<', '>>',
             '<', '<=', '==', '!=', '>=', '>',
+            '+=', '-=', '*=', '/=', '%=',
+            '&=', '|=', '^=',
+            '>>=', '<<=',
             '=',
         ]
         left = self.parse_factor()
@@ -91,10 +97,15 @@ class Parser:
                 break
 
             # Handle = differently because it is right-associative.
-            if self.peek('='):
-                self.expect('=')
+            token = self.peek()
+            if token and token.text in ASSIGNMENT_OPS:
+                self.consume()
                 right = self.parse_expression(min_prec=token_precedence)
-                return syntax.Assignment(lhs=left, rhs=right)
+                op = None
+                if token.text != '=':
+                    # Take off the trailing '=' and convert it to an operator
+                    op = self.to_binary_op(token.text[:-1])
+                return syntax.Assignment(lhs=left, rhs=right, op=op)
             else:
                 op = self.parse_binary_op()
                 right = self.parse_expression(min_prec=token_precedence + 1)
@@ -102,7 +113,7 @@ class Parser:
         return left
 
     def precedence(self, text):
-        if text == '=':
+        if text in ASSIGNMENT_OPS:
             return 1
         if text == '||':
             return 31
@@ -128,43 +139,46 @@ class Parser:
 
     def parse_binary_op(self) -> syntax.BinaryOp:
         token = self.consume()
-        if token.text == '+':
+        return self.to_binary_op(token.text)
+
+    def to_binary_op(self, text):
+        if text == '+':
             return syntax.BinaryAdd()
-        if token.text == '-':
+        if text == '-':
             return syntax.BinarySubtract()
-        if token.text == '*':
+        if text == '*':
             return syntax.BinaryMultiply()
-        if token.text == '/':
+        if text == '/':
             return syntax.BinaryDivide()
-        if token.text == '%':
+        if text == '%':
             return syntax.BinaryRemainder()
-        if token.text == '|':
+        if text == '|':
             return syntax.BitOr()
-        if token.text == '&':
+        if text == '&':
             return syntax.BitAnd()
-        if token.text == '^':
+        if text == '^':
             return syntax.BitXor()
-        if token.text == '<<':
+        if text == '<<':
             return syntax.ShiftLeft()
-        if token.text == '>>':
+        if text == '>>':
             return syntax.ShiftRight()
-        if token.text == '<':
+        if text == '<':
             return syntax.Less()
-        if token.text == '<=':
+        if text == '<=':
             return syntax.LessEqual()
-        if token.text == '>':
+        if text == '>':
             return syntax.Greater()
-        if token.text == '>=':
+        if text == '>=':
             return syntax.GreaterEqual()
-        if token.text == '==':
+        if text == '==':
             return syntax.Equals()
-        if token.text == '!=':
+        if text == '!=':
             return syntax.NotEquals()
-        if token.text == '&&':
+        if text == '&&':
             return syntax.BinaryAnd()
-        if token.text == '||':
+        if text == '||':
             return syntax.BinaryOr()
-        raise Exception(f'Unhandled binary op {token.text}')
+        raise Exception(f'Unhandled binary op {text}')
 
     def parse_factor(self) -> syntax.Expression:
         ''' parse a factor (anything without a binary expression) '''
