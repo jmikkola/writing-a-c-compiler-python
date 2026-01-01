@@ -296,12 +296,18 @@ class Parser:
 class TokenIterator:
     def __init__(self, tokens):
         self.tokens = tokens
-        self.parsed_tokens = []
+        self.next_token = 0
+
+    def at_end(self):
+        return self.next_token >= len(self.tokens)
+
+    def _next(self):
+        return self.tokens[self.next_token]
 
     def peek(self, kind=None, value=None):
-        if not self.tokens:
+        if self.at_end():
             return None
-        token = self.tokens[0]
+        token = self._next()
         if kind is not None and token.kind != kind:
             return None
         if value is not None and token.text != value:
@@ -312,24 +318,23 @@ class TokenIterator:
         token = self.peek(kind, value)
         if token is None:
             parser.fail('syntax error', kind, value)
-        self.tokens = self.tokens[1:]
-        self.parsed_tokens.append(token)
+        self.next_token += 1
         return token
 
     def consume(self, parser):
-        if not self.tokens:
+        if self.at_end():
             self.fail('unexpected EOF')
-        token = self.tokens[0]
-        self.tokens = self.tokens[1:]
-        self.parsed_tokens.append(token)
+        token = self._next()
+        self.next_token += 1
         return token
 
     def must_eof(self, parser):
-        if self.tokens:
+        if not self.at_end():
             parser.fail('extra junk', 'EOF')
 
     def recent(self):
-        return self.parsed_tokens[-5:]
+        start = max(0, self.next_token - 5)
+        return self.parsed_tokens[start:self.next_token]
 
 
 class SyntaxError(Exception):
