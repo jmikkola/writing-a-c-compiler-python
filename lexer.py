@@ -12,7 +12,18 @@ LINE_COMMENT = re.compile(r'//[^\n]*\n?')
 MULTILINE_COMENT = re.compile(r'/\*.*?\*/')
 
 KEYWORDS = ['int', 'void', 'return']
-TWO_PART_SYMBOLS = ['--', '<<', '>>', '&&', '||', '>=', '==', '!=', '<=']
+
+THREE_PART_SYMBOLS = [
+    '>>=', '<<=',
+]
+TWO_PART_SYMBOLS = [
+    '--', '++',
+    '<<', '>>',
+    '&&', '||',
+    '>=', '==', '!=', '<=',
+    '+=', '-=', '*=', '/=', '%=',
+    '&=', '|=', '^=',
+]
 PUNCTUATION = ['(', ')', '{', '}', ';', '+', '-', '*', '/', '%', '~', '&', '|', '^', '!', '<', '>', '=']
 
 
@@ -49,7 +60,7 @@ def tokenize(text):
             continue
 
         found_punctuation = False
-        for p in itertools.chain(TWO_PART_SYMBOLS, PUNCTUATION):
+        for p in itertools.chain(THREE_PART_SYMBOLS, TWO_PART_SYMBOLS, PUNCTUATION):
             if text.startswith(p):
                 found_punctuation = True
                 text = text[len(p):]

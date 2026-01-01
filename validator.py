@@ -59,8 +59,15 @@ class Validator:
                     self.error(f'undefined variable {name}')
                 return syntax.Variable(variable_map[name])
             case syntax.Unary(op, expr):
+                if self.is_modifying_operator(op) and not self.is_variable(expr):
+                    self.error(f'invaild to apply {op} to {expr}')
                 expr = self.resolve_expr(expr, variable_map)
                 return syntax.Unary(op, expr)
+            case syntax.Postfix(expr, op):
+                if self.is_modifying_operator(op) and not self.is_variable(expr):
+                    self.error(f'invaild to apply {op} to {expr}')
+                expr = self.resolve_expr(expr, variable_map)
+                return syntax.Postfix(expr, op)
             case syntax.Binary(op, left, right):
                 left = self.resolve_expr(left, variable_map)
                 right = self.resolve_expr(right, variable_map)
@@ -73,6 +80,20 @@ class Validator:
                 return syntax.Assignment(lhs, rhs)
             case _:
                 raise Exception(f'unhandled type of expression {expr}')
+
+    def is_modifying_operator(self, op: syntax.UnaryOp):
+        match op:
+            case syntax.UnaryIncrement() | syntax.UnaryDecrement():
+                return True
+            case _:
+                return False
+
+    def is_variable(self, expr: syntax.Expression):
+        match expr:
+            case syntax.Variable(_):
+                return True
+            case _:
+                return False
 
 
 class ValidationError(Exception):

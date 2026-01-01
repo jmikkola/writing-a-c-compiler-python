@@ -55,6 +55,10 @@ class Unary(Expression, namedtuple('Unary', ['operator', 'expr'])):
     pass
 
 
+class Postfix(Expression, namedtuple('Postfix', ['expr', 'operator'])):
+    pass
+
+
 class Binary(Expression, namedtuple('Binary', ['operator', 'left', 'right'])):
     pass
 
@@ -82,6 +86,16 @@ class UnaryInvert(UnaryOp, namedtuple('UnaryInvert', [])):
 
 class UnaryNot(UnaryOp, namedtuple('UnaryNot', [])):
     ''' !n '''
+    pass
+
+
+class UnaryIncrement(UnaryOp, namedtuple('UnaryIncrement', [])):
+    ''' ++n or n++ '''
+    pass
+
+
+class UnaryDecrement(UnaryOp, namedtuple('UnaryDecrement', [])):
+    ''' --n or n-- '''
     pass
 
 ##

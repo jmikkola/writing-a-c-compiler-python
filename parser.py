@@ -168,12 +168,23 @@ class Parser:
 
     def parse_factor(self) -> syntax.Expression:
         ''' parse a factor (anything without a binary expression) '''
+        expr = self.parse_factor_without_postfix()
+        while self.peek('++') or self.peek('--'):
+            if self.peek('++'):
+                self.expect('++')
+                expr = syntax.Postfix(expr, syntax.UnaryIncrement())
+            else:
+                self.expect('--')
+                expr = syntax.Postfix(expr, syntax.UnaryDecrement())
+        return expr
+
+    def parse_factor_without_postfix(self):
         if self.peek('constant'):
             return self.parse_constant()
         if self.peek('identifier'):
             token = self.consume()
             return syntax.Variable(token.text)
-        if self.peek('-') or self.peek('~') or self.peek('!'):
+        if self.is_unary():
             return self.parse_unary_expression()
         if self.peek('('):
             return self.paren_expression()
@@ -191,6 +202,11 @@ class Parser:
         expr = self.parse_factor()
         return syntax.Unary(operator, expr)
 
+    def is_unary(self):
+        unary_operators = ['-', '~', '!', '++', '--']
+        token = self.peek()
+        return token and token.text in unary_operators
+
     def parse_unary_operator(self) -> syntax.UnaryOp:
         token = self.consume()
         if token.text == '-':
@@ -199,6 +215,10 @@ class Parser:
             return syntax.UnaryInvert()
         if token.text == '!':
             return syntax.UnaryNot()
+        if token.text == '++':
+            return syntax.UnaryIncrement()
+        if token.text == '--':
+            return syntax.UnaryDecrement()
         raise Exception(f'unhandled unary operator {token.text}')
 
     def parse_constant(self) -> syntax.Constant:

@@ -64,18 +64,53 @@ class ToTacky:
         match expr:
             case syntax.Constant(value):
                 return ([], tacky.Constant(value))
+
             case syntax.Variable(name):
                 return ([], tacky.Identifier(name))
+
             case syntax.Assignment(syntax.Variable(name), rhs):
                 instructions, result = self.convert_expression(rhs)
                 instructions += [tacky.Copy(result, tacky.Identifier(name))]
                 return (instructions, result)
+
             case syntax.Unary(operator, expr=inner):
-                instructions, val = self.convert_expression(inner)
-                op = self.convert_unary_op(operator)
+                match operator:
+                    case syntax.UnaryIncrement() | syntax.UnaryDecrement():
+                        assert(isinstance(inner,  syntax.Variable))
+                        op = self.convert_modifying_op(operator)
+                        result_var = self.new_temp_var()
+                        instructions = [
+                            tacky.Binary(
+                                operator=op,
+                                left=tacky.Identifier(inner.name),
+                                right=tacky.Constant(1),
+                                dst=tacky.Identifier(inner.name)
+                            ),
+                            tacky.Copy(tacky.Identifier(inner.name), result_var)
+                        ]
+                        return (instructions, result_var)
+                    case _:
+                        instructions, val = self.convert_expression(inner)
+                        op = self.convert_unary_op(operator)
+                        result_var = self.new_temp_var()
+                        instruction = tacky.Unary(unary_operator=op, src=val, dst=result_var)
+                        return (instructions + [instruction], result_var)
+
+            case syntax.Postfix(expr, operator):
+                assert(isinstance(expr,  syntax.Variable))
+                op = self.convert_modifying_op(operator)
                 result_var = self.new_temp_var()
-                instruction = tacky.Unary(unary_operator=op, src=val, dst=result_var)
-                return (instructions + [instruction], result_var)
+                instructions = [
+                    tacky.Copy(tacky.Identifier(expr.name), result_var),
+                    tacky.Binary(
+                        operator=op,
+                        left=tacky.Identifier(expr.name),
+                        right=tacky.Constant(1),
+                        dst=tacky.Identifier(expr.name)
+                    ),
+                ]
+                return (instructions, result_var)
+
             case syntax.Binary(syntax.BinaryAnd(), left, right):
                 false_label = self.new_label('and_false')
                 end_label = self.new_label('and_end')
@@ -92,6 +127,7 @@ class ToTacky:
                     tacky.Label(end_label),
                 ]
                 return (instructions, result_var)
+
             case syntax.Binary(syntax.BinaryOr(), left, right):
                 true_label = self.new_label('or_true')
                 end_label = self.new_label('or_end')
@@ -108,6 +144,7 @@ class ToTacky:
                     tacky.Label(end_label),
                 ]
                 return (instructions, result_var)
+
             case syntax.Binary(operator, left, right):
                 instructions_left, val_left = self.convert_expression(left)
                 instructions_right, val_right = self.convert_expression(right)
@@ -116,6 +153,7 @@ class ToTacky:
                 instruction = tacky.Binary(operator=op, left=val_left, right=val_right, dst=result_var)
                 instructions = instructions_left + instructions_right + [instruction]
                 return (instructions, result_var)
+
             case _:
                 raise Exception(f'unhandled expression type, {expr}')
 
@@ -166,3 +204,12 @@ class ToTacky:
                 return tacky.UnaryNot()
             case _:
                 raise Exception(f'unhandled unary operator {op}')
+
+    def convert_modifying_op(self, op: syntax.UnaryOp) -> tacky.BinaryOp:
+        match op:
+            case syntax.UnaryIncrement():
+                return tacky.BinaryAdd()
+            case syntax.UnaryDecrement():
+                return tacky.BinarySubtract()
+            case _:
+                raise Exception(f'not a modifying operator {op}')
