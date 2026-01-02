@@ -18,7 +18,10 @@ def run_compiler(args: options.Args):
 
     preprocessed_file = name.replace('.c', '.i')
     assembly_file = name.replace('.c', '.s')
-    compiled_file = name.replace('.c', '')
+    if args.object:
+        compiled_file = name.replace('.c', '.o')
+    else:
+        compiled_file = name.replace('.c', '')
 
     to_clean_up = [preprocessed_file]
     if stage == 'all':
@@ -32,7 +35,7 @@ def run_compiler(args: options.Args):
         sys.exit(1)
 
     if stage == 'all':
-        assemble_and_link(assembly_file, compiled_file)
+        assemble_and_link(assembly_file, compiled_file, args.object)
 
     # Clean up temporary files
     # (if the previous stages errored out, leave the files alone for debugging)
@@ -86,5 +89,8 @@ def compile(stage, preprocessed_file, assembly_file, print_output):
             print(inf.read())
 
 
-def assemble_and_link(assembly_file, compiled_file):
-    subprocess.run(['gcc', assembly_file, '-o', compiled_file], check=True)
+def assemble_and_link(assembly_file, compiled_file, object):
+    command = ['gcc', assembly_file, '-o', compiled_file]
+    if object:
+        command.append('-c')
+    subprocess.run(command, check=True)
