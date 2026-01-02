@@ -109,19 +109,19 @@ class Continue(Statement, namedtuple('Continue', ['loop_label'])):
     pass
 
 
-class While(Statement, namedtuple('While', ['test', 'body'])):
+class While(Statement, namedtuple('While', ['test', 'body', 'loop_label'])):
     def pretty_print(self):
         header = f'while {self.test.pretty_print()}'
         return headed(header, self.body.pretty_print())
 
 
-class DoWhile(Statement, namedtuple('DoWhile', ['body', 'test'])):
+class DoWhile(Statement, namedtuple('DoWhile', ['body', 'test', 'loop_label'])):
     def pretty_print(self):
         lines = headed('do', self.body.pretty_print())
         return trailer(lines, f'while {self.test.pretty_print()}')
 
 
-class For(Statement, namedtuple('For', ['init', 'condition', 'post', 'body'])):
+class For(Statement, namedtuple('For', ['init', 'condition', 'post', 'body', 'loop_label'])):
     def pretty_print(self):
         init = self.init.pretty_print()
         cond = self.condition.pretty_print()

@@ -91,7 +91,7 @@ class Parser:
         test = self.parse_expression()
         self.expect(')')
         body = self.parse_statement()
-        return syntax.While(test, body)
+        return syntax.While(test, body, None)
 
     def parse_do_while(self) -> syntax.DoWhile:
         self.expect('keyword', 'do')
@@ -101,7 +101,7 @@ class Parser:
         test = self.parse_expression()
         self.expect(')')
         self.expect(';')
-        return syntax.DoWhile(body, test)
+        return syntax.DoWhile(body, test, None)
 
     def parse_for(self) -> syntax.For:
         self.expect('keyword', 'for')
@@ -117,7 +117,7 @@ class Parser:
             post = self.parse_expression()
         self.expect(')')
         body = self.parse_statement()
-        return syntax.For(init, condition, post, body)
+        return syntax.For(init, condition, post, body, None)
 
     def parse_for_init(self) -> syntax.ForInit:
         if self.peek('keyword', 'int'):
