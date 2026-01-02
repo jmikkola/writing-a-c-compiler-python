@@ -106,10 +106,10 @@ class VariableValidator:
                     post = self.resolve_expr(post, inner_variable_map)
                 body = self.validate_statements(body, inner_variable_map)
                 return syntax.For(init, condition, post, body, loop_label)
-            case syntax.Switch(condition, body, switch_label):
+            case syntax.Switch(condition, body, switch_label, case_values):
                 condition = self.resolve_expr(condition, variable_map)
                 body = self.validate_statements(body, variable_map)
-                return syntax.Switch(condition, body, switch_label)
+                return syntax.Switch(condition, body, switch_label, case_values)
             case syntax.Case(value, stmt, switch_label):
                 if stmt:
                     stmt = self.validate_statements(stmt, variable_map)
@@ -245,9 +245,9 @@ class LabelValidator:
             case syntax.Compound(block):
                 block = self.validate_block(block, labels_declared, labels_used)
                 return syntax.Compound(block)
-            case syntax.Switch(condition, body, switch_label):
+            case syntax.Switch(condition, body, switch_label, case_values):
                 body = self.validate_statements(body, labels_declared, labels_used)
-                return syntax.Switch(condition, body, switch_label)
+                return syntax.Switch(condition, body, switch_label, case_values)
             case syntax.Case(value, stmt, switch_label):
                 if stmt:
                     stmt = self.validate_statements(stmt, labels_declared, labels_used)
@@ -344,11 +344,12 @@ class LoopLabels:
             case syntax.Compound(block):
                 block = self.validate_block(block, scope)
                 return syntax.Compound(block)
-            case syntax.Switch(condition, body, _):
+            case syntax.Switch(condition, body, _, _):
                 switch_label = self.next_label()
                 switch_scope = scope.for_switch(switch_label)
                 body = self.validate_statements(body, switch_scope)
-                return syntax.Switch(condition, body, switch_label)
+                case_values = self._switch_case_values[switch_label]
+                return syntax.Switch(condition, body, switch_label, case_values)
             case syntax.Case(value, stmt, _):
                 switch_label = scope.switch_label
                 if switch_label is None:

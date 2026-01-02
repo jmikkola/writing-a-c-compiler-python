@@ -134,7 +134,7 @@ class For(Statement, namedtuple('For', ['init', 'condition', 'post', 'body', 'lo
         return headed(header, self.body.pretty_print())
 
 
-class Switch(Statement, namedtuple('Switch', ['condition', 'body', 'switch_label'])):
+class Switch(Statement, namedtuple('Switch', ['condition', 'body', 'switch_label', 'case_values'])):
     def pretty_print(self):
         header = f'switch ({self.condition.pretty_print()})'
         return headed(header, self.body.pretty_print())

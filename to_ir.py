@@ -68,6 +68,12 @@ class ToTacky:
                 return self.convert_while(body)
             case syntax.For(_, _, _, _, _):
                 return self.convert_for(body)
+            case syntax.Switch(_, _, _):
+                return self.convert_switch(body)
+            case syntax.Case(_, _, _):
+                return self.convert_case(body)
+            case syntax.Default(_, _):
+                return self.convert_default(body)
             case _:
                 raise Exception(f'unhandled statement type, {body}')
 
@@ -137,6 +143,45 @@ class ToTacky:
             case syntax.InitExp(expr):
                 instructions, _ = self.convert_expression(expr)
                 return instructions
+
+    def convert_switch(self, stmt: syntax.Switch) -> list:
+        switch_label = stmt.switch_label
+        break_label = f'break_{switch_label}'
+        # Convert the condition
+        instructions, val = self.convert_expression(stmt.condition)
+        # Handle jumping to the different case statements
+        for case_value in stmt.case_values:
+            if case_value == 'default':
+                continue
+            result_var = self.new_temp_var()
+            instructions += [
+                tacky.Binary(tacky.BinarySubtract(), val, tacky.Constant(case_value), result_var),
+                tacky.JumpIfZero(result_var, f'switch_{switch_label}_case_{case_value}'),
+            ]
+        # Handle no case statements matching
+        if 'default' in stmt.case_values:
+            instructions.append(tacky.Jump(f'switch_{switch_label}_default'))
+        else:
+            instructions.append(tacky.Jump(break_label))
+        # Add the code inside the switch
+        instructions += self.convert_instructions(stmt.body)
+        instructions.append(tacky.Label(break_label))
+        return instructions
+
+    def convert_case(self, stmt: syntax.Case) -> list:
+        switch_label = stmt.switch_label
+        value = stmt.value.value
+        instructions = [tacky.Label(f'switch_{switch_label}_case_{value}')]
+        if stmt.stmt:
+            instructions += self.convert_instructions(stmt.stmt)
+        return instructions
+
+    def convert_default(self, stmt: syntax.Default) -> list:
+        switch_label = stmt.switch_label
+        instructions = [tacky.Label(f'switch_{switch_label}_default')]
+        if stmt.stmt:
+            instructions += self.convert_instructions(stmt.stmt)
+        return instructions
 
     def convert_if(self, stmt: syntax.IfStatement) -> list:
         after_then = self.new_label('if_false')

@@ -142,7 +142,7 @@ class Parser:
         condition = self.parse_expression()
         self.expect(')')
         body = self.parse_statement()
-        return syntax.Switch(condition, body, None)
+        return syntax.Switch(condition, body, None, None)
 
     def parse_case(self) -> syntax.Case:
         self.expect('keyword', 'case')
