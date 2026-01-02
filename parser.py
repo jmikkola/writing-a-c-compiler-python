@@ -154,7 +154,7 @@ class Parser:
         return syntax.Case(value, stmt, None)
 
     def parse_default(self) -> syntax.Default:
-        self.expect('keyword', 'defualt')
+        self.expect('keyword', 'default')
         self.expect(':')
         stmt = None
         if not self.peek('}'):

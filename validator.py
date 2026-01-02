@@ -1,3 +1,4 @@
+from collections import defaultdict
 from collections import namedtuple
 
 import syntax
@@ -105,6 +106,18 @@ class VariableValidator:
                     post = self.resolve_expr(post, inner_variable_map)
                 body = self.validate_statements(body, inner_variable_map)
                 return syntax.For(init, condition, post, body, loop_label)
+            case syntax.Switch(condition, body, switch_label):
+                condition = self.resolve_expr(condition, variable_map)
+                body = self.validate_statements(body, variable_map)
+                return syntax.Switch(condition, body, switch_label)
+            case syntax.Case(value, stmt, switch_label):
+                if stmt:
+                    stmt = self.validate_statements(stmt, variable_map)
+                return syntax.Case(value, stmt, switch_label)
+            case syntax.Default(stmt, switch_label):
+                if stmt:
+                    stmt = self.validate_statements(stmt, variable_map)
+                return syntax.Default(stmt, switch_label)
             case _:
                 raise Exception(f'unhandled type of block item {block_item}')
 
@@ -232,13 +245,36 @@ class LabelValidator:
             case syntax.Compound(block):
                 block = self.validate_block(block, labels_declared, labels_used)
                 return syntax.Compound(block)
+            case syntax.Switch(condition, body, switch_label):
+                body = self.validate_statements(body, labels_declared, labels_used)
+                return syntax.Switch(condition, body, switch_label)
+            case syntax.Case(value, stmt, switch_label):
+                if stmt:
+                    stmt = self.validate_statements(stmt, labels_declared, labels_used)
+                return syntax.Case(value, stmt, switch_label)
+            case syntax.Default(stmt, switch_label):
+                if stmt:
+                    stmt = self.validate_statements(stmt, labels_declared, labels_used)
+                return syntax.Default(stmt, switch_label)
             case _:
                 raise Exception(f'unhandled type of block item {block_item}')
 
 
+class LoopScope(namedtuple('LoopScope', ['continue_target', 'break_target', 'switch_label'])):
+    ''' For LoopLabels '''
+    def for_loop(self, loop_label):
+        return LoopScope(loop_label, loop_label, self.switch_label)
+
+    def for_switch(self, switch_label):
+        ''' Switch statements change where 'break' goes but not where 'continue' goes '''
+        return LoopScope(self.continue_target, switch_label, switch_label)
+
+
 class LoopLabels:
+    ''' This handles both loops and switch statements '''
     def __init__(self):
         self._n_labels = 1
+        self._switch_case_values = defaultdict(set)
 
     def next_label(self):
         label = self._n_labels
@@ -253,17 +289,18 @@ class LoopLabels:
         return syntax.Program(function)
 
     def validate_function(self, function: syntax.Function):
-        body = self.validate_block(function.body, None)
+        loop_scope = LoopScope(None, None, None)
+        body = self.validate_block(function.body, loop_scope)
         return syntax.Function(function.name, body)
 
-    def validate_block(self, block: syntax.Block, current_loop):
+    def validate_block(self, block: syntax.Block, scope):
         block_items = [
-            self.validate_statements(b, current_loop)
+            self.validate_statements(b, scope)
             for b in block.block_items
         ]
         return syntax.Block(block_items)
 
-    def validate_statements(self, block_item: syntax.BlockItem, current_loop):
+    def validate_statements(self, block_item: syntax.BlockItem, scope):
         match block_item:
             case syntax.Declaration(_, _) | \
                  syntax.Return(_) | \
@@ -272,37 +309,68 @@ class LoopLabels:
                  syntax.NullStatement():
                 return block_item
             case syntax.IfStatement(test, t, e):
-                t = self.validate_statements(t, current_loop)
+                t = self.validate_statements(t, scope)
                 if e:
-                    e = self.validate_statements(e, current_loop)
+                    e = self.validate_statements(e, scope)
                 return syntax.IfStatement(test, t, e)
             case syntax.While(test, body, _):
                 loop_label = self.next_label()
-                body = self.validate_statements(body, loop_label)
+                loop_scope = scope.for_loop(loop_label)
+                body = self.validate_statements(body, loop_scope)
                 return syntax.While(test, body, loop_label)
             case syntax.DoWhile(body, test, _):
                 loop_label = self.next_label()
-                body = self.validate_statements(body, loop_label)
+                loop_scope = scope.for_loop(loop_label)
+                body = self.validate_statements(body, loop_scope)
                 return syntax.DoWhile(body, test, loop_label)
             case syntax.For(init, condition, post, body, _):
                 loop_label = self.next_label()
-                body = self.validate_statements(body, loop_label)
+                loop_scope = scope.for_loop(loop_label)
+                body = self.validate_statements(body, loop_scope)
                 return syntax.For(init, condition, post, body, loop_label)
             case syntax.Continue(_):
-                if current_loop:
-                    return syntax.Continue(current_loop)
+                if scope.continue_target:
+                    return syntax.Continue(scope.continue_target)
                 else:
                     self.error('continue statement is not in a loop')
             case syntax.Break(_):
-                if current_loop:
-                    return syntax.Break(current_loop)
+                if scope.break_target:
+                    return syntax.Break(scope.break_target)
                 else:
-                    self.error('break statement is not in a loop')
+                    self.error('break statement is not in a loop or switch statement')
             case syntax.LabeledStmt(label, stmt):
-                stmt = self.validate_statements(stmt, current_loop)
+                stmt = self.validate_statements(stmt, scope)
                 return syntax.LabeledStmt(label, stmt)
             case syntax.Compound(block):
-                block = self.validate_block(block, current_loop)
+                block = self.validate_block(block, scope)
                 return syntax.Compound(block)
+            case syntax.Switch(condition, body, _):
+                switch_label = self.next_label()
+                switch_scope = scope.for_switch(switch_label)
+                body = self.validate_statements(body, switch_scope)
+                return syntax.Switch(condition, body, switch_label)
+            case syntax.Case(value, stmt, _):
+                switch_label = scope.switch_label
+                if switch_label is None:
+                    self.fail('case label outside of a switch statement')
+                if not isinstance(value, syntax.Constant):
+                    self.fail(f'case value must be a constant, got {value}')
+                constant = value.value
+                if constant in self._switch_case_values[switch_label]:
+                    self.fail(f'duplicate case labels with the value {constant}')
+                self._switch_case_values[switch_label].add(constant)
+                if stmt:
+                    stmt = self.validate_statements(stmt, scope)
+                return syntax.Case(value, stmt, switch_label)
+            case syntax.Default(stmt, _):
+                switch_label = scope.switch_label
+                if switch_label is None:
+                    self.fail('default outside of a switch statement')
+                if 'default' in self._switch_case_values[switch_label]:
+                    self.fail('duplicate default labels in a switch statement')
+                self._switch_case_values[switch_label].add('default')
+                if stmt:
+                    stmt = self.validate_statements(stmt, scope)
+                return syntax.Default(stmt, switch_label)
             case _:
                 raise Exception(f'unhandled type of block item {block_item}')

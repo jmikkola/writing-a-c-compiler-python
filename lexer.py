@@ -14,7 +14,8 @@ MULTILINE_COMENT = re.compile(r'/\*.*?\*/')
 KEYWORDS = [
     'int', 'void',
     'return', 'if', 'else', 'goto',
-    'do', 'while', 'break', 'continue', 'for', 'switch', 'case',
+    'do', 'while', 'break', 'continue', 'for',
+    'switch', 'case', 'default',
 ]
 
 THREE_PART_SYMBOLS = [
