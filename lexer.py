@@ -11,7 +11,11 @@ LINE_COMMENT = re.compile(r'//[^\n]*\n?')
 # The *? is non-greedy, so it will stop at the first */ not the last one
 MULTILINE_COMENT = re.compile(r'/\*.*?\*/')
 
-KEYWORDS = ['int', 'void', 'return', 'if', 'else', 'goto', 'do', 'while', 'break', 'continue', 'for']
+KEYWORDS = [
+    'int', 'void',
+    'return', 'if', 'else', 'goto',
+    'do', 'while', 'break', 'continue', 'for', 'switch', 'case',
+]
 
 THREE_PART_SYMBOLS = [
     '>>=', '<<=',

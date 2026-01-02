@@ -75,6 +75,12 @@ class Parser:
             return self.parse_while()
         if self.peek('keyword', 'do'):
             return self.parse_do_while()
+        if self.peek('keyword', 'switch'):
+            return self.parse_switch()
+        if self.peek('keyword', 'case'):
+            return self.parse_case()
+        if self.peek('keyword', 'default'):
+            return self.parse_default()
         if self.peek('identifier') and self.peek(':', offset=1):
             return self.parse_labeled_stmt()
         if self.peek(';'):
@@ -129,6 +135,31 @@ class Parser:
         expression = self.parse_expression()
         self.expect(';')
         return syntax.InitExp(expression)
+
+    def parse_switch(self) -> syntax.Switch:
+        self.expect('keyword', 'switch')
+        self.expect('(')
+        condition = self.parse_expression()
+        self.expect(')')
+        body = self.parse_statement()
+        return syntax.Switch(condition, body, None)
+
+    def parse_case(self) -> syntax.Case:
+        self.expect('keyword', 'case')
+        value = self.parse_expression()
+        self.expect(':')
+        stmt = None
+        if not self.peek('}'):
+            stmt = self.parse_statement()
+        return syntax.Case(value, stmt, None)
+
+    def parse_default(self) -> syntax.Default:
+        self.expect('keyword', 'defualt')
+        self.expect(':')
+        stmt = None
+        if not self.peek('}'):
+            stmt = self.parse_statement()
+        return syntax.Default(stmt, None)
 
     def parse_labeled_stmt(self) -> syntax.LabeledStmt:
         label = self.expect('identifier').text

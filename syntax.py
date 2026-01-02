@@ -133,6 +133,29 @@ class For(Statement, namedtuple('For', ['init', 'condition', 'post', 'body', 'lo
         header = f'for ({ini}; {cond}; {post})'
         return headed(header, self.body.pretty_print())
 
+
+class Switch(Statement, namedtuple('Switch', ['condition', 'body', 'switch_label'])):
+    def pretty_print(self):
+        header = f'switch ({self.condition.pretty_print()})'
+        return headed(header, self.body.pretty_print())
+
+
+class Case(Statement, namedtuple('Case', ['value', 'stmt', 'switch_label'])):
+    def pretty_print(self):
+        lines = [f'case {self.loop_label}:']
+        if self.stmt:
+            lines += self.stmt.pretty_print()
+        return lines
+
+
+class Default(Statement, namedtuple('Default', ['stmt', 'switch_label'])):
+    def pretty_print(self):
+        lines = ['default:']
+        if self.stmt:
+            lines += self.stmt.pretty_print()
+        return lines
+
+
 ##
 ## For initializers
 ##
