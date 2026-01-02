@@ -58,6 +58,16 @@ class ToTacky:
                 return self.convert_declaration(name, init)
             case syntax.Compound(block):
                 return self.convert_block(block)
+            case syntax.Continue(loop_label):
+                return [tacky.Jump(f'continue_{loop_label}')]
+            case syntax.Break(loop_label):
+                return [tacky.Jump(f'break_{loop_label}')]
+            case syntax.DoWhile(_, _, _):
+                return self.convert_do_while(body)
+            case syntax.While(_, _, _):
+                return self.convert_while(body)
+            case syntax.For(_, _, _, _, _):
+                return self.convert_for(body)
             case _:
                 raise Exception(f'unhandled statement type, {body}')
 
@@ -67,6 +77,66 @@ class ToTacky:
         instructions, result = self.convert_expression(init)
         instructions.append(tacky.Copy(result, tacky.Identifier(name)))
         return instructions
+
+    def convert_do_while(self, stmt: syntax.DoWhile) -> list:
+        loop_start = self.new_label('do_while_start')
+        loop_label = stmt.loop_label
+        continue_label = f'continue_{loop_label}'
+        break_label = f'break_{loop_label}'
+
+        instructions = [tacky.Label(loop_start)]
+        instructions += self.convert_instructions(stmt.body)
+        instructions.append(tacky.Label(continue_label))
+        test_instructions, test_val = self.convert_expression(stmt.test)
+        instructions += test_instructions
+        instructions.append(tacky.JumpIfNotZero(test_val, loop_start))
+        instructions.append(tacky.Label(break_label))
+        return instructions
+
+    def convert_while(self, stmt: syntax.While) -> list:
+        loop_label = stmt.loop_label
+        continue_label = f'continue_{loop_label}'
+        break_label = f'break_{loop_label}'
+
+        instructions = [tacky.Label(continue_label)]
+        test_instructions, test_val = self.convert_expression(stmt.test)
+        instructions += test_instructions
+        instructions.append(tacky.JumpIfZero(test_val, break_label))
+        instructions += self.convert_instructions(stmt.body)
+        instructions.append(tacky.Jump(continue_label))
+        instructions.append(tacky.Label(break_label))
+        return instructions
+
+    def convert_for(self, stmt: syntax.For) -> list:
+        loop_label = stmt.loop_label
+        continue_label = f'continue_{loop_label}'
+        break_label = f'break_{loop_label}'
+        start_label = self.new_label('for_start')
+
+        instructions = self.convert_for_init(stmt.init)
+        instructions.append(tacky.Label(start_label))
+        if stmt.condition:
+            test_instrs, test_val = self.convert_expression(stmt.condition)
+            instructions += test_instrs
+            instructions.append(tacky.JumpIfZero(test_val, break_label))
+        instructions += self.convert_instructions(stmt.body)
+        instructions.append(tacky.Label(continue_label))
+        if stmt.post:
+            post_instrs, _ = self.convert_expression(stmt.post)
+            instructions += post_instrs
+        instructions.append(tacky.Jump(start_label))
+        instructions.append(tacky.Label(break_label))
+        return instructions
+
+    def convert_for_init(self, init: syntax.ForInit) -> list:
+        match init:
+            case syntax.InitDecl(decl):
+                return self.convert_instructions(decl)
+            case syntax.InitExp(None):
+                return []
+            case syntax.InitExp(expr):
+                instructions, _ = self.convert_expression(expr)
+                return instructions
 
     def convert_if(self, stmt: syntax.IfStatement) -> list:
         after_then = self.new_label('if_false')

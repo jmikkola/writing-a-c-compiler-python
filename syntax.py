@@ -124,8 +124,12 @@ class DoWhile(Statement, namedtuple('DoWhile', ['body', 'test', 'loop_label'])):
 class For(Statement, namedtuple('For', ['init', 'condition', 'post', 'body', 'loop_label'])):
     def pretty_print(self):
         init = self.init.pretty_print()
-        cond = self.condition.pretty_print()
-        post = self.post.pretty_print()
+        cond = ''
+        if self.condition:
+            cond = self.condition.pretty_print()
+        post = ''
+        if self.post:
+            post = self.post.pretty_print()
         header = f'for ({ini}; {cond}; {post})'
         return headed(header, self.body.pretty_print())
 
