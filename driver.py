@@ -2,6 +2,7 @@ import pathlib
 import subprocess
 import sys
 
+import options
 import lexer
 import parser
 import validator
@@ -11,7 +12,10 @@ import emit
 from errors import WACCException
 
 
-def run_compiler(name, stage, print_output=False):
+def run_compiler(args: options.Args):
+    name = args.name
+    stage = args.stage
+
     preprocessed_file = name.replace('.c', '.i')
     assembly_file = name.replace('.c', '.s')
     compiled_file = name.replace('.c', '')
@@ -22,7 +26,7 @@ def run_compiler(name, stage, print_output=False):
 
     preprocess(name, preprocessed_file)
     try:
-        compile(stage, preprocessed_file, assembly_file, print_output)
+        compile(stage, preprocessed_file, assembly_file, args.print_output)
     except WACCException as e:
         print(e, file=sys.stderr)
         sys.exit(1)
