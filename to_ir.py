@@ -27,7 +27,7 @@ class ToTacky:
         function = self.convert_function(self.syntax.function_definition)
         return tacky.Program(function_definition=function)
 
-    def convert_function(self, function: syntax.Function) -> tacky.Function:
+    def convert_function(self, function: syntax.FuncDeclaration) -> tacky.Function:
         instructions = self.convert_block(function.body)
         instructions.append(tacky.Return(tacky.Constant(0)))
         return tacky.Function(name=function.name, body=instructions)

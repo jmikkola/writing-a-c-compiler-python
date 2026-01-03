@@ -41,10 +41,10 @@ class VariableValidator:
         function = self.validate_function(program.function_definition)
         return syntax.Program(function)
 
-    def validate_function(self, function: syntax.Function):
+    def validate_function(self, function: syntax.FuncDeclaration):
         variable_map = {}
         body = self.validate_block(function.body, variable_map)
-        return syntax.Function(function.name, body)
+        return syntax.FuncDeclaration(function.name, function.params, body)
 
     def validate_block(self, block: syntax.Block, variable_map: dict):
         inner_variable_map = copy_variable_map(variable_map)
@@ -191,7 +191,7 @@ class LabelValidator:
         function = self.validate_function(program.function_definition)
         return syntax.Program(function)
 
-    def validate_function(self, function: syntax.Function):
+    def validate_function(self, function: syntax.FuncDeclaration):
         labels_declared = set()
         labels_used = set()
 
@@ -201,7 +201,7 @@ class LabelValidator:
         if labels_not_defined:
             self.error(f'labels are not defined: {labels_not_defined}')
 
-        return syntax.Function(function.name, body)
+        return syntax.FuncDeclaration(function.name, function.params, body)
 
     def validate_block(self, block: syntax.Block, labels_declared, labels_used):
         block_items = [
@@ -288,10 +288,10 @@ class LoopLabels:
         function = self.validate_function(program.function_definition)
         return syntax.Program(function)
 
-    def validate_function(self, function: syntax.Function):
+    def validate_function(self, function: syntax.FuncDeclaration):
         loop_scope = LoopScope(None, None, None)
         body = self.validate_block(function.body, loop_scope)
-        return syntax.Function(function.name, body)
+        return syntax.FuncDeclaration(function.name, function.params, body)
 
     def validate_block(self, block: syntax.Block, scope):
         block_items = [

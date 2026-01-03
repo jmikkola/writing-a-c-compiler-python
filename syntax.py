@@ -30,29 +30,45 @@ def trailer(lines, trailer):
         return lines + [trailer]
 
 
-class Program(namedtuple('Program', ['function_definition'])):
+class Program(namedtuple('Program', ['function_declarations'])):
     def pretty_print(self):
-        return self.function_definition.pretty_print()
+        lines = []
+        for fn in self.function_declarations:
+            if lines:
+                lines.append('')
+            lines += fn.pretty_print()
+        return lines
 
-
-class Function(namedtuple('Function', ['name', 'body'])):
-    def pretty_print(self):
-        body = self.body.pretty_print()
-        body[0] = f'function {self.name}() ' + body[0]
-        return body
 
 class Block(namedtuple('Block', ['block_items'])):
     def pretty_print(self):
         inner = [line for bi in self.block_items for line in bi.pretty_print()]
         return ['{'] + indent(inner) + ['}']
 
+
 class BlockItem:
     def pretty_print(self):
         return [str(self)]
 
 
-class Declaration(BlockItem, namedtuple('Declaration', ['name', 'init'])):
+class Declaration(BlockItem):
     pass
+
+
+class VarDeclaration(Declaration, namedtuple('Declaration', ['name', 'init'])):
+    pass
+
+
+class FuncDeclaration(Declaration, namedtuple('Declaration', ['name', 'params', 'body'])):
+    def pretty_print(self):
+        params = ', '.join(self.params)
+        header = f'function {self.name}({params})'
+        if self.body:
+            body = self.body.pretty_print()
+            return headed(header, body)
+        else:
+            return [header + ';']
+
 
 ##
 ## Statements
@@ -165,6 +181,7 @@ class ForInit:
 
 
 class InitDecl(ForInit, namedtuple('InitDecl', ['declaration'])):
+    ''' declaration is a VarDeclaration '''
     def pretty_print(self):
         return ' '.join(self.declaration.pretty_print())
 
@@ -211,6 +228,11 @@ class Assignment(Expression, namedtuple('Assignment', ['lhs', 'rhs', 'op'])):
 
 class Conditional(Expression, namedtuple('Conditional', ['condition', 't', 'e'])):
     pass
+
+
+class Call(Expression, namedtuple('Call', ['function', 'arguments'])):
+    pass
+
 
 ##
 ## Unary ops

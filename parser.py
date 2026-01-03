@@ -16,19 +16,43 @@ class Parser:
 
     def parse(self) -> syntax.Program:
         ''' parse a program '''
-        function = self.parse_function()
+        functions = []
+        while self.peek():
+            function = self.parse_function()
+            functions.append(function)
         self.must_eof()
-        return syntax.Program(function_definition=function)
+        return syntax.Program(function_declarations=function)
 
-    def parse_function(self) -> syntax.Function:
+    def parse_function(self) -> syntax.FuncDeclaration:
         ''' parse a function definition '''
+        (name, params) = self.parse_function_header()
+        if self.peek(';'):
+            self.consume()
+            body = None
+        else:
+            body = self.parse_block()
+        return syntax.FuncDeclaration(name=name.text, params=params, body=body)
+
+    def parse_function_header(self):
         self.expect('keyword', 'int')
         name = self.expect('identifier')
         self.expect('(')
-        self.expect('keyword', 'void')
+        params = self.parse_params()
         self.expect(')')
-        body = self.parse_block()
-        return syntax.Function(name=name.text, body=body)
+        return (name, params)
+
+    def parse_params(self):
+        if self.peek('keyword', 'void'):
+            self.consume()
+            return []
+        params = []
+        while not self.peek(')'):
+            if params:
+                self.expect(',')
+            self.expect('keyword', 'int')
+            param_name = self.expect('identifier')
+            params.append(param_name)
+        return params
 
     def parse_block(self) -> syntax.Block:
         self.expect('{')
@@ -44,6 +68,12 @@ class Parser:
         return self.parse_statement()
 
     def parse_declaration(self) -> syntax.Declaration:
+        if self.peek('(', offset=2):
+            return self.parse_function()
+        else:
+            return self.parse_var_declaration()
+
+    def parse_var_declaration(self) -> syntax.VarDeclaration:
         self.expect('keyword', 'int')
         name_token = self.expect('identifier')
         init = None
@@ -51,7 +81,7 @@ class Parser:
             self.expect('=')
             init = self.parse_expression()
         self.expect(';')
-        return syntax.Declaration(name_token.text, init)
+        return syntax.VarDeclaration(name_token.text, init)
 
     def parse_statement(self) -> syntax.Statement:
         ''' parse a single statement '''
@@ -127,7 +157,7 @@ class Parser:
 
     def parse_for_init(self) -> syntax.ForInit:
         if self.peek('keyword', 'int'):
-            declaration = self.parse_declaration()
+            declaration = self.parse_var_declaration()
             return syntax.InitDecl(declaration)
         if self.peek(';'):
             self.expect(';')
@@ -268,6 +298,16 @@ class Parser:
             return 50
         raise Exception(f'undefined precedence for {text}')
 
+    def parse_argument_list(self):
+        self.expect('(')
+        arguments = []
+        while not self.peek(')'):
+            if arguments:
+                self.expect(',')
+            arguments.append(self.parse_expression())
+        self.expect(')')
+        return arguments
+
     def parse_binary_op(self) -> syntax.BinaryOp:
         token = self.consume()
         return self.to_binary_op(token.text)
@@ -328,6 +368,9 @@ class Parser:
             return self.parse_constant()
         if self.peek('identifier'):
             token = self.consume()
+            if self.peek('('):
+                argument_list = self.parse_argument_list()
+                return syntax.Call(token.text, argument_list)
             return syntax.Variable(token.text)
         if self.is_unary():
             return self.parse_unary_expression()
