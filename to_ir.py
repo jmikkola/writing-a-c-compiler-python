@@ -27,13 +27,14 @@ class ToTacky:
         functions = [
             self.convert_function(f)
             for f in self.syntax.function_declarations
+            if f.body is not None
         ]
         return tacky.Program(functions)
 
     def convert_function(self, function: syntax.FuncDeclaration) -> tacky.Function:
         instructions = self.convert_block(function.body)
         instructions.append(tacky.Return(tacky.Constant(0)))
-        return tacky.Function(name=function.name, body=instructions)
+        return tacky.Function(name=function.name, params=function.params, body=instructions)
 
     def convert_block(self, block: syntax.Block):
         instructions = []
@@ -59,6 +60,8 @@ class ToTacky:
                 return [tacky.Label(label)] + instructions
             case syntax.VarDeclaration(name, init):
                 return self.convert_declaration(name, init)
+            case syntax.FuncDeclaration(_, _, _):
+                return []
             case syntax.Compound(block):
                 return self.convert_block(block)
             case syntax.Continue(loop_label):
@@ -312,6 +315,9 @@ class ToTacky:
             case syntax.Conditional(_, _, _):
                 return self.convert_conditional(expr)
 
+            case syntax.Call(_, _):
+                return self.convert_call(expr)
+
             case _:
                 raise Exception(f'unhandled expression type, {expr}')
 
@@ -335,6 +341,20 @@ class ToTacky:
         instructions.append(tacky.Label(end_label))
 
         return (instructions, result_var)
+
+    def convert_call(self, expr: syntax.Call):
+        function = expr.function
+        instructions = []
+        arg_vals = []
+
+        for arg in expr.arguments:
+            i, val = self.convert_expression(arg)
+            instructions.extend(i)
+            arg_vals.append(val)
+
+        dst = self.new_temp_var()
+        instructions.append(tacky.Call(function, arg_vals, dst))
+        return (instructions, dst)
 
     def convert_binary_op(self, op: syntax.BinaryOp) -> tacky.BinaryOp:
         match op:

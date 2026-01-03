@@ -9,10 +9,16 @@ class Program(namedtuple('Program', ['functions'])):
         )
 
 
-class Function(namedtuple('Function', ['name', 'body'])):
+class Function(namedtuple('Function', ['name', 'params', 'body'])):
     def pretty_print(self):
-        return f'function {self.name}():\n' + \
+        params = ', '.join(self.params)
+        return f'function {self.name}({params}):\n' + \
             '\n'.join(instr.pretty_print() for instr in self.body)
+
+
+##
+## Instructions
+##
 
 
 class Instruction:
@@ -52,6 +58,15 @@ class Label(Instruction, namedtuple('Label', ['name'])):
     pass
 
 
+class Call(Instruction, namedtuple('Call', ['func_name', 'arg_vals', 'dst'])):
+    pass
+
+
+##
+## Values
+##
+
+
 class Value:
     pass
 
@@ -62,6 +77,11 @@ class Constant(Value, namedtuple('Constant', ['value'])):
 
 class Identifier(Value, namedtuple('Identifier', ['name'])):
     pass
+
+
+##
+## Unary operators
+##
 
 
 class UnaryOp:
@@ -78,6 +98,11 @@ class UnaryInvert(UnaryOp, namedtuple('UnaryInvert', [])):
 
 class UnaryNot(UnaryOp, namedtuple('UnaryNot', [])):
     pass
+
+
+##
+## Binary operators
+##
 
 
 class BinaryOp:
