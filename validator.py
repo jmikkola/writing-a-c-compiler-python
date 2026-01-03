@@ -38,8 +38,11 @@ class VariableValidator:
         raise ValidationError(msg)
 
     def validate(self, program):
-        function = self.validate_function(program.function_definition)
-        return syntax.Program(function)
+        functions = [
+            self.validate_function(f)
+            for f in program.function_declarations
+        ]
+        return syntax.Program(functions)
 
     def validate_function(self, function: syntax.FuncDeclaration):
         variable_map = {}
@@ -56,13 +59,16 @@ class VariableValidator:
 
     def validate_statements(self, block_item: syntax.BlockItem, variable_map: dict):
         match block_item:
-            case syntax.Declaration(name, init):
+            case syntax.VarDeclaration(name, init):
                 if name in variable_map and variable_map[name].from_current_block:
                     self.error(f'{name} already declared')
                 variable_map[name] = MapEntry(self.make_unique(name), True)
                 if init:
                     init = self.resolve_expr(init, variable_map)
-                return syntax.Declaration(variable_map[name].new_name, init)
+                return syntax.VarDeclaration(variable_map[name].new_name, init)
+            case syntax.FuncDeclaration(_, _, body):
+                if body is not None:
+                    self.error('function definitions not allowed inside another function')
             case syntax.Return(expr):
                 expr = self.resolve_expr(expr, variable_map)
                 return syntax.Return(expr)
@@ -188,8 +194,11 @@ class LabelValidator:
         raise ValidationError(msg)
 
     def validate(self, program):
-        function = self.validate_function(program.function_definition)
-        return syntax.Program(function)
+        functions = [
+            self.validate_function(f)
+            for f in program.function_declarations
+        ]
+        return syntax.Program(functions)
 
     def validate_function(self, function: syntax.FuncDeclaration):
         labels_declared = set()
@@ -212,7 +221,7 @@ class LabelValidator:
 
     def validate_statements(self, block_item: syntax.BlockItem, labels_declared: set, labels_used: set):
         match block_item:
-            case syntax.Declaration(_, _) | \
+            case syntax.VarDeclaration(_, _) | \
                  syntax.Return(_) | \
                  syntax.Continue(_) | \
                  syntax.Break(_) | \
@@ -285,8 +294,11 @@ class LoopLabels:
         raise ValidationError(msg)
 
     def validate(self, program):
-        function = self.validate_function(program.function_definition)
-        return syntax.Program(function)
+        functions = [
+            self.validate_function(f)
+            for f in program.function_declarations
+        ]
+        return syntax.Program(functions)
 
     def validate_function(self, function: syntax.FuncDeclaration):
         loop_scope = LoopScope(None, None, None)
@@ -302,7 +314,7 @@ class LoopLabels:
 
     def validate_statements(self, block_item: syntax.BlockItem, scope):
         match block_item:
-            case syntax.Declaration(_, _) | \
+            case syntax.VarDeclaration(_, _) | \
                  syntax.Return(_) | \
                  syntax.ExprStmt(_) | \
                  syntax.Goto(_) | \

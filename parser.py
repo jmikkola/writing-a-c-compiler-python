@@ -21,7 +21,7 @@ class Parser:
             function = self.parse_function()
             functions.append(function)
         self.must_eof()
-        return syntax.Program(function_declarations=function)
+        return syntax.Program(function_declarations=functions)
 
     def parse_function(self) -> syntax.FuncDeclaration:
         ''' parse a function definition '''
