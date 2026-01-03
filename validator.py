@@ -2,13 +2,14 @@ from collections import defaultdict
 from collections import namedtuple
 
 import syntax
-from errors import ValidationError
+from errors import ValidationError, TypeError
 
 
 def validate(program: syntax.Program) -> syntax.Program:
     program = IdentifierResolution().validate(program)
     program = LabelValidator().validate(program)
     program = LoopLabels().validate(program)
+    Typecheck().typecheck(program)
     return program
 
 
@@ -431,3 +432,145 @@ class LoopLabels:
                 return syntax.Default(stmt, switch_label)
             case _:
                 raise Exception(f'unhandled type of block item {block_item}')
+
+
+class Symbol(namedtuple('Symbol', ['type', 'defined'])):
+    pass
+
+
+class Typecheck:
+    def __init__(self):
+        self.symbols = {}
+
+    def error(self, msg):
+        raise TypeError(msg)
+
+    def typecheck(self, program: syntax.Program):
+        for f in program.function_declarations:
+            self.typecheck_func_decl(f)
+        return self.symbols
+
+    def typecheck_func_decl(self, f: syntax.FuncDeclaration):
+        func_type = syntax.Func(n_params=len(f.params))
+        has_body = f.body is not None
+        already_defined = False
+
+        if f.name in self.symbols:
+            existing = self.symbols.get(f.name)
+            if existing.type != func_type:
+                self.error(f'mismatched types for {f.name}')
+            already_defined = existing.defined
+            if already_defined and has_body:
+                self.error(f'function {f.name} is defined more than once')
+
+        defined = has_body or already_defined
+        self.symbols[f.name] = Symbol(func_type, defined)
+
+        if has_body:
+            for param in f.params:
+                self.symbols[param] = Symbol(syntax.Int(), True)
+            self.typecheck_block(f.body)
+
+    def typecheck_var_decl(self, v: syntax.VarDeclaration):
+        self.symbols[v.name] = Symbol(syntax.Int(), True)
+        if v.init is not None:
+            self.typecheck_expr(v.init)
+
+    def typecheck_block(self, block: syntax.Block):
+        for block_item in block.block_items:
+            self.typecheck_statement(block_item)
+
+    def typecheck_statement(self, block_item: syntax.BlockItem):
+        match block_item:
+            case syntax.VarDeclaration(_, _):
+                self.typecheck_var_decl(block_item)
+            case syntax.FuncDeclaration(_, _, _):
+                self.typecheck_func_decl(block_item)
+            case syntax.Return(expr):
+                self.typecheck_expr(expr)
+            case syntax.ExprStmt(expr):
+                self.typecheck_expr(expr)
+            case syntax.Goto(_) | \
+                 syntax.NullStatement():
+                pass
+            case syntax.IfStatement(test, t, e):
+                self.typecheck_expr(test)
+                self.typecheck_statement(t)
+                if e:
+                    self.typecheck_statement(e)
+            case syntax.While(test, body, _):
+                self.typecheck_expr(test)
+                self.typecheck_statement(body)
+            case syntax.DoWhile(body, test, _):
+                self.typecheck_expr(test)
+                self.typecheck_statement(body)
+            case syntax.For(init, condition, post, body, _):
+                self.typecheck_for_init(init)
+                if condition:
+                    self.typecheck_expr(condition)
+                if post:
+                    self.typecheck_expr(post)
+                self.typecheck_statement(body)
+            case syntax.Continue(_):
+                pass
+            case syntax.Break(_):
+                pass
+            case syntax.LabeledStmt(label, stmt):
+                self.typecheck_statement(stmt)
+            case syntax.Compound(block):
+                self.typecheck_block(block)
+            case syntax.Switch(condition, body, _, _):
+                self.typecheck_expr(condition)
+                self.typecheck_statement(body)
+            case syntax.Case(value, stmt, _):
+                if stmt:
+                    self.typecheck_statement(stmt)
+            case syntax.Default(stmt, _):
+                if stmt:
+                    self.typecheck_statement(stmt)
+            case _:
+                raise Exception(f'unhandled type of block item {block_item}')
+
+    def typecheck_expr(self, expr: syntax.Expression):
+        match expr:
+            case syntax.Constant(_):
+                pass
+            case syntax.Variable(name):
+                if isinstance(self.symbols[name].type, syntax.Func):
+                    self.error(f'Function {name} used as a variable')
+            case syntax.Call(name, arguments):
+                symbol = self.symbols[name]
+                if not isinstance(symbol.type, syntax.Func):
+                    self.error(f'Variable {name} used as a function')
+                if symbol.type.n_params != len(arguments):
+                    expected = symbol.type.n_params
+                    actual = len(arguments)
+                    self.error(f'Function {name} expects {expected} arguments, got {actual} arguments')
+                for a in arguments:
+                    self.typecheck_expr(a)
+            case syntax.Unary(_, expr):
+                self.typecheck_expr(expr)
+            case syntax.Postfix(expr, _):
+                self.typecheck_expr(expr)
+            case syntax.Binary(_, l, r):
+                self.typecheck_expr(l)
+                self.typecheck_expr(r)
+            case syntax.Assignment(lhs, rhs, _):
+                name = lhs.name
+                if isinstance(self.symbols[name].type, syntax.Func):
+                    self.error(f'Cannot assign to a function {name}')
+                self.typecheck_expr(rhs)
+            case syntax.Conditional(condition, t, e):
+                self.typecheck_expr(condition)
+                self.typecheck_expr(t)
+                self.typecheck_expr(e)
+
+    def typecheck_for_init(self, init: syntax.ForInit):
+        match init:
+            case syntax.InitDecl(decl):
+                self.typecheck_statement(decl)
+            case syntax.InitExp(exp):
+                if exp:
+                    self.typecheck_expr(exp)
+            case _:
+                raise Exception(f'invalid type for ForInit {init}')

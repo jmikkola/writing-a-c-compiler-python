@@ -1,5 +1,8 @@
 from collections import namedtuple
 
+##
+## Pretty printing
+##
 
 def indent(lines):
     return ['  ' + line for line in lines]
@@ -29,6 +32,26 @@ def trailer(lines, trailer):
     else:
         return lines + [trailer]
 
+##
+## Types
+##
+
+class Type:
+    def pretty_print(self):
+        return str(self)
+
+
+class Int(Type, namedtuple('Int', [])):
+    pass
+
+
+class Func(Type, namedtuple('Func', ['n_params'])):
+    pass
+
+
+##
+## Program structure
+##
 
 class Program(namedtuple('Program', ['function_declarations'])):
     def pretty_print(self):

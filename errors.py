@@ -8,3 +8,7 @@ class SyntaxError(WACCException):
 
 class ValidationError(WACCException):
     pass
+
+
+class TypeError(ValidationError):
+    pass
