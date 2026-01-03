@@ -27,7 +27,7 @@ class Codegen:
         # Replace pseudo registers with stack locations
         instructions, stack_size = self.replace_pseudo_registers(instructions)
         if stack_size % 16 != 0:
-            stack_size += 8
+            stack_size += 16 - (stack_size % 16)
         instructions = [assembly.AllocateStack(stack_size)] + instructions
 
         # Fix instructions that are now invalid
@@ -45,7 +45,8 @@ class Codegen:
 
         # Handle arguments that are passed on the stack
         stack_offset = 16
-        for arg in params[6:]:
+        stack_params = params[6:]
+        for param in stack_params:
             instructions.append(assembly.Mov(assembly.Stack(stack_offset), assembly.Pseudo(param)))
             stack_offset += 8
 
@@ -215,7 +216,7 @@ class Codegen:
         # Pass the remaining arguments on the stack
         for arg in stack_args[::-1]:
             assembly_arg = self.convert_operand(arg)
-            if isinstance(assembly_arg, assembly.Register) or isinstance(assembly, assembly.Immediate):
+            if isinstance(assembly_arg, assembly.Register) or isinstance(assembly_arg, assembly.Immediate):
                 instructions.append(assembly.Push(assembly_arg))
             else:
                 instructions.append(assembly.Mov(assembly_arg, assembly.Register('AX')))

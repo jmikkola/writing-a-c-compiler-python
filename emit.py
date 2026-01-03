@@ -1,20 +1,25 @@
+from collections import namedtuple
+
 import assembly
 
 
 INDENT = '    '
-BYTE_REGISTERS = {
-    'AX': '%al',
-    'CX': '%cl',
-    'DX': '%dl',
-    'R10': '%r10b',
-    'R11': '%r11b',
-}
+
+
+class Register(namedtuple('Register', ['byte', 'dword', 'qword'])):
+    pass
+
+
 REGISTERS = {
-    'AX': '%eax',
-    'CX': '%ecx',
-    'DX': '%edx',
-    'R10': '%r10d',
-    'R11': '%r11d',
+    'AX': Register('%al', '%eax', '%rax'),
+    'CX': Register('%cl', '%ecx', '%rcx'),
+    'DX': Register('%dl', '%edx', '%rdx'),
+    'DI': Register('%dil', '%edi', '%rdi'),
+    'SI': Register('%sil', '%esi', '%rsi'),
+    'R8': Register('%r8b', '%r8d', '%r8'),
+    'R9': Register('%r9b', '%r9d', '%r9'),
+    'R10': Register('%r10b', '%r10d', '%r10'),
+    'R11': Register('%r11b', '%r11d', '%r11'),
 }
 
 
@@ -47,12 +52,19 @@ class Emit:
                 self.indented('movq %rbp, %rsp')
                 self.indented('popq %rbp')
                 self.indented('ret')
+            case assembly.Call(func):
+                self.indented(f'call {func}@PLT')
             case assembly.Mov(src, dst):
                 src = self.render_operand(src)
                 dst = self.render_operand(dst)
                 self.indented(f'movl {src}, {dst}')
             case assembly.AllocateStack(size):
                 self.indented(f'subq ${size}, %rsp')
+            case assembly.DeallocateStack(size):
+                self.indented(f'addq ${size}, %rsp')
+            case assembly.Push(operand):
+                operand = self.render_operand(operand, qword=True)
+                self.indented(f'pushq {operand}')
             case assembly.Unary(unary_operator, operand):
                 operation = self.convert_unary_operator(unary_operator)
                 operand = self.render_operand(operand)
@@ -121,15 +133,17 @@ class Emit:
             case _:
                 raise Exception(f'invalid binary operation to convert to an instruction {binary_operator}')
 
-    def render_operand(self, operand: assembly.Operand, byte_size=False):
+    def render_operand(self, operand: assembly.Operand, byte_size=False, qword=False):
         match operand:
             case assembly.Immediate(value):
                 return '$' + str(value)
             case assembly.Register(reg):
                 if byte_size:
-                    return BYTE_REGISTERS[reg]
+                    return REGISTERS[reg].byte
+                elif qword:
+                    return REGISTERS[reg].qword
                 else:
-                    return REGISTERS[reg]
+                    return REGISTERS[reg].dword
             case assembly.Pseudo():
                 raise Exception('bug - there should not be a pseudo register by this phase')
             case assembly.Stack(offset):

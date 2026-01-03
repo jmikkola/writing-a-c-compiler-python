@@ -84,9 +84,10 @@ def compile(stage, preprocessed_file, assembly_file, print_output):
         return
 
     emit.emit(asm, assembly_file)
-    if print_output:
-        with open(assembly_file, 'r') as inf:
-            print(inf.read())
+    if stage == 'emit':
+        if print_output:
+            with open(assembly_file, 'r') as inf:
+                print(inf.read())
 
 
 def assemble_and_link(assembly_file, compiled_file, object):

@@ -6,6 +6,8 @@ class Args(namedtuple('Args', ['name', 'stage', 'print_output', 'object'])):
     @classmethod
     def parse(cls, args):
         stage = 'all'
+        if '--emit' in args:
+            stage = 'emit'
         if '--codegen' in args:
             stage = 'codegen'
         if '--tacky' in args:
