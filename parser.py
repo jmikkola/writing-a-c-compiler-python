@@ -50,7 +50,7 @@ class Parser:
             if params:
                 self.expect(',')
             self.expect('keyword', 'int')
-            param_name = self.expect('identifier')
+            param_name = self.expect('identifier').text
             params.append(param_name)
         return params
 

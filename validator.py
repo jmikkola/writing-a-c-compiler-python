@@ -12,10 +12,14 @@ def validate(program: syntax.Program) -> syntax.Program:
     return program
 
 
-class MapEntry(namedtuple('MapEntry', ['new_name', 'from_current_scope'])):
+class MapEntry(namedtuple('MapEntry', ['new_name', 'from_current_scope', 'has_linkage'])):
     ''' for IdentifierResolution to track where a variable is from '''
     def mark_old(self):
-        return MapEntry(self.new_name, False)
+        return MapEntry(self.new_name, False, self.has_linkage)
+
+    @classmethod
+    def for_name(self, name, has_linkage=False):
+        return MapEntry(name, True, has_linkage)
 
 
 def copy_identifier_map(identifier_map: dict) -> dict:
@@ -38,16 +42,43 @@ class IdentifierResolution:
         raise ValidationError(msg)
 
     def validate(self, program):
+        identifier_map = {}
         functions = [
-            self.validate_function(f)
+            self.validate_function(f, identifier_map)
             for f in program.function_declarations
         ]
         return syntax.Program(functions)
 
-    def validate_function(self, function: syntax.FuncDeclaration):
-        identifier_map = {}
-        body = self.validate_block(function.body, identifier_map)
-        return syntax.FuncDeclaration(function.name, function.params, body)
+    def validate_function(self, function: syntax.FuncDeclaration, identifier_map):
+        name = function.name
+        if name in identifier_map:
+            prev_entry = identifier_map[name]
+            if prev_entry.from_current_scope and not prev_entry.has_linkage:
+                self.error(f'duplicate declaration of {name}')
+
+        identifier_map[name] = MapEntry.for_name(name, has_linkage=True)
+
+        inner_identifier_map = copy_identifier_map(identifier_map)
+
+        new_params = []
+        for param in function.params:
+            new_params.append(self.resolve_param(param, inner_identifier_map))
+
+        body = function.body
+        if body:
+            block_items = [
+                self.validate_statements(b, inner_identifier_map)
+                for b in body.block_items
+            ]
+            body = syntax.Block(block_items)
+        return syntax.FuncDeclaration(function.name, new_params, body)
+
+    def resolve_param(self, param, identifier_map):
+        if param in identifier_map and identifier_map[param].from_current_scope:
+            self.error(f'{param} already declared')
+        new_name = self.make_unique(param)
+        identifier_map[param] = MapEntry.for_name(new_name)
+        return new_name
 
     def validate_block(self, block: syntax.Block, identifier_map: dict):
         inner_identifier_map = copy_identifier_map(identifier_map)
@@ -62,13 +93,14 @@ class IdentifierResolution:
             case syntax.VarDeclaration(name, init):
                 if name in identifier_map and identifier_map[name].from_current_scope:
                     self.error(f'{name} already declared')
-                identifier_map[name] = MapEntry(self.make_unique(name), True)
+                identifier_map[name] = MapEntry.for_name(self.make_unique(name))
                 if init:
                     init = self.resolve_expr(init, identifier_map)
                 return syntax.VarDeclaration(identifier_map[name].new_name, init)
-            case syntax.FuncDeclaration(_, _, body):
+            case syntax.FuncDeclaration(name, _, body):
                 if body is not None:
                     self.error('function definitions not allowed inside another function')
+                return self.validate_function(block_item, identifier_map)
             case syntax.Return(expr):
                 expr = self.resolve_expr(expr, identifier_map)
                 return syntax.Return(expr)
@@ -172,6 +204,12 @@ class IdentifierResolution:
                 t = self.resolve_expr(t, identifier_map)
                 e = self.resolve_expr(e, identifier_map)
                 return syntax.Conditional(test, t, e)
+            case syntax.Call(func_name, arguments):
+                if func_name not in identifier_map:
+                    self.error(f'calling an undefined function {func_name}')
+                new_func_name = identifier_map[func_name].new_name
+                new_args = [self.resolve_expr(arg, identifier_map) for arg in arguments]
+                return syntax.Call(new_func_name, new_args)
             case _:
                 raise Exception(f'unhandled type of expression {expr}')
 
@@ -204,7 +242,9 @@ class LabelValidator:
         labels_declared = set()
         labels_used = set()
 
-        body = self.validate_block(function.body, labels_declared, labels_used)
+        body = function.body
+        if body:
+            body = self.validate_block(body, labels_declared, labels_used)
 
         labels_not_defined = labels_used - labels_declared
         if labels_not_defined:
@@ -222,6 +262,7 @@ class LabelValidator:
     def validate_statements(self, block_item: syntax.BlockItem, labels_declared: set, labels_used: set):
         match block_item:
             case syntax.VarDeclaration(_, _) | \
+                 syntax.FuncDeclaration(_, _, _) | \
                  syntax.Return(_) | \
                  syntax.Continue(_) | \
                  syntax.Break(_) | \
@@ -302,7 +343,9 @@ class LoopLabels:
 
     def validate_function(self, function: syntax.FuncDeclaration):
         loop_scope = LoopScope(None, None, None)
-        body = self.validate_block(function.body, loop_scope)
+        body = function.body
+        if body:
+            body = self.validate_block(body, loop_scope)
         return syntax.FuncDeclaration(function.name, function.params, body)
 
     def validate_block(self, block: syntax.Block, scope):
@@ -315,6 +358,7 @@ class LoopLabels:
     def validate_statements(self, block_item: syntax.BlockItem, scope):
         match block_item:
             case syntax.VarDeclaration(_, _) | \
+                 syntax.FuncDeclaration(_, _, _) | \
                  syntax.Return(_) | \
                  syntax.ExprStmt(_) | \
                  syntax.Goto(_) | \
