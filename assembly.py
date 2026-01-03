@@ -29,6 +29,18 @@ class AllocateStack(Instruction, namedtuple('AllocateStack', ['bytes'])):
     pass
 
 
+class DeallocateStack(Instruction, namedtuple('DeallocateStack', ['bytes'])):
+    pass
+
+
+class Push(Instruction, namedtuple('Push', ['operand'])):
+    pass
+
+
+class Call(Instruction, namedtuple('Call', ['identifier'])):
+    pass
+
+
 class Unary(Instruction, namedtuple('Unary', ['unary_operator', 'operand'])):
     pass
 
@@ -123,7 +135,7 @@ class Immediate(Operand, namedtuple('Immediate', ['value'])):
 
 
 class Register(Operand, namedtuple('Register', ['reg'])):
-    ''' reg can be 'AX', 'CX', 'DX', 'R10', or 'R11' '''
+    ''' reg can be 'AX', 'CX', 'DX', 'DI', 'SI', 'R8', 'R9', 'R10', or 'R11' '''
     pass
 
 

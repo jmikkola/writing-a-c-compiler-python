@@ -10,6 +10,7 @@ def gen(tacky: tacky.Program) -> assembly.Program:
 class Codegen:
     def __init__(self, tacky):
         self.tacky = tacky
+        self.arg_registers = ['DI', 'SI', 'DX', 'CX', 'R8', 'R9']
 
     def generate(self):
         functions = [
@@ -19,11 +20,36 @@ class Codegen:
         return assembly.Program(functions)
 
     def gen_function(self, function: tacky.Function) -> assembly.Function:
-        instructions = self.gen_instructions(function.body)
+        # Generate the basic assembly
+        instructions = self.save_arguments(function.params)
+        instructions += self.gen_instructions(function.body)
+
+        # Replace pseudo registers with stack locations
         instructions, stack_size = self.replace_pseudo_registers(instructions)
+        if stack_size % 16 != 0:
+            stack_size += 8
         instructions = [assembly.AllocateStack(stack_size)] + instructions
+
+        # Fix instructions that are now invalid
         instructions = self.fix_invalid_instructions(instructions)
+
         return assembly.Function(name=function.name, instructions=instructions)
+
+    def save_arguments(self, params):
+        ''' For simplicity, copy all parameters to the current stack frame '''
+        instructions = []
+
+        # Handle arguments that are passed in registers
+        for (param, reg) in zip(params, self.arg_registers):
+            instructions.append(assembly.Mov(assembly.Register(reg), assembly.Pseudo(param)))
+
+        # Handle arguments that are passed on the stack
+        stack_offset = 16
+        for arg in params[6:]:
+            instructions.append(assembly.Mov(assembly.Stack(stack_offset), assembly.Pseudo(param)))
+            stack_offset += 8
+
+        return instructions
 
     def replace_pseudo_registers(self, instructions):
         pseudo_registers = {}
@@ -38,7 +64,7 @@ class Codegen:
                     src = self.convert_pseudo_register(pseudo_registers, src)
                     dst = self.convert_pseudo_register(pseudo_registers, dst)
                     instr = assembly.Mov(src, dst)
-                case assembly.AllocateStack(_):
+                case assembly.AllocateStack(_) | assembly.DeallocateStack(_):
                     pass
                 case assembly.Unary(unary_operator, operand):
                     operand = self.convert_pseudo_register(pseudo_registers, operand)
@@ -57,6 +83,11 @@ class Codegen:
                 case assembly.SetCC(cond_code, operand):
                     operand = self.convert_pseudo_register(pseudo_registers, operand)
                     instr = assembly.SetCC(cond_code, operand)
+                case assembly.Call(_):
+                    pass
+                case assembly.Push(operand):
+                    operand = self.convert_pseudo_register(pseudo_registers, operand)
+                    instr = assembly.Push(operand)
                 case _:
                     raise Exception(f'unhandled instruction type {instr}')
             updated_instructions.append(instr)
@@ -161,8 +192,48 @@ class Codegen:
                 ]
             case tacky.Label(name):
                 return [assembly.Label(name)]
+            case tacky.Call(_, _, _):
+                return self.gen_call(instr)
             case _:
                 raise Exception(f'unhandled instruction type, {instr}')
+
+    def gen_call(self, instr: tacky.Call) -> list:
+        register_args, stack_args = (instr.arg_vals[:6], instr.arg_vals[6:])
+        stack_padding = 8 * (len(stack_args) % 2)
+
+        instructions = []
+
+        # Add stack padding so the alignment comes out right
+        if stack_padding > 0:
+            instructions.append(assembly.AllocateStack(stack_padding))
+
+        # Pass the first 6 arguments in registers
+        for (arg, register) in zip(register_args, self.arg_registers):
+            assembly_arg = self.convert_operand(arg)
+            instructions.append(assembly.Mov(assembly_arg, assembly.Register(register)))
+
+        # Pass the remaining arguments on the stack
+        for arg in stack_args[::-1]:
+            assembly_arg = self.convert_operand(arg)
+            if isinstance(assembly_arg, assembly.Register) or isinstance(assembly, assembly.Immediate):
+                instructions.append(assembly.Push(assembly_arg))
+            else:
+                instructions.append(assembly.Mov(assembly_arg, assembly.Register('AX')))
+                instructions.append(assembly.Push(assembly.Register('AX')))
+
+        # The actual function call
+        instructions.append(assembly.Call(instr.func_name))
+
+        # Clean up the stack
+        bytes_to_remove = 8 * len(stack_args) + stack_padding
+        if bytes_to_remove > 0:
+            instructions.append(assembly.DeallocateStack(bytes_to_remove))
+
+        # Move the result to the correct destination
+        assembly_dst = self.convert_operand(instr.dst)
+        instructions.append(assembly.Mov(assembly.Register('AX'), assembly_dst))
+
+        return instructions
 
     def gen_return(self, instr: tacky.Return) -> list:
         src = self.convert_operand(instr.val)
