@@ -29,7 +29,8 @@ class Emit:
         self.out = out
 
     def emit_program(self, program):
-        self.emit_function(program.function_definition)
+        for f in program.functions:
+            self.emit_function(f)
         self.indented('.section  .note.GNU-stack,"",@progbits')
 
     def emit_function(self, function: assembly.Function):

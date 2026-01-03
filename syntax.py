@@ -31,10 +31,6 @@ def trailer(lines, trailer):
 
 
 class Program(namedtuple('Program', ['function_declarations'])):
-    def __init__(self, **kwargs):
-        for f in kwargs['function_declarations']:
-            assert(isinstance(f, FuncDeclaration))
-
     def pretty_print(self):
         lines = []
         for fn in self.function_declarations:

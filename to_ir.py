@@ -24,8 +24,11 @@ class ToTacky:
         return name
 
     def convert(self):
-        function = self.convert_function(self.syntax.function_definition)
-        return tacky.Program(function_definition=function)
+        functions = [
+            self.convert_function(f)
+            for f in self.syntax.function_declarations
+        ]
+        return tacky.Program(functions)
 
     def convert_function(self, function: syntax.FuncDeclaration) -> tacky.Function:
         instructions = self.convert_block(function.body)
@@ -54,7 +57,7 @@ class ToTacky:
             case syntax.LabeledStmt(label, stmt):
                 instructions = self.convert_instructions(stmt)
                 return [tacky.Label(label)] + instructions
-            case syntax.Declaration(name, init):
+            case syntax.VarDeclaration(name, init):
                 return self.convert_declaration(name, init)
             case syntax.Compound(block):
                 return self.convert_block(block)

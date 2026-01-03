@@ -1,9 +1,9 @@
 from collections import namedtuple
 
 
-class Program(namedtuple('Program', ['function_definition'])):
+class Program(namedtuple('Program', ['functions'])):
     def pretty_print(self):
-        return self.function_definition.pretty_print()
+        return '\n\n'.join(f.pretty_print() for f in self.functions)
 
 
 class Function(namedtuple('Function', ['name', 'instructions'])):

@@ -12,8 +12,11 @@ class Codegen:
         self.tacky = tacky
 
     def generate(self):
-        function = self.gen_function(self.tacky.function_definition)
-        return assembly.Program(function_definition=function)
+        functions = [
+            self.gen_function(f)
+            for f in self.tacky.functions
+        ]
+        return assembly.Program(functions)
 
     def gen_function(self, function: tacky.Function) -> assembly.Function:
         instructions = self.gen_instructions(function.body)
