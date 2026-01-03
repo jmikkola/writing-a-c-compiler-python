@@ -6,26 +6,26 @@ from errors import ValidationError
 
 
 def validate(program: syntax.Program) -> syntax.Program:
-    program = VariableValidator().validate(program)
+    program = IdentifierResolution().validate(program)
     program = LabelValidator().validate(program)
     program = LoopLabels().validate(program)
     return program
 
 
-class MapEntry(namedtuple('MapEntry', ['new_name', 'from_current_block'])):
-    ''' for VariableValidator to track where a variable is from '''
+class MapEntry(namedtuple('MapEntry', ['new_name', 'from_current_scope'])):
+    ''' for IdentifierResolution to track where a variable is from '''
     def mark_old(self):
         return MapEntry(self.new_name, False)
 
 
-def copy_variable_map(variable_map: dict) -> dict:
+def copy_identifier_map(identifier_map: dict) -> dict:
     return {
         name: entry.mark_old()
-        for (name, entry) in variable_map.items()
+        for (name, entry) in identifier_map.items()
     }
 
 
-class VariableValidator:
+class IdentifierResolution:
     def __init__(self):
         self._n_vars = 0
 
@@ -45,132 +45,132 @@ class VariableValidator:
         return syntax.Program(functions)
 
     def validate_function(self, function: syntax.FuncDeclaration):
-        variable_map = {}
-        body = self.validate_block(function.body, variable_map)
+        identifier_map = {}
+        body = self.validate_block(function.body, identifier_map)
         return syntax.FuncDeclaration(function.name, function.params, body)
 
-    def validate_block(self, block: syntax.Block, variable_map: dict):
-        inner_variable_map = copy_variable_map(variable_map)
+    def validate_block(self, block: syntax.Block, identifier_map: dict):
+        inner_identifier_map = copy_identifier_map(identifier_map)
         block_items = [
-            self.validate_statements(b, inner_variable_map)
+            self.validate_statements(b, inner_identifier_map)
             for b in block.block_items
         ]
         return syntax.Block(block_items)
 
-    def validate_statements(self, block_item: syntax.BlockItem, variable_map: dict):
+    def validate_statements(self, block_item: syntax.BlockItem, identifier_map: dict):
         match block_item:
             case syntax.VarDeclaration(name, init):
-                if name in variable_map and variable_map[name].from_current_block:
+                if name in identifier_map and identifier_map[name].from_current_scope:
                     self.error(f'{name} already declared')
-                variable_map[name] = MapEntry(self.make_unique(name), True)
+                identifier_map[name] = MapEntry(self.make_unique(name), True)
                 if init:
-                    init = self.resolve_expr(init, variable_map)
-                return syntax.VarDeclaration(variable_map[name].new_name, init)
+                    init = self.resolve_expr(init, identifier_map)
+                return syntax.VarDeclaration(identifier_map[name].new_name, init)
             case syntax.FuncDeclaration(_, _, body):
                 if body is not None:
                     self.error('function definitions not allowed inside another function')
             case syntax.Return(expr):
-                expr = self.resolve_expr(expr, variable_map)
+                expr = self.resolve_expr(expr, identifier_map)
                 return syntax.Return(expr)
             case syntax.ExprStmt(expr):
-                expr = self.resolve_expr(expr, variable_map)
+                expr = self.resolve_expr(expr, identifier_map)
                 return syntax.ExprStmt(expr)
             case syntax.NullStatement():
                 return block_item
             case syntax.IfStatement(test, t, e):
-                test = self.resolve_expr(test, variable_map)
-                t = self.validate_statements(t, variable_map)
+                test = self.resolve_expr(test, identifier_map)
+                t = self.validate_statements(t, identifier_map)
                 if e:
-                    e = self.validate_statements(e, variable_map)
+                    e = self.validate_statements(e, identifier_map)
                 return syntax.IfStatement(test, t, e)
             case syntax.Goto(_):
                 return block_item
             case syntax.LabeledStmt(label, stmt):
-                stmt = self.validate_statements(stmt, variable_map)
+                stmt = self.validate_statements(stmt, identifier_map)
                 return syntax.LabeledStmt(label, stmt)
             case syntax.Compound(block):
-                block = self.validate_block(block, variable_map)
+                block = self.validate_block(block, identifier_map)
                 return syntax.Compound(block)
             case syntax.Break(_):
                 return block_item
             case syntax.Continue(_):
                 return block_item
             case syntax.While(test, body, loop_label):
-                test = self.resolve_expr(test, variable_map)
-                body = self.validate_statements(body, variable_map)
+                test = self.resolve_expr(test, identifier_map)
+                body = self.validate_statements(body, identifier_map)
                 return syntax.While(test, body, loop_label)
             case syntax.DoWhile(body, test, loop_label):
-                body = self.validate_statements(body, variable_map)
-                test = self.resolve_expr(test, variable_map)
+                body = self.validate_statements(body, identifier_map)
+                test = self.resolve_expr(test, identifier_map)
                 return syntax.DoWhile(body, test, loop_label)
             case syntax.For(init, condition, post, body, loop_label):
-                inner_variable_map = copy_variable_map(variable_map)
-                init = self.resolve_for_init(init, inner_variable_map)
+                inner_identifier_map = copy_identifier_map(identifier_map)
+                init = self.resolve_for_init(init, inner_identifier_map)
                 if condition:
-                    condition = self.resolve_expr(condition, inner_variable_map)
+                    condition = self.resolve_expr(condition, inner_identifier_map)
                 if post:
-                    post = self.resolve_expr(post, inner_variable_map)
-                body = self.validate_statements(body, inner_variable_map)
+                    post = self.resolve_expr(post, inner_identifier_map)
+                body = self.validate_statements(body, inner_identifier_map)
                 return syntax.For(init, condition, post, body, loop_label)
             case syntax.Switch(condition, body, switch_label, case_values):
-                condition = self.resolve_expr(condition, variable_map)
-                body = self.validate_statements(body, variable_map)
+                condition = self.resolve_expr(condition, identifier_map)
+                body = self.validate_statements(body, identifier_map)
                 return syntax.Switch(condition, body, switch_label, case_values)
             case syntax.Case(value, stmt, switch_label):
                 if stmt:
-                    stmt = self.validate_statements(stmt, variable_map)
+                    stmt = self.validate_statements(stmt, identifier_map)
                 return syntax.Case(value, stmt, switch_label)
             case syntax.Default(stmt, switch_label):
                 if stmt:
-                    stmt = self.validate_statements(stmt, variable_map)
+                    stmt = self.validate_statements(stmt, identifier_map)
                 return syntax.Default(stmt, switch_label)
             case _:
                 raise Exception(f'unhandled type of block item {block_item}')
 
-    def resolve_for_init(self, init: syntax.ForInit, variable_map: dict):
+    def resolve_for_init(self, init: syntax.ForInit, identifier_map: dict):
         match init:
             case syntax.InitDecl(decl):
-                decl = self.validate_statements(decl, variable_map)
+                decl = self.validate_statements(decl, identifier_map)
                 return syntax.InitDecl(decl)
             case syntax.InitExp(exp):
                 if exp:
-                    exp = self.resolve_expr(exp, variable_map)
+                    exp = self.resolve_expr(exp, identifier_map)
                 return syntax.InitExp(exp)
             case _:
                 raise Exception(f'invalid type for ForInit {init}')
 
-    def resolve_expr(self, expr: syntax.Expression, variable_map: dict):
+    def resolve_expr(self, expr: syntax.Expression, identifier_map: dict):
         match expr:
             case syntax.Constant(_):
                 return expr
             case syntax.Variable(name):
-                if name not in variable_map:
+                if name not in identifier_map:
                     self.error(f'undefined variable {name}')
-                return syntax.Variable(variable_map[name].new_name)
+                return syntax.Variable(identifier_map[name].new_name)
             case syntax.Unary(op, expr):
                 if self.is_modifying_operator(op) and not self.is_variable(expr):
                     self.error(f'invaild to apply {op} to {expr}')
-                expr = self.resolve_expr(expr, variable_map)
+                expr = self.resolve_expr(expr, identifier_map)
                 return syntax.Unary(op, expr)
             case syntax.Postfix(expr, op):
                 if self.is_modifying_operator(op) and not self.is_variable(expr):
                     self.error(f'invaild to apply {op} to {expr}')
-                expr = self.resolve_expr(expr, variable_map)
+                expr = self.resolve_expr(expr, identifier_map)
                 return syntax.Postfix(expr, op)
             case syntax.Binary(op, left, right):
-                left = self.resolve_expr(left, variable_map)
-                right = self.resolve_expr(right, variable_map)
+                left = self.resolve_expr(left, identifier_map)
+                right = self.resolve_expr(right, identifier_map)
                 return syntax.Binary(op, left, right)
             case syntax.Assignment(lhs, rhs, op):
                 if not isinstance(lhs, syntax.Variable):
                     self.error(f'invalid target for assignment: {lhs}')
-                lhs = self.resolve_expr(lhs, variable_map)
-                rhs = self.resolve_expr(rhs, variable_map)
+                lhs = self.resolve_expr(lhs, identifier_map)
+                rhs = self.resolve_expr(rhs, identifier_map)
                 return syntax.Assignment(lhs, rhs, op)
             case syntax.Conditional(test, t, e):
-                test = self.resolve_expr(test, variable_map)
-                t = self.resolve_expr(t, variable_map)
-                e = self.resolve_expr(e, variable_map)
+                test = self.resolve_expr(test, identifier_map)
+                t = self.resolve_expr(t, identifier_map)
+                e = self.resolve_expr(e, identifier_map)
                 return syntax.Conditional(test, t, e)
             case _:
                 raise Exception(f'unhandled type of expression {expr}')
