@@ -12,6 +12,8 @@ class ToTacky:
         self.syntax = syntax
         self.n_temp_vars = 0
         self.n_labels = 0
+        # To be set by convert_function
+        self.user_labels = None
 
     def new_temp_var(self):
         name = f'tmp.{self.n_temp_vars}'
@@ -23,6 +25,11 @@ class ToTacky:
         self.n_labels += 1
         return name
 
+    def rename_user_label(self, label):
+        if label not in self.user_labels:
+            self.user_labels[label] = self.new_label(label)
+        return self.user_labels[label]
+
     def convert(self):
         functions = [
             self.convert_function(f)
@@ -32,6 +39,7 @@ class ToTacky:
         return tacky.Program(functions)
 
     def convert_function(self, function: syntax.FuncDeclaration) -> tacky.Function:
+        self.user_labels = {}
         instructions = self.convert_block(function.body)
         instructions.append(tacky.Return(tacky.Constant(0)))
         return tacky.Function(name=function.name, params=function.params, body=instructions)
@@ -54,8 +62,10 @@ class ToTacky:
             case syntax.IfStatement(_, _, _):
                 return self.convert_if(body)
             case syntax.Goto(label):
+                label = self.rename_user_label(label)
                 return [tacky.Jump(label)]
             case syntax.LabeledStmt(label, stmt):
+                label = self.rename_user_label(label)
                 instructions = self.convert_instructions(stmt)
                 return [tacky.Label(label)] + instructions
             case syntax.VarDeclaration(name, init):
