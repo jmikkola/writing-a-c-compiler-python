@@ -53,7 +53,7 @@ class Func(Type, namedtuple('Func', ['n_params'])):
 ## Program structure
 ##
 
-class Program(namedtuple('Program', ['function_declarations'])):
+class Program(namedtuple('Program', ['declarations'])):
     def pretty_print(self):
         lines = []
         for fn in self.function_declarations:
@@ -74,15 +74,20 @@ class BlockItem:
         return [str(self)]
 
 
+##
+## Declarations
+##
+
+
 class Declaration(BlockItem):
     pass
 
 
-class VarDeclaration(Declaration, namedtuple('Declaration', ['name', 'init'])):
+class VarDeclaration(Declaration, namedtuple('Declaration', ['name', 'init', 'storage_class'])):
     pass
 
 
-class FuncDeclaration(Declaration, namedtuple('Declaration', ['name', 'params', 'body'])):
+class FuncDeclaration(Declaration, namedtuple('Declaration', ['name', 'params', 'body', 'storage_class'])):
     def pretty_print(self):
         params = ', '.join(self.params)
         header = f'function {self.name}({params})'
@@ -91,6 +96,19 @@ class FuncDeclaration(Declaration, namedtuple('Declaration', ['name', 'params', 
             return headed(header, body)
         else:
             return [header + ';']
+
+
+class StorageClass:
+    pass
+
+
+class Static(StorageClass):
+    pass
+
+
+class Extern(StorageClass):
+    pass
+
 
 
 ##
