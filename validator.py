@@ -44,11 +44,22 @@ class IdentifierResolution:
 
     def validate(self, program):
         identifier_map = {}
-        functions = [
-            self.validate_function(f, identifier_map)
-            for f in program.declarations
+        declarations = [
+            self.validate_declaration(d, identifier_map)
+            for d in program.declarations
         ]
-        return syntax.Program(functions)
+        return syntax.Program(declarations)
+
+    def validate_declaration(self, decl: syntax.Declaration, identifier_map):
+        identifier_map[decl.name] = MapEntry.for_name(decl.name, has_linkage=True)
+
+        match decl:
+            case syntax.FuncDeclaration():
+                return self.validate_function(decl, identifier_map)
+            case syntax.VarDeclaration():
+                return decl
+            case _:
+                raise Exception(f'unhandled kind of declaration {decl}')
 
     def validate_function(self, function: syntax.FuncDeclaration, identifier_map):
         name = function.name
@@ -237,11 +248,20 @@ class LabelValidator:
         raise ValidationError(msg)
 
     def validate(self, program):
-        functions = [
-            self.validate_function(f)
-            for f in program.declarations
+        declarations = [
+            self.validate_declaration(d)
+            for d in program.declarations
         ]
-        return syntax.Program(functions)
+        return syntax.Program(declarations)
+
+    def validate_declaration(self, decl: syntax.Declaration):
+        match decl:
+            case syntax.FuncDeclaration():
+                return self.validate_function(decl)
+            case syntax.VarDeclaration():
+                return decl
+            case _:
+                raise Exception(f'unhandled kind of declaration {decl}')
 
     def validate_function(self, function: syntax.FuncDeclaration):
         labels_declared = set()
@@ -340,11 +360,20 @@ class LoopLabels:
         raise ValidationError(msg)
 
     def validate(self, program):
-        functions = [
-            self.validate_function(f)
-            for f in program.declarations
+        declarations = [
+            self.validate_declaration(d)
+            for d in program.declarations
         ]
-        return syntax.Program(functions)
+        return syntax.Program(declarations)
+
+    def validate_declaration(self, decl: syntax.Declaration):
+        match decl:
+            case syntax.FuncDeclaration():
+                return self.validate_function(decl)
+            case syntax.VarDeclaration():
+                return decl
+            case _:
+                raise Exception(f'unhandled kind of declaration {decl}')
 
     def validate_function(self, function: syntax.FuncDeclaration):
         loop_scope = LoopScope(None, None, None)
@@ -450,9 +479,21 @@ class Typecheck:
         raise TypeError(msg)
 
     def typecheck(self, program: syntax.Program):
-        for f in program.declarations:
-            self.typecheck_func_decl(f)
+        for decl in program.declarations:
+            self.typecheck_decl(decl)
         return self.symbols
+
+    def typecheck_decl(self, decl: syntax.Declaration):
+        match decl:
+            case syntax.FuncDeclaration():
+                self.typecheck_func_decl(decl)
+            case syntax.VarDeclaration():
+                self.typecheck_var_decl(decl)
+            case _:
+                raise Exception(f'unhandled kind of declaration {decl}')
+
+    def typecheck_var_decl(self, var: syntax.VarDeclaration):
+        self.symbols[var.name] = Symbol(syntax.Int(), var.init is not None)
 
     def typecheck_func_decl(self, f: syntax.FuncDeclaration):
         func_type = syntax.Func(n_params=len(f.params))
