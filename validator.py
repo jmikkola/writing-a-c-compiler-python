@@ -102,17 +102,8 @@ class IdentifierResolution:
 
     def validate_statements(self, block_item: syntax.BlockItem, identifier_map: dict):
         match block_item:
-            case syntax.VarDeclaration(name, init, storage_class):
-                if name in identifier_map and identifier_map[name].from_current_scope:
-                    self.error(f'{name} already declared')
-                identifier_map[name] = MapEntry.for_name(self.make_unique(name))
-                if init:
-                    init = self.resolve_expr(init, identifier_map)
-                return syntax.VarDeclaration(
-                    identifier_map[name].new_name,
-                    init,
-                    storage_class
-                )
+            case syntax.VarDeclaration():
+                return self.validate_block_scope_variable(block_item, identifier_map)
             case syntax.FuncDeclaration(name, _, body, _):
                 if body is not None:
                     self.error('function definitions not allowed inside another function')
@@ -174,6 +165,29 @@ class IdentifierResolution:
                 return syntax.Default(stmt, switch_label)
             case _:
                 raise Exception(f'unhandled type of block item {block_item}')
+
+    def validate_block_scope_variable(self, var: syntax.VarDeclaration, identifier_map):
+        name = var.name
+        is_extern = var.storage_class == syntax.Extern()
+
+        if name in identifier_map:
+            prev_entry = identifier_map[name]
+            if prev_entry.from_current_scope:
+                if not (prev_entry.has_linkage and is_extern):
+                    self.error(f'conflicting declarations for {name}')
+
+        if is_extern:
+            identifier_map[name] = MapEntry.for_name(name, has_linkage=True)
+            return var
+        else:
+            unique_name = self.make_unique(name)
+            identifier_map[name] = MapEntry.for_name(unique_name)
+
+            init = var.init
+            if init:
+                init = self.resolve_expr(init, identifier_map)
+
+            return syntax.VarDeclaration(unique_name, init, var.storage_class)
 
     def resolve_for_init(self, init: syntax.ForInit, identifier_map: dict):
         match init:

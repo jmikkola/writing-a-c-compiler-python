@@ -102,11 +102,11 @@ class StorageClass:
     pass
 
 
-class Static(StorageClass):
+class Static(StorageClass, namedtuple('Static', [])):
     pass
 
 
-class Extern(StorageClass):
+class Extern(StorageClass, namedtuple('Extern', [])):
     pass
 
 
