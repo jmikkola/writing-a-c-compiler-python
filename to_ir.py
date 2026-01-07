@@ -33,7 +33,7 @@ class ToTacky:
     def convert(self):
         functions = [
             self.convert_function(f)
-            for f in self.syntax.function_declarations
+            for f in self.syntax.declarations
             if f.body is not None
         ]
         return tacky.Program(functions)

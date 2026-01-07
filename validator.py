@@ -46,7 +46,7 @@ class IdentifierResolution:
         identifier_map = {}
         functions = [
             self.validate_function(f, identifier_map)
-            for f in program.function_declarations
+            for f in program.declarations
         ]
         return syntax.Program(functions)
 
@@ -72,7 +72,7 @@ class IdentifierResolution:
                 for b in body.block_items
             ]
             body = syntax.Block(block_items)
-        return syntax.FuncDeclaration(function.name, new_params, body)
+        return syntax.FuncDeclaration(function.name, new_params, body, function.storage_class)
 
     def resolve_param(self, param, identifier_map):
         if param in identifier_map and identifier_map[param].from_current_scope:
@@ -91,14 +91,18 @@ class IdentifierResolution:
 
     def validate_statements(self, block_item: syntax.BlockItem, identifier_map: dict):
         match block_item:
-            case syntax.VarDeclaration(name, init):
+            case syntax.VarDeclaration(name, init, storage_class):
                 if name in identifier_map and identifier_map[name].from_current_scope:
                     self.error(f'{name} already declared')
                 identifier_map[name] = MapEntry.for_name(self.make_unique(name))
                 if init:
                     init = self.resolve_expr(init, identifier_map)
-                return syntax.VarDeclaration(identifier_map[name].new_name, init)
-            case syntax.FuncDeclaration(name, _, body):
+                return syntax.VarDeclaration(
+                    identifier_map[name].new_name,
+                    init,
+                    storage_class
+                )
+            case syntax.FuncDeclaration(name, _, body, _):
                 if body is not None:
                     self.error('function definitions not allowed inside another function')
                 return self.validate_function(block_item, identifier_map)
@@ -235,7 +239,7 @@ class LabelValidator:
     def validate(self, program):
         functions = [
             self.validate_function(f)
-            for f in program.function_declarations
+            for f in program.declarations
         ]
         return syntax.Program(functions)
 
@@ -251,7 +255,7 @@ class LabelValidator:
         if labels_not_defined:
             self.error(f'labels are not defined: {labels_not_defined}')
 
-        return syntax.FuncDeclaration(function.name, function.params, body)
+        return syntax.FuncDeclaration(function.name, function.params, body, function.storage_class)
 
     def validate_block(self, block: syntax.Block, labels_declared, labels_used):
         block_items = [
@@ -262,8 +266,8 @@ class LabelValidator:
 
     def validate_statements(self, block_item: syntax.BlockItem, labels_declared: set, labels_used: set):
         match block_item:
-            case syntax.VarDeclaration(_, _) | \
-                 syntax.FuncDeclaration(_, _, _) | \
+            case syntax.VarDeclaration(_, _, _) | \
+                 syntax.FuncDeclaration(_, _, _, _) | \
                  syntax.Return(_) | \
                  syntax.Continue(_) | \
                  syntax.Break(_) | \
@@ -338,7 +342,7 @@ class LoopLabels:
     def validate(self, program):
         functions = [
             self.validate_function(f)
-            for f in program.function_declarations
+            for f in program.declarations
         ]
         return syntax.Program(functions)
 
@@ -347,7 +351,7 @@ class LoopLabels:
         body = function.body
         if body:
             body = self.validate_block(body, loop_scope)
-        return syntax.FuncDeclaration(function.name, function.params, body)
+        return syntax.FuncDeclaration(function.name, function.params, body, function.storage_class)
 
     def validate_block(self, block: syntax.Block, scope):
         block_items = [
@@ -358,8 +362,8 @@ class LoopLabels:
 
     def validate_statements(self, block_item: syntax.BlockItem, scope):
         match block_item:
-            case syntax.VarDeclaration(_, _) | \
-                 syntax.FuncDeclaration(_, _, _) | \
+            case syntax.VarDeclaration(_, _, _) | \
+                 syntax.FuncDeclaration(_, _, _, _) | \
                  syntax.Return(_) | \
                  syntax.ExprStmt(_) | \
                  syntax.Goto(_) | \
@@ -446,7 +450,7 @@ class Typecheck:
         raise TypeError(msg)
 
     def typecheck(self, program: syntax.Program):
-        for f in program.function_declarations:
+        for f in program.declarations:
             self.typecheck_func_decl(f)
         return self.symbols
 
@@ -482,9 +486,9 @@ class Typecheck:
 
     def typecheck_statement(self, block_item: syntax.BlockItem):
         match block_item:
-            case syntax.VarDeclaration(_, _):
+            case syntax.VarDeclaration(_, _, _):
                 self.typecheck_var_decl(block_item)
-            case syntax.FuncDeclaration(_, _, _):
+            case syntax.FuncDeclaration(_, _, _, _):
                 self.typecheck_func_decl(block_item)
             case syntax.Return(expr):
                 self.typecheck_expr(expr)
