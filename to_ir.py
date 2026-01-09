@@ -137,6 +137,10 @@ class ToTacky:
     def convert_declaration(self, name, init):
         if init is None:
             return []
+        symbol = self.symbols[name]
+        # Static variables aren't initialized inside the function
+        if isinstance(symbol.attrs, validator.StaticAttr):
+            return []
         instructions, result = self.convert_expression(init)
         instructions.append(tacky.Copy(result, tacky.Identifier(name)))
         return instructions

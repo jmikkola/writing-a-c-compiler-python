@@ -34,12 +34,37 @@ class Emit:
         self.out = out
 
     def emit_program(self, program):
-        for f in program.functions:
-            self.emit_function(f)
+        for decl in program.top_level:
+            self.emit_top_level(decl)
         self.indented('.section  .note.GNU-stack,"",@progbits')
 
+    def emit_top_level(self, decl):
+        match decl:
+            case assembly.Function():
+                self.emit_function(decl)
+            case assembly.StaticVariable():
+                self.emit_static_variable(decl)
+            case _:
+                assert(False)
+
+    def emit_static_variable(self, var: assembly.StaticVariable):
+        if var.is_global:
+            self.indented('.globl ' + var.name)
+        if var.init == 0:
+            self.indented('.bss')
+            self.indented('.align 4')
+            self.line(var.name + ':')
+            self.indented(f'.zero 4')
+        else:
+            self.indented('.data')
+            self.indented('.align 4')
+            self.line(var.name + ':')
+            self.indented(f'.long {var.init}')
+
     def emit_function(self, function: assembly.Function):
-        self.indented('.globl ' + function.name)
+        if function.is_global:
+            self.indented('.globl ' + function.name)
+        self.indented('.text')
         self.line(function.name + ':')
         self.indented('pushq %rbp')
         self.indented('movq %rsp, %rbp')
@@ -148,6 +173,8 @@ class Emit:
                 raise Exception('bug - there should not be a pseudo register by this phase')
             case assembly.Stack(offset):
                 return f'{offset}(%rbp)'
+            case assembly.Data(name):
+                return f'{name}(%rip)'
             case _:
                 raise Exception(f'unhandled operand type {operand}')
 
