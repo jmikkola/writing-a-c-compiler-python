@@ -104,9 +104,11 @@ class IdentifierResolution:
         match block_item:
             case syntax.VarDeclaration():
                 return self.validate_block_scope_variable(block_item, identifier_map)
-            case syntax.FuncDeclaration(name, _, body, _):
+            case syntax.FuncDeclaration(name, _, body, storage_class):
                 if body is not None:
                     self.error('function definitions not allowed inside another function')
+                if storage_class == syntax.Static():
+                    self.error('function declarations inside a block cannot be static')
                 return self.validate_function(block_item, identifier_map)
             case syntax.Return(expr):
                 expr = self.resolve_expr(expr, identifier_map)
@@ -481,7 +483,39 @@ class LoopLabels:
                 raise Exception(f'unhandled type of block item {block_item}')
 
 
-class Symbol(namedtuple('Symbol', ['type', 'defined'])):
+class Symbol(namedtuple('Symbol', ['type', 'attrs'])):
+    pass
+
+
+class IdentifierAttributes:
+    pass
+
+
+class FuncAttr(IdentifierAttributes, namedtuple('FuncAttr', ['is_defined', 'is_global'])):
+    pass
+
+
+class StaticAttr(IdentifierAttributes, namedtuple('StaticAttr', ['init', 'is_global'])):
+    pass
+
+
+class LocalAttr(IdentifierAttributes):
+    pass
+
+
+class InitialValue:
+    pass
+
+
+class Tentative(InitialValue):
+    pass
+
+
+class Initial(InitialValue, namedtuple('Initial', ['value'])):
+    pass
+
+
+class NoInitializer(InitialValue):
     pass
 
 
@@ -502,7 +536,7 @@ class Typecheck:
             case syntax.FuncDeclaration():
                 self.typecheck_func_decl(decl)
             case syntax.VarDeclaration():
-                self.typecheck_var_decl(decl)
+                self.typecheck_var_decl_file_scope(decl)
             case _:
                 raise Exception(f'unhandled kind of declaration {decl}')
 
@@ -513,27 +547,92 @@ class Typecheck:
         func_type = syntax.Func(n_params=len(f.params))
         has_body = f.body is not None
         already_defined = False
+        is_global = f.storage_class != syntax.Static()
 
         if f.name in self.symbols:
             existing = self.symbols.get(f.name)
             if existing.type != func_type:
                 self.error(f'mismatched types for {f.name}')
-            already_defined = existing.defined
+            already_defined = existing.attrs.is_defined
             if already_defined and has_body:
                 self.error(f'function {f.name} is defined more than once')
 
-        defined = has_body or already_defined
-        self.symbols[f.name] = Symbol(func_type, defined)
+            if existing.attrs.is_global and f.storage_class == syntax.Static():
+                self.error(f'Static function declaration {f.name} follows non-static')
+            is_global = existing.attrs.is_global
+
+        is_defined = has_body or already_defined
+        attrs = FuncAttr(is_defined, is_global)
+        self.symbols[f.name] = Symbol(func_type, attrs)
 
         if has_body:
             for param in f.params:
-                self.symbols[param] = Symbol(syntax.Int(), True)
+                self.symbols[param] = Symbol(syntax.Int(), LocalAttr())
             self.typecheck_block(f.body)
 
-    def typecheck_var_decl(self, v: syntax.VarDeclaration):
-        self.symbols[v.name] = Symbol(syntax.Int(), True)
-        if v.init is not None:
-            self.typecheck_expr(v.init)
+    def typecheck_var_decl_file_scope(self, v: syntax.VarDeclaration):
+        initial_value = None
+        match v.init:
+            case syntax.Constant(value):
+                initial_value = Initial(value)
+            case None:
+                if v.storage_class == syntax.Extern():
+                    initial_value = NoInitializer()
+                else:
+                    initial_value = Tentative()
+            case _:
+                self.error(f'non-constant initializer for {v.name}')
+
+        is_global = v.storage_class != syntax.Static()
+
+        if v.name in self.symbols:
+            existing = self.symbols[v.name]
+            if existing.type != syntax.Int():
+                self.error(f'function {v.name} redeclared as a variable')
+            if v.storage_class == syntax.Extern():
+                is_global = existing.attrs.is_global
+            elif existing.attrs.is_global != is_global:
+                self.error(f'conflicting linkage for {v.name}')
+
+            if isinstance(existing.attrs.init, Initial):
+                if isinstance(initial_value, Initial):
+                    self.error(f'conflicting file scope variable definitions for {v.name}')
+                else:
+                    initial_value = existing.attrs.init
+            elif not isinstance(initial_value, Initial) and isinstance(existing.attrs.init, Tentative):
+                initial_value = Tentative()
+
+        attrs = StaticAttr(init=initial_value, is_global=is_global)
+        self.symbols[v.name] = Symbol(syntax.Int(), attrs)
+
+    def typecheck_var_decl_block_scope(self, v: syntax.VarDeclaration):
+        if v.storage_class == syntax.Extern():
+            if v.init is not None:
+                self.error(f'initializer on local extern variable declaration for {v.name}')
+            if v.name in self.symbols:
+                existing = self.symbols[v.name]
+                if existing.type != syntax.Int():
+                    self.error(f'function {v.name} redeclared as a variable')
+            else:
+                attrs = StaticAttr(NoInitializer(), True)
+                self.symbols[v.name] = Symbol(syntax.Int(), attrs)
+
+        elif v.storage_class == syntax.Static():
+            initial_value = None
+            match v.init:
+                case syntax.Constant(value):
+                    initial_value = Initial(value)
+                case None:
+                    initial_value = Initial(0)
+                case _:
+                    self.error(f'non-constant initializer for {v.name}')
+            attrs = StaticAttr(initial_value, False)
+            self.symbols[v.name] = Symbol(syntax.Int(), attrs)
+
+        else:
+            self.symbols[v.name] = Symbol(syntax.Int(), LocalAttr())
+            if v.init is not None:
+                self.typecheck_expr(v.init)
 
     def typecheck_block(self, block: syntax.Block):
         for block_item in block.block_items:
@@ -542,7 +641,7 @@ class Typecheck:
     def typecheck_statement(self, block_item: syntax.BlockItem):
         match block_item:
             case syntax.VarDeclaration(_, _, _):
-                self.typecheck_var_decl(block_item)
+                self.typecheck_var_decl_block_scope(block_item)
             case syntax.FuncDeclaration(_, _, _, _):
                 self.typecheck_func_decl(block_item)
             case syntax.Return(expr):
@@ -627,6 +726,9 @@ class Typecheck:
     def typecheck_for_init(self, init: syntax.ForInit):
         match init:
             case syntax.InitDecl(decl):
+                if isinstance(decl, syntax.VarDeclaration):
+                    if decl.storage_class is not None:
+                        self.error('variables defined in a for loop init cannot have a storage class')
                 self.typecheck_statement(decl)
             case syntax.InitExp(exp):
                 if exp:

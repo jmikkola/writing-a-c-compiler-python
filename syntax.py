@@ -40,6 +40,10 @@ class Type:
     def pretty_print(self):
         return str(self)
 
+    def __eq__(self, other):
+        # Super lazy
+        return repr(self) == repr(other)
+
 
 class Int(Type, namedtuple('Int', [])):
     pass
@@ -102,13 +106,14 @@ class StorageClass:
     pass
 
 
-class Static(StorageClass, namedtuple('Static', [])):
-    pass
+class Static(StorageClass):
+    def __eq__(self, other):
+        return isinstance(other, Static)
 
 
-class Extern(StorageClass, namedtuple('Extern', [])):
-    pass
-
+class Extern(StorageClass):
+    def __eq__(self, other):
+        return isinstance(other, Extern)
 
 
 ##
