@@ -1,15 +1,17 @@
 import syntax
 import tacky
+import validator
 
 
-def to_ir(syntax: syntax.Program) -> tacky.Program:
-    tt = ToTacky(syntax)
+def to_ir(syntax: syntax.Program, symbols: dict) -> tacky.Program:
+    tt = ToTacky(syntax, symbols)
     return tt.convert()
 
 
 class ToTacky:
-    def __init__(self, syntax):
+    def __init__(self, syntax, symbols):
         self.syntax = syntax
+        self.symbols = symbols
         self.n_temp_vars = 0
         self.n_labels = 0
         # To be set by convert_function
@@ -31,18 +33,57 @@ class ToTacky:
         return self.user_labels[label]
 
     def convert(self):
-        functions = [
-            self.convert_function(f)
-            for f in self.syntax.declarations
-            if f.body is not None
-        ]
-        return tacky.Program(functions)
+        top_level = []
+        for decl in self.syntax.declarations:
+            match decl:
+                case syntax.FuncDeclaration():
+                    if decl.body is not None:
+                        top_level.append(self.convert_function(decl))
+                case syntax.VarDeclaration():
+                    pass
+                case _:
+                    raise Exception(f'unhandled {decl}')
+
+        top_level += self.convert_symbols()
+
+        return tacky.Program(top_level)
+
+    def convert_symbols(self):
+        top_level = []
+
+        for (name, entry) in self.symbols.items():
+            match entry.attrs:
+                case validator.StaticAttr(init, is_global):
+                    match init:
+                        case validator.Tentative():
+                            top_level.append(tacky.StaticVariable(name, is_global, 0))
+                        case validator.Initial(value):
+                            top_level.append(tacky.StaticVariable(name, is_global, value))
+                        case validator.NoInitializer():
+                            pass
+                        case _:
+                            assert(False)
+                case validator.FuncAttr():
+                    pass
+                case validator.LocalAttr():
+                    pass
+                case _:
+                    assert(False)
+
+        return top_level
 
     def convert_function(self, function: syntax.FuncDeclaration) -> tacky.Function:
         self.user_labels = {}
         instructions = self.convert_block(function.body)
         instructions.append(tacky.Return(tacky.Constant(0)))
-        return tacky.Function(name=function.name, params=function.params, body=instructions)
+        symbol = self.symbols[function.name]
+        is_global = symbol.attrs.is_global
+        return tacky.Function(
+            name=function.name,
+            is_global=is_global,
+            params=function.params,
+            body=instructions
+        )
 
     def convert_block(self, block: syntax.Block):
         instructions = []

@@ -5,12 +5,13 @@ import syntax
 from errors import ValidationError, TypeError
 
 
-def validate(program: syntax.Program) -> syntax.Program:
+def validate(program: syntax.Program) -> (syntax.Program, dict):
     program = IdentifierResolution().validate(program)
     program = LabelValidator().validate(program)
     program = LoopLabels().validate(program)
-    Typecheck().typecheck(program)
-    return program
+    typecheck = Typecheck()
+    typecheck.typecheck(program)
+    return (program, typecheck.symbols)
 
 
 class MapEntry(namedtuple('MapEntry', ['new_name', 'from_current_scope', 'has_linkage'])):

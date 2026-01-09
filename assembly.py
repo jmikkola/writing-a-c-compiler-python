@@ -1,12 +1,17 @@
 from collections import namedtuple
 
 
-class Program(namedtuple('Program', ['functions'])):
+class Program(namedtuple('Program', ['top_level'])):
     def pretty_print(self):
-        return '\n\n'.join(f.pretty_print() for f in self.functions)
+        return '\n\n'.join(d.pretty_print() for d in self.top_level)
 
 
-class Function(namedtuple('Function', ['name', 'instructions'])):
+class StaticVariable(namedtuple('StaticVariable', ['name', 'is_global', 'init'])):
+    def pretty_print(self):
+        return str(self)
+
+
+class Function(namedtuple('Function', ['name', 'is_global', 'instructions'])):
     def pretty_print(self):
         return f'function {self.name}():\n' + \
             '\n'.join(i.pretty_print() for i in self.instructions)
@@ -144,4 +149,8 @@ class Pseudo(Operand, namedtuple('Pseudo', ['name'])):
 
 
 class Stack(Operand, namedtuple('Stack', ['offset'])):
+    pass
+
+
+class Data(Operand, namedtuple('Data', ['name'])):
     pass

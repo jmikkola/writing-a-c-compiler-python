@@ -1,18 +1,26 @@
 from collections import namedtuple
 
 
-class Program(namedtuple('Program', ['functions'])):
+class Program(namedtuple('Program', ['top_level'])):
     def pretty_print(self):
         return '\n\n'.join(
-            f.pretty_print()
-            for f in self.functions
+            t.pretty_print()
+            for t in self.top_level
         )
 
 
-class Function(namedtuple('Function', ['name', 'params', 'body'])):
+class StaticVariable(namedtuple('StaticVariable', ['name', 'is_global', 'init'])):
+    def pretty_print(self):
+        return str(self)
+
+
+class Function(namedtuple('Function', ['name', 'is_global', 'params', 'body'])):
     def pretty_print(self):
         params = ', '.join(self.params)
-        return f'function {self.name}({params}):\n' + \
+        g = ''
+        if self.is_global:
+            g = 'global '
+        return f'function {g}{self.name}({params}):\n' + \
             '\n'.join(instr.pretty_print() for instr in self.body)
 
 

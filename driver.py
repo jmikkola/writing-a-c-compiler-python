@@ -65,19 +65,20 @@ def compile(stage, preprocessed_file, assembly_file, print_output):
             print('\n'.join(syntax.pretty_print()))
         return
 
-    syntax = validator.validate(syntax)
+    syntax, symbols = validator.validate(syntax)
     if stage == 'validate':
         if print_output:
             print(syntax)
+            print(symbols)
         return
 
-    ir = to_ir.to_ir(syntax)
+    ir = to_ir.to_ir(syntax, symbols)
     if stage == 'tacky':
         if print_output:
             print(ir.pretty_print())
         return
 
-    asm = codegen.gen(ir)
+    asm = codegen.gen(ir, symbols)
     if stage == 'codegen':
         if print_output:
             print(asm.pretty_print())

@@ -1,23 +1,41 @@
 import assembly
 import tacky
+import validator
 
 
-def gen(tacky: tacky.Program) -> assembly.Program:
-    cg = Codegen(tacky)
+def gen(tacky: tacky.Program, symbols: dict) -> assembly.Program:
+    cg = Codegen(tacky, symbols)
     return cg.generate()
 
 
 class Codegen:
-    def __init__(self, tacky):
+    def __init__(self, tacky, symbols):
         self.tacky = tacky
+        self.symbols = symbols
         self.arg_registers = ['DI', 'SI', 'DX', 'CX', 'R8', 'R9']
 
     def generate(self):
-        functions = [
-            self.gen_function(f)
-            for f in self.tacky.functions
+        top_level = [
+            self.gen_top_level(d)
+            for d in self.tacky.top_level
         ]
-        return assembly.Program(functions)
+        return assembly.Program(top_level)
+
+    def gen_top_level(self, top_level):
+        match top_level:
+            case tacky.Function():
+                return self.gen_function(top_level)
+            case tacky.StaticVariable():
+                return self.gen_static_var(top_level)
+            case _:
+                assert(False)
+
+    def gen_static_var(self, var: tacky.StaticVariable) -> assembly.StaticVariable:
+        return assembly.StaticVariable(
+            name=var.name,
+            is_global=var.is_global,
+            init=var.init,
+        )
 
     def gen_function(self, function: tacky.Function) -> assembly.Function:
         # Generate the basic assembly
@@ -33,7 +51,11 @@ class Codegen:
         # Fix instructions that are now invalid
         instructions = self.fix_invalid_instructions(instructions)
 
-        return assembly.Function(name=function.name, instructions=instructions)
+        return assembly.Function(
+            name=function.name,
+            is_global=function.is_global,
+            instructions=instructions
+        )
 
     def save_arguments(self, params):
         ''' For simplicity, copy all parameters to the current stack frame '''
@@ -99,7 +121,10 @@ class Codegen:
             return operand
         name = operand.name
         if name not in pseudo_registers:
-            pseudo_registers[name] = -4 * (1 + len(pseudo_registers))
+            if name in self.symbols and isinstance(self.symbols[name].attrs, validator.StaticAttr):
+                return assembly.Data(name)
+            else:
+                pseudo_registers[name] = -4 * (1 + len(pseudo_registers))
         offset = pseudo_registers[name]
         return assembly.Stack(offset)
 
@@ -115,13 +140,13 @@ class Codegen:
         updated_instructions = []
         for instr in instructions:
             match instr:
-                case assembly.Mov(assembly.Stack(_) as src, assembly.Stack(_) as dst):
+                case assembly.Mov(src, dst) if is_mem(src) and is_mem(dst):
                     updated_instructions.extend([
                         assembly.Mov(src, r10),
                         assembly.Mov(r10, dst),
                     ])
 
-                case assembly.Cmp(assembly.Stack(_) as left, assembly.Stack(_) as right):
+                case assembly.Cmp(left, right) if is_mem(left) and is_mem(right):
                     updated_instructions.extend([
                         assembly.Mov(left, r10),
                         assembly.Cmp(r10, right)
@@ -139,7 +164,7 @@ class Codegen:
                         assembly.Idiv(r10),
                     ])
 
-                case assembly.Binary(assembly.Mult() as op, src, assembly.Stack(_) as dst):
+                case assembly.Binary(assembly.Mult() as op, src, dst) if is_mem(dst):
                     # It's important that Mult is handled differently from other
                     # binary operations because it can't have a memory address
                     # in the destination
@@ -149,7 +174,7 @@ class Codegen:
                         assembly.Mov(r11, dst),
                     ])
 
-                case assembly.Binary(op, assembly.Stack(_) as src, assembly.Stack(_) as dst):
+                case assembly.Binary(op, src, dst) if is_mem(src) and is_mem(dst):
                     updated_instructions.extend([
                         assembly.Mov(src, r10),
                         assembly.Binary(op, r10, dst),
@@ -367,3 +392,13 @@ class Codegen:
                 return assembly.Pseudo(name)
             case _:
                 raise Exception(f'unhandled operand type {value}')
+
+
+def is_mem(operand: assembly.Operand):
+    match operand:
+        case assembly.Stack():
+            return True
+        case assembly.Data():
+            return True
+        case _:
+            return False
