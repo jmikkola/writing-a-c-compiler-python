@@ -49,7 +49,11 @@ class Int(Type, namedtuple('Int', [])):
     pass
 
 
-class Func(Type, namedtuple('Func', ['n_params'])):
+class Long(Type, namedtuple('Type', [])):
+    pass
+
+
+class Func(Type, namedtuple('Func', ['params', 'ret'])):
     pass
 
 
@@ -60,10 +64,10 @@ class Func(Type, namedtuple('Func', ['n_params'])):
 class Program(namedtuple('Program', ['declarations'])):
     def pretty_print(self):
         lines = []
-        for fn in self.function_declarations:
+        for d in self.declarations:
             if lines:
                 lines.append('')
-            lines += fn.pretty_print()
+            lines += d.pretty_print()
         return lines
 
 
@@ -87,11 +91,12 @@ class Declaration(BlockItem):
     pass
 
 
-class VarDeclaration(Declaration, namedtuple('Declaration', ['name', 'init', 'storage_class'])):
+class VarDeclaration(Declaration, namedtuple('Declaration', ['name', 'init', 'var_type', 'storage_class'])):
     pass
 
 
-class FuncDeclaration(Declaration, namedtuple('Declaration', ['name', 'params', 'body', 'storage_class'])):
+class FuncDeclaration(Declaration,
+                      namedtuple('Declaration', ['name', 'params', 'body', 'fun_type', 'storage_class'])):
     def pretty_print(self):
         params = ', '.join(self.params)
         header = f'function {self.name}({params})'
@@ -248,11 +253,15 @@ class Expression:
         return str(self)
 
 
-class Constant(Expression, namedtuple('Constant', ['value'])):
+class Constant(Expression, namedtuple('Constant', ['const'])):
     pass
 
 
 class Variable(Expression, namedtuple('Variable', ['name'])):
+    pass
+
+
+class Cast(Expression, namedtuple('Cast', ['target_type', 'expr'])):
     pass
 
 
@@ -390,4 +399,20 @@ class BinaryAnd(BinaryOp, namedtuple('BinaryAnd', [])):
 
 
 class BinaryOr(BinaryOp, namedtuple('BinaryOr', [])):
+    pass
+
+
+##
+## Constants
+##
+
+class Const:
+    pass
+
+
+class ConstInt(Const, namedtuple('ConstInt', ['value'])):
+    pass
+
+
+class ConstLong(Const, namedtuple('ConstLong', ['value'])):
     pass

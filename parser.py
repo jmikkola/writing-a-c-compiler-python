@@ -24,82 +24,119 @@ class Parser:
 
     def parse_function(self) -> syntax.FuncDeclaration:
         ''' parse a function definition '''
-        storage_class = self.parse_storage_class_and_type()
-        return self.parse_function_after_type(storage_class)
+        type_spec, storage_class = self.parse_storage_class_and_type()
+        return self.parse_function_after_type(type_spec, storage_class)
 
-    def parse_function_after_type(self, storage_class):
-        (name, params) = self.parse_function_header()
+    def parse_function_after_type(self, type_spec, storage_class):
+        (name, params, types) = self.parse_function_header()
         if self.peek(';'):
             self.consume()
             body = None
         else:
             body = self.parse_block()
+
+        fun_type = syntax.Func(params=types, ret=type_spec)
         return syntax.FuncDeclaration(
             name=name.text,
             params=params,
             body=body,
+            fun_type=fun_type,
             storage_class=storage_class
         )
 
     def parse_function_header(self):
         name = self.expect('identifier')
         self.expect('(')
-        params = self.parse_params()
+        params, types = self.parse_params()
         self.expect(')')
-        return (name, params)
+        return (name, params, types)
 
     def parse_params(self):
         if self.peek('keyword', 'void'):
             self.consume()
-            return []
+            return ([], [])
         params = []
+        types = []
         while not self.peek(')'):
             if params:
                 self.expect(',')
-            self.expect('keyword', 'int')
+            type_spec = self.parse_type_specifier()
+            types.append(type_spec)
             param_name = self.expect('identifier').text
             params.append(param_name)
-        return params
+        return params, types
+
+    def parse_type_specifier(self) -> syntax.Type:
+        specifier_list = []
+        while self.peek('keyword', 'int') or self.peek('keyword', 'long'):
+            specifier_list.append(self.expect('keyword').text)
+        return self.type_from_specifiers(specifier_list)
+
+    def type_from_specifiers(self, specifier_list) -> syntax.Type:
+        if not specifier_list:
+            self.fail('expected a type specifier')
+
+        if specifier_list == ['int']:
+            return syntax.Int()
+        elif specifier_list == ['long']:
+            return syntax.Long()
+        elif sorted(specifier_list) == ['int', 'long']:
+            return syntax.Long()
+        else:
+            self.fail(f'invalid set of type specifiers: {specifier_list}')
 
     def parse_declaration(self) -> syntax.Declaration:
-        storage_class = self.parse_storage_class_and_type()
+        type_spec, storage_class = self.parse_storage_class_and_type()
         if self.peek('(', offset=1):
-            return self.parse_function_after_type(storage_class)
+            return self.parse_function_after_type(type_spec, storage_class)
         else:
-            return self.parse_var_declaration_after_type(storage_class)
+            return self.parse_var_declaration_after_type(type_spec, storage_class)
 
     def parse_var_declaration(self) -> syntax.VarDeclaration:
-        storage_class = self.parse_storage_class_and_type()
-        return self.parse_var_declaration_after_type(storage_class)
+        type_spec, storage_class = self.parse_storage_class_and_type()
+        return self.parse_var_declaration_after_type(type_spec, storage_class)
 
-    def parse_var_declaration_after_type(self, storage_class):
+    def parse_var_declaration_after_type(self, type_spec, storage_class):
         name_token = self.expect('identifier')
         init = None
         if self.peek('='):
             self.expect('=')
             init = self.parse_expression()
         self.expect(';')
-        return syntax.VarDeclaration(name_token.text, init, storage_class)
+        return syntax.VarDeclaration(name_token.text, init, type_spec, storage_class)
 
     def parse_storage_class_and_type(self):
-        token = self.peek()
-        if token.text == 'int':
-            self.expect('keyword', 'int')
-            return self.parse_storage_class()
-        if token.text in ('static', 'extern'):
-            storage_class = self.parse_storage_class()
-            self.expect('keyword', 'int')
-            return storage_class
-        self.fail(f'expected a type, "static", or "extern", got "{token.text}"')
+        storage_classes = []
+        type_specifiers = []
 
-    def parse_storage_class(self):
-        if self.peek('keyword', 'static'):
-            self.consume()
+        while True:
+            token = self.peek('keyword')
+            if not token:
+                break
+
+            if token.text in ('int', 'long',):
+                self.consume()
+                type_specifiers.append(token.text)
+            elif token.text in ('static', 'extern',):
+                self.consume()
+                storage_classes.append(token.text)
+            else:
+                self.fail(f'expected a type, "static", or "extern", got "{token.text}"')
+
+        type_spec = self.type_from_specifiers(type_specifiers)
+        storage_class = self.storage_from_classes(storage_classes)
+
+        return type_spec, storage_class
+
+    def storage_from_classes(self, storage_classes):
+        if not storage_classes:
+            return None
+        elif storage_classes == ['static']:
             return syntax.Static()
-        if self.peek('keyword', 'extern'):
-            self.consume()
+        elif storage_classes == ['extern']:
             return syntax.Extern()
-        return None
+        else:
+            self.fail(f'unexpected storage classes {storage_classes}')
 
     def parse_block(self) -> syntax.Block:
         self.expect('{')
@@ -110,7 +147,7 @@ class Parser:
         return syntax.Block(block_items)
 
     def parse_block_item(self) -> syntax.BlockItem:
-        keywords_starting_declaration = ['int', 'static', 'extern']
+        keywords_starting_declaration = ['int', 'long', 'static', 'extern']
         for keyword in keywords_starting_declaration:
             if self.peek('keyword', keyword):
                 return self.parse_declaration()
@@ -190,7 +227,7 @@ class Parser:
 
     def parse_for_init(self) -> syntax.ForInit:
         token = self.peek()
-        if token.text in ('int', 'extern', 'static'):
+        if token.text in ('int', 'long', 'extern', 'static'):
             declaration = self.parse_var_declaration()
             return syntax.InitDecl(declaration)
         if self.peek(';'):
@@ -409,9 +446,20 @@ class Parser:
         if self.is_unary():
             return self.parse_unary_expression()
         if self.peek('('):
-            return self.paren_expression()
+            # Hacky way to detect a cast:
+            if self.peek('keyword', offset=1):
+                return self.parse_cast()
+            else:
+                return self.paren_expression()
         else:
             self.fail('expected an expression')
+
+    def parse_cast(self) -> syntax.Expression:
+        self.expect('(')
+        target_type = self.parse_type_specifier()
+        self.expect(')')
+        expr = self.parse_factor()
+        return syntax.Cast(target_type, expr)
 
     def paren_expression(self) -> syntax.Expression:
         self.expect('(')
@@ -445,9 +493,14 @@ class Parser:
 
     def parse_constant(self) -> syntax.Constant:
         ''' parse a constant (an integer) '''
-        const = self.expect('constant')
-        value = int(const.text)
-        return syntax.Constant(value=value)
+        token = self.expect('constant')
+        if token.text[-1] in 'lL':
+            value = int(token.text[:-1])
+            const = syntax.ConstLong(value)
+        else:
+            value = int(token.text)
+            const = syntax.ConstInt(value)
+        return syntax.Constant(const)
 
     def peek(self, kind=None, value=None, offset=0):
         return self.token_iter.peek(kind, value, offset)
