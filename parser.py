@@ -494,8 +494,10 @@ class Parser:
     def parse_constant(self) -> syntax.Constant:
         ''' parse a constant (an integer) '''
         token = self.expect('constant')
-        if token.text[-1] in 'lL':
+        if token.text[-1] in 'lL' or int(token.text) > (2**31 - 1):
             value = int(token.text[:-1])
+            if value > (2**63 - 1):
+                self.fail(f'constant is too large to represent as a long: {token.text}')
             const = syntax.ConstLong(value)
         else:
             value = int(token.text)
