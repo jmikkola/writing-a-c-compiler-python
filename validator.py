@@ -10,8 +10,8 @@ def validate(program: syntax.Program) -> (syntax.Program, dict):
     program = LabelValidator().validate(program)
     program = LoopLabels().validate(program)
     typecheck = Typecheck()
-    typecheck.typecheck(program)
-    return (program, typecheck.symbols)
+    program, symbols = typecheck.typecheck(program)
+    return (program, symbols)
 
 
 class MapEntry(namedtuple('MapEntry', ['new_name', 'from_current_scope', 'has_linkage'])):
@@ -533,11 +533,23 @@ class Tentative(InitialValue):
     pass
 
 
-class Initial(InitialValue, namedtuple('Initial', ['value'])):
+class Initial(InitialValue, namedtuple('Initial', ['static_value'])):
     pass
 
 
 class NoInitializer(InitialValue):
+    pass
+
+
+class StaticInit:
+    pass
+
+
+class IntInit(StaticInit, namedtuple('IntInit', ['value'])):
+    pass
+
+
+class LongInit(StaticInit, namedtuple('LongInit', ['value'])):
     pass
 
 
@@ -549,27 +561,35 @@ class Typecheck:
         raise TypeError(msg)
 
     def typecheck(self, program: syntax.Program):
-        for decl in program.declarations:
+        '''This returns a symbol table.
+
+        It also modifies the expression objects, adding types and casts.
+        '''
+        declarations = [
             self.typecheck_decl(decl)
-        return self.symbols
+            for decl in program.declarations
+        ]
+        program = syntax.Program(declarations)
+
+        return program, self.symbols
 
     def typecheck_decl(self, decl: syntax.Declaration):
         match decl:
             case syntax.FuncDeclaration():
-                self.typecheck_func_decl(decl)
+                return self.typecheck_func_decl(decl)
             case syntax.VarDeclaration():
-                self.typecheck_var_decl_file_scope(decl)
+                return self.typecheck_var_decl_file_scope(decl)
             case _:
                 raise Exception(f'unhandled kind of declaration {decl}')
 
-    def typecheck_var_decl(self, var: syntax.VarDeclaration):
-        self.symbols[var.name] = Symbol(syntax.Int(), var.init is not None)
-
-    def typecheck_func_decl(self, f: syntax.FuncDeclaration):
+    def typecheck_func_decl(self, f: syntax.FuncDeclaration, in_block=False):
         func_type = f.fun_type
         has_body = f.body is not None
         already_defined = False
         is_global = f.storage_class != syntax.Static()
+
+        if in_block and f.storage_class == syntax.Static():
+            self.error(f'static not allowed on function declaration inside a function: {f}')
 
         if f.name in self.symbols:
             existing = self.symbols.get(f.name)
@@ -587,10 +607,19 @@ class Typecheck:
         attrs = FuncAttr(is_defined, is_global)
         self.symbols[f.name] = Symbol(func_type, attrs)
 
+        body = f.body
         if has_body:
-            for param in f.params:
-                self.symbols[param] = Symbol(syntax.Int(), LocalAttr())
-            self.typecheck_block(f.body)
+            for (param_name, param_type) in zip(f.params, func_type.params):
+                self.symbols[param_name] = Symbol(param_type, LocalAttr())
+            body = self.typecheck_block(body)
+
+        return syntax.FuncDeclaration(
+            f.name,
+            f.params,
+            body,
+            f.fun_type,
+            f.storage_class
+        )
 
     def typecheck_var_decl_file_scope(self, v: syntax.VarDeclaration):
         initial_value = None
@@ -609,7 +638,7 @@ class Typecheck:
 
         if v.name in self.symbols:
             existing = self.symbols[v.name]
-            if existing.type != syntax.Int():
+            if isinstance(existing.type, syntax.Func):
                 self.error(f'function {v.name} redeclared as a variable')
             if v.storage_class == syntax.Extern():
                 is_global = existing.attrs.is_global
@@ -626,6 +655,7 @@ class Typecheck:
 
         attrs = StaticAttr(init=initial_value, is_global=is_global)
         self.symbols[v.name] = Symbol(syntax.Int(), attrs)
+        return v
 
     def typecheck_var_decl_block_scope(self, v: syntax.VarDeclaration):
         if v.storage_class == syntax.Extern():
@@ -633,7 +663,7 @@ class Typecheck:
                 self.error(f'initializer on local extern variable declaration for {v.name}')
             if v.name in self.symbols:
                 existing = self.symbols[v.name]
-                if existing.type != syntax.Int():
+                if isinstance(existing.type, syntax.Func):
                     self.error(f'function {v.name} redeclared as a variable')
             else:
                 attrs = StaticAttr(NoInitializer(), True)
@@ -654,96 +684,202 @@ class Typecheck:
         else:
             self.symbols[v.name] = Symbol(syntax.Int(), LocalAttr())
             if v.init is not None:
-                self.typecheck_expr(v.init)
+                init = self.typecheck_expr(v.init)
+                return syntax.VarDeclaration(v.name, init, v.var_type, v.storage_class)
+        return v
 
     def typecheck_block(self, block: syntax.Block):
-        for block_item in block.block_items:
+        block_items = [
             self.typecheck_statement(block_item)
+            for block_item in block.block_items
+        ]
+        return syntax.Block(block_items)
 
     def typecheck_statement(self, block_item: syntax.BlockItem):
         match block_item:
             case syntax.VarDeclaration():
-                self.typecheck_var_decl_block_scope(block_item)
+                return self.typecheck_var_decl_block_scope(block_item)
             case syntax.FuncDeclaration():
-                self.typecheck_func_decl(block_item)
+                return self.typecheck_func_decl(block_item, in_block=True)
             case syntax.Return(expr):
-                self.typecheck_expr(expr)
+                expr = self.typecheck_expr(expr)
+                return syntax.Return(expr)
             case syntax.ExprStmt(expr):
-                self.typecheck_expr(expr)
+                expr = self.typecheck_expr(expr)
+                return syntax.ExprStmt(expr)
             case syntax.Goto(_) | \
                  syntax.NullStatement():
-                pass
+                return block_item
             case syntax.IfStatement(test, t, e):
-                self.typecheck_expr(test)
-                self.typecheck_statement(t)
+                test = self.typecheck_expr(test)
+                t = self.typecheck_statement(t)
                 if e:
-                    self.typecheck_statement(e)
-            case syntax.While(test, body, _):
-                self.typecheck_expr(test)
-                self.typecheck_statement(body)
-            case syntax.DoWhile(body, test, _):
-                self.typecheck_expr(test)
-                self.typecheck_statement(body)
-            case syntax.For(init, condition, post, body, _):
-                self.typecheck_for_init(init)
+                    e = self.typecheck_statement(e)
+                return syntax.IfStatement(test, t, e)
+            case syntax.While(test, body, loop_label):
+                test = self.typecheck_expr(test)
+                body = self.typecheck_statement(body)
+                return syntax.While(test, body, loop_label)
+            case syntax.DoWhile(body, test, loop_label):
+                test = self.typecheck_expr(test)
+                body = self.typecheck_statement(body)
+                return syntax.DoWhile(body, test, loop_label)
+            case syntax.For(init, condition, post, body, loop_label):
+                init = self.typecheck_for_init(init)
                 if condition:
-                    self.typecheck_expr(condition)
+                    condition = self.typecheck_expr(condition)
                 if post:
-                    self.typecheck_expr(post)
-                self.typecheck_statement(body)
+                    post = self.typecheck_expr(post)
+                body = self.typecheck_statement(body)
+                return syntax.For(init, condition, post, body, loop_label)
             case syntax.Continue(_):
-                pass
+                return block_item
             case syntax.Break(_):
-                pass
+                return block_item
             case syntax.LabeledStmt(label, stmt):
-                self.typecheck_statement(stmt)
+                stmt = self.typecheck_statement(stmt)
+                return syntax.LabeledStmt(label, stmt)
             case syntax.Compound(block):
-                self.typecheck_block(block)
-            case syntax.Switch(condition, body, _, _):
-                self.typecheck_expr(condition)
-                self.typecheck_statement(body)
-            case syntax.Case(value, stmt, _):
+                block = self.typecheck_block(block)
+                return syntax.Compound(block)
+            case syntax.Switch(condition, body, switch_label, case_values):
+                condition = self.typecheck_expr(condition)
+                body = self.typecheck_statement(body)
+                return syntax.Switch(condition, body, switch_label, case_values)
+            case syntax.Case(value, stmt, switch_label):
                 if stmt:
-                    self.typecheck_statement(stmt)
-            case syntax.Default(stmt, _):
+                    stmt = self.typecheck_statement(stmt)
+                return syntax.Case(value, stmt, switch_label)
+            case syntax.Default(stmt, switch_label):
                 if stmt:
-                    self.typecheck_statement(stmt)
+                    stmt = self.typecheck_statement(stmt)
+                return syntax.Default(stmt, switch_label)
             case _:
                 raise Exception(f'unhandled type of block item {block_item}')
 
     def typecheck_expr(self, expr: syntax.Expression):
         match expr:
-            case syntax.Constant(_):
-                pass
+            case syntax.Constant(const):
+                match const:
+                    case syntax.ConstInt(_):
+                        return expr.set_type(syntax.Int())
+                    case syntax.ConstLong(_):
+                        return expr.set_type(syntax.Long())
+                    case _:
+                        raise Exception(f'unhandled type of const {const}')
+
             case syntax.Variable(name):
-                if isinstance(self.symbols[name].type, syntax.Func):
+                symbol_type = self.symbols[name].type
+                if isinstance(symbol_type, syntax.Func):
                     self.error(f'Function {name} used as a variable')
+                return expr.set_type(symbol_type)
+
             case syntax.Call(name, arguments):
-                symbol = self.symbols[name]
-                if not isinstance(symbol.type, syntax.Func):
+                symbol_type = self.symbols[name].type
+
+                if not isinstance(symbol_type, syntax.Func):
                     self.error(f'Variable {name} used as a function')
-                if len(symbol.type.params) != len(arguments):
+                if len(symbol_type.params) != len(arguments):
                     expected = len(symbol.type.params)
                     actual = len(arguments)
                     self.error(f'Function {name} expects {expected} arguments, got {actual} arguments')
-                for a in arguments:
-                    self.typecheck_expr(a)
-            case syntax.Unary(_, expr):
-                self.typecheck_expr(expr)
-            case syntax.Postfix(expr, _):
-                self.typecheck_expr(expr)
-            case syntax.Binary(_, l, r):
-                self.typecheck_expr(l)
-                self.typecheck_expr(r)
-            case syntax.Assignment(lhs, rhs, _):
+
+                converted_arguments = []
+                for (arg, param_type) in zip(arguments, symbol_type.params):
+                    arg = self.typecheck_expr(arg)
+                    converted_arg = self.convert_to(arg, param_type)
+                    converted_arguments.append(converted_arg)
+
+                expr = syntax.Call(name, converted_arguments)
+                return expr.set_type(symbol_type.ret)
+
+            case syntax.Unary(op, e):
+                e = self.typecheck_expr(e)
+                expr = syntax.Unary(op, e)
+                if isinstance(op, syntax.UnaryNot()):
+                    return expr.set_type(syntax.Int())
+                else:
+                    return expr.set_type(e.expr_type)
+
+            case syntax.Postfix(e, op):
+                e = self.typecheck_expr(e)
+                expr = syntax.Postfix(e, op)
+                return expr.set_type(e.expr_type)
+
+            case syntax.Binary(op, l, r):
+                l = self.typecheck_expr(l)
+                r = self.typecheck_expr(r)
+
+                # && and || always return an int
+                if op == syntax.BinaryAnd() or op == syntax.BinaryOr():
+                    expr = syntax.Binary(op, l, r)
+                    return expr.set_type(syntax.Int())
+
+                common_type = self.get_common_type(l.expr_type, r.expr_type)
+                converted_l = self.convert_to(l, common_type)
+                converted_r = self.convert_to(r, common_type)
+                expr = syntax.Binary(op, converted_l, converted_r)
+
+                math_operations = [
+                    syntax.BinaryAnd(),
+                    syntax.BinarySubtract(),
+                    syntax.BinaryMultiply(),
+                    syntax.BinaryDivide(),
+                    syntax.BinaryRemainder(),
+                ]
+
+                if op in math_operations:
+                    return expr.set_type(common_type)
+                else:
+                    # E.g. `==` of two longs returns an int
+                    return expr.set_type(syntax.Int())
+
+            case syntax.Assignment(lhs, rhs, op):
                 name = lhs.name
                 if isinstance(self.symbols[name].type, syntax.Func):
                     self.error(f'Cannot assign to a function {name}')
-                self.typecheck_expr(rhs)
+                lhs = self.typecheck_expr(lhs)
+                rhs = self.typecheck_expr(rhs)
+                left_type = lhs.expr_type
+                assert(left_type is not None)
+                converted_rhs = self.convert_to(rhs, left_type)
+                expr = syntax.Assignment(lhs, converted_rhs, op)
+                return expr.set_type(left_type)
+
             case syntax.Conditional(condition, t, e):
-                self.typecheck_expr(condition)
-                self.typecheck_expr(t)
-                self.typecheck_expr(e)
+                condition = self.typecheck_expr(condition)
+                t = self.typecheck_expr(t)
+                e = self.typecheck_expr(e)
+
+                common_type = self.get_common_type(t.expr_type, e.expr_type)
+                converted_t = self.convert_to(t, common_type)
+                converted_e = self.convert_to(e, common_type)
+
+                expr = syntax.Conditional(condition, converted_t, converted_e)
+                return expr.set_type(common_type)
+
+            case syntax.Cast(target_type, e):
+                e = self.typecheck_expr(e)
+                expr = syntax.Cast(target_type, e)
+                return expr.set_type(target_type)
+
+            case _:
+                raise Exception(f'Unhandled type of expression {expr}')
+
+    def convert_to(self, expression, target_type):
+        assert(expression.expr_type is not None)
+        if expression.expr_type == target_type:
+            return expression
+        cast_expr = syntax.Cast(target_type, expression)
+        cast_expr.set_type(target_type)
+        return cast_expr
+
+    def get_common_type(self, t1, t2):
+        if t1 == t2:
+            return t1
+        if t1 == syntax.Long() or t2 == syntax.Long():
+            return syntax.Long()
+        raise Exception(f'Unhandled combination of types {t1} and {t2}')
 
     def typecheck_for_init(self, init: syntax.ForInit):
         match init:

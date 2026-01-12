@@ -249,6 +249,14 @@ class InitExp(ForInit, namedtuple('InitExp', ['expression'])):
 ##
 
 class Expression:
+    def __init__(self, *args, **kwargs):
+        self.expr_type = kwargs.get('expr_type', None)
+
+    def set_type(self, expr_type):
+        assert(expr_type is not None)
+        self.expr_type = expr_type
+        return self
+
     def pretty_print(self):
         return str(self)
 
@@ -294,7 +302,8 @@ class Call(Expression, namedtuple('Call', ['function', 'arguments'])):
 ##
 
 class UnaryOp:
-    pass
+    def __eq__(self, other):
+        return type(self) == type(other)
 
 
 class UnaryNegate(UnaryOp, namedtuple('UnaryNegate', [])):
@@ -327,7 +336,8 @@ class UnaryDecrement(UnaryOp, namedtuple('UnaryDecrement', [])):
 
 
 class BinaryOp:
-    pass
+    def __eq__(self, other):
+        return type(self) == type(other)
 
 
 class BinaryAdd(BinaryOp, namedtuple('BinaryAdd', [])):
