@@ -909,9 +909,13 @@ class Typecheck:
                 if isinstance(decl, syntax.VarDeclaration):
                     if decl.storage_class is not None:
                         self.error('variables defined in a for loop init cannot have a storage class')
-                self.typecheck_statement(decl)
+                stmt = self.typecheck_statement(decl)
+                return syntax.InitDecl(stmt)
             case syntax.InitExp(exp):
                 if exp:
-                    self.typecheck_expr(exp)
+                    expr = self.typecheck_expr(exp)
+                return syntax.InitExp(exp)
+            case None:
+                return None
             case _:
                 raise Exception(f'invalid type for ForInit {init}')

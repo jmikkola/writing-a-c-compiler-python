@@ -68,8 +68,9 @@ def compile(stage, preprocessed_file, assembly_file, print_output):
     syntax, symbols = validator.validate(syntax)
     if stage == 'validate':
         if print_output:
-            print(syntax)
-            print(symbols)
+            print('\n'.join(syntax.pretty_print()))
+            for (name, sym) in symbols.items():
+                print(f'{name}: {sym}')
         return
 
     ir = to_ir.to_ir(syntax, symbols)

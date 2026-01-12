@@ -204,6 +204,8 @@ class ToTacky:
             case syntax.InitExp(expr):
                 instructions, _ = self.convert_expression(expr)
                 return instructions
+            case _:
+                raise Exception(f'unhandled for init {init}')
 
     def convert_switch(self, stmt: syntax.Switch) -> list:
         switch_label = stmt.switch_label
