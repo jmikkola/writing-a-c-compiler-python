@@ -1,0 +1,14 @@
+# TODO: Think about where the conversion from string to int happens
+def constant_to_long(n):
+    assert(isinstance(n, int))
+    return _constant_to_size(n, 8)
+
+
+def constant_to_int(n):
+    assert(isinstance(n, int))
+    return _constant_to_size(n, 4)
+
+
+def _constant_to_size(n, n_bytes):
+    b = n.to_bytes(8, byteorder='little', signed=False)
+    return int.from_bytes(b[:n_bytes], byteorder='little', signed=True)

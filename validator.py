@@ -3,6 +3,7 @@ from collections import namedtuple
 
 import syntax
 from errors import ValidationError, TypeError
+import typeconversion
 
 
 def validate(program: syntax.Program) -> (syntax.Program, dict):
@@ -624,8 +625,8 @@ class Typecheck:
     def typecheck_var_decl_file_scope(self, v: syntax.VarDeclaration):
         initial_value = None
         match v.init:
-            case syntax.Constant(value):
-                initial_value = Initial(value)
+            case syntax.Constant(_):
+                initial_value = self.make_static_init(v.name, v.init, v.var_type)
             case None:
                 if v.storage_class == syntax.Extern():
                     initial_value = NoInitializer()
@@ -674,14 +675,7 @@ class Typecheck:
                 self.symbols[v.name] = Symbol(v.var_type, attrs)
 
         elif v.storage_class == syntax.Static():
-            initial_value = None
-            match v.init:
-                case syntax.Constant(value):
-                    initial_value = Initial(value)
-                case None:
-                    initial_value = Initial(0)
-                case _:
-                    self.error(f'non-constant initializer for {v.name}')
+            initial_value = self.make_static_init(v.name, v.init, v.var_type)
             attrs = StaticAttr(initial_value, False)
             self.symbols[v.name] = Symbol(v.var_type, attrs)
 
@@ -689,8 +683,32 @@ class Typecheck:
             self.symbols[v.name] = Symbol(v.var_type, LocalAttr())
             if v.init is not None:
                 init = self.typecheck_expr(v.init)
+                init = self.convert_to(init, v.var_type)
                 return syntax.VarDeclaration(v.name, init, v.var_type, v.storage_class)
         return v
+
+    def make_static_init(self, name, init, var_type):
+        is_long = var_type == syntax.Long()
+        match init:
+            case None:
+                if is_long:
+                    return Initial(LongInit(0))
+                else:
+                    return Initial(IntInit(0))
+            case syntax.Constant(syntax.ConstLong(value)):
+                if is_long:
+                    return Initial(LongInit(typeconversion.constant_to_long(value)))
+                else:
+                    return Initial(IntInit(typeconversion.constant_to_int(value)))
+            case syntax.Constant(syntax.ConstInt(value)):
+                if is_long:
+                    return Initial(LongInit(value))
+                else:
+                    return Initial(IntInit(value))
+            case syntax.Constant(x):
+                raise Exception(f'unhandled type of constant {x}')
+            case _:
+                self.error(f'non-constant initializer for {name}')
 
     def typecheck_block(self, block: syntax.Block):
         block_items = [
