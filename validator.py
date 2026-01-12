@@ -640,6 +640,8 @@ class Typecheck:
             existing = self.symbols[v.name]
             if isinstance(existing.type, syntax.Func):
                 self.error(f'function {v.name} redeclared as a variable')
+            if existing.type != v.var_type:
+                self.error(f'variable {v.name} redeclared with a different type')
             if v.storage_class == syntax.Extern():
                 is_global = existing.attrs.is_global
             elif existing.attrs.is_global != is_global:
@@ -654,7 +656,7 @@ class Typecheck:
                 initial_value = Tentative()
 
         attrs = StaticAttr(init=initial_value, is_global=is_global)
-        self.symbols[v.name] = Symbol(syntax.Int(), attrs)
+        self.symbols[v.name] = Symbol(v.var_type, attrs)
         return v
 
     def typecheck_var_decl_block_scope(self, v: syntax.VarDeclaration):
@@ -665,9 +667,11 @@ class Typecheck:
                 existing = self.symbols[v.name]
                 if isinstance(existing.type, syntax.Func):
                     self.error(f'function {v.name} redeclared as a variable')
+                if existing.type != v.var_type:
+                    self.error(f'variable {v.name} redeclared with a different type')
             else:
                 attrs = StaticAttr(NoInitializer(), True)
-                self.symbols[v.name] = Symbol(syntax.Int(), attrs)
+                self.symbols[v.name] = Symbol(v.var_type, attrs)
 
         elif v.storage_class == syntax.Static():
             initial_value = None
@@ -679,10 +683,10 @@ class Typecheck:
                 case _:
                     self.error(f'non-constant initializer for {v.name}')
             attrs = StaticAttr(initial_value, False)
-            self.symbols[v.name] = Symbol(syntax.Int(), attrs)
+            self.symbols[v.name] = Symbol(v.var_type, attrs)
 
         else:
-            self.symbols[v.name] = Symbol(syntax.Int(), LocalAttr())
+            self.symbols[v.name] = Symbol(v.var_type, LocalAttr())
             if v.init is not None:
                 init = self.typecheck_expr(v.init)
                 return syntax.VarDeclaration(v.name, init, v.var_type, v.storage_class)

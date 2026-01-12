@@ -44,6 +44,9 @@ class Type:
         # Super lazy
         return repr(self) == repr(other)
 
+    def __ne__(self, other):
+        return not (self == other)
+
 
 class Int(Type, namedtuple('Int', [])):
     pass
@@ -115,10 +118,16 @@ class Static(StorageClass):
     def __eq__(self, other):
         return isinstance(other, Static)
 
+    def __ne__(self, other):
+        return not (self == other)
+
 
 class Extern(StorageClass):
     def __eq__(self, other):
         return isinstance(other, Extern)
+
+    def __ne__(self, other):
+        return not (self == other)
 
 
 ##
@@ -305,6 +314,9 @@ class UnaryOp:
     def __eq__(self, other):
         return type(self) == type(other)
 
+    def __ne__(self, other):
+        return not (self == other)
+
 
 class UnaryNegate(UnaryOp, namedtuple('UnaryNegate', [])):
     ''' -n '''
@@ -338,6 +350,9 @@ class UnaryDecrement(UnaryOp, namedtuple('UnaryDecrement', [])):
 class BinaryOp:
     def __eq__(self, other):
         return type(self) == type(other)
+
+    def __ne__(self, other):
+        return not (self == other)
 
 
 class BinaryAdd(BinaryOp, namedtuple('BinaryAdd', [])):
