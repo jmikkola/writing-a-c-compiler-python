@@ -1,3 +1,6 @@
+from collections import namedtuple
+
+
 class Symbol(namedtuple('Symbol', ['type', 'attrs'])):
     pass
 
