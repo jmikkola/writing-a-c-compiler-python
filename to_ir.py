@@ -52,13 +52,14 @@ class ToTacky:
         top_level = []
 
         for (name, entry) in self.symbols.items():
+            var_type = entry.type
             match entry.attrs:
                 case validator.StaticAttr(init, is_global):
                     match init:
                         case validator.Tentative():
-                            top_level.append(tacky.StaticVariable(name, is_global, 0))
+                            top_level.append(tacky.StaticVariable(name, is_global, var_type, init))
                         case validator.Initial(value):
-                            top_level.append(tacky.StaticVariable(name, is_global, value))
+                            top_level.append(tacky.StaticVariable(name, is_global, var_type, init))
                         case validator.NoInitializer():
                             pass
                         case _:

@@ -2,6 +2,7 @@ from collections import defaultdict
 from collections import namedtuple
 
 import syntax
+import symbol
 from errors import ValidationError, TypeError
 import typeconversion
 
@@ -485,7 +486,7 @@ class LoopLabels:
                     self.fail('case label outside of a switch statement')
                 if not isinstance(value, syntax.Constant):
                     self.fail(f'case value must be a constant, got {value}')
-                constant = value.value
+                constant = value.const
                 if constant in self._switch_case_values[switch_label]:
                     self.fail(f'duplicate case labels with the value {constant}')
                 self._switch_case_values[switch_label].add(constant)
@@ -504,54 +505,6 @@ class LoopLabels:
                 return syntax.Default(stmt, switch_label)
             case _:
                 raise Exception(f'unhandled type of block item {block_item}')
-
-
-class Symbol(namedtuple('Symbol', ['type', 'attrs'])):
-    pass
-
-
-class IdentifierAttributes:
-    pass
-
-
-class FuncAttr(IdentifierAttributes, namedtuple('FuncAttr', ['is_defined', 'is_global'])):
-    pass
-
-
-class StaticAttr(IdentifierAttributes, namedtuple('StaticAttr', ['init', 'is_global'])):
-    pass
-
-
-class LocalAttr(IdentifierAttributes):
-    pass
-
-
-class InitialValue:
-    pass
-
-
-class Tentative(InitialValue):
-    pass
-
-
-class Initial(InitialValue, namedtuple('Initial', ['static_value'])):
-    pass
-
-
-class NoInitializer(InitialValue):
-    pass
-
-
-class StaticInit:
-    pass
-
-
-class IntInit(StaticInit, namedtuple('IntInit', ['value'])):
-    pass
-
-
-class LongInit(StaticInit, namedtuple('LongInit', ['value'])):
-    pass
 
 
 class Typecheck:
@@ -605,13 +558,13 @@ class Typecheck:
             is_global = existing.attrs.is_global
 
         is_defined = has_body or already_defined
-        attrs = FuncAttr(is_defined, is_global)
-        self.symbols[f.name] = Symbol(func_type, attrs)
+        attrs = symbol.FuncAttr(is_defined, is_global)
+        self.symbols[f.name] = symbol.Symbol(func_type, attrs)
 
         body = f.body
         if has_body:
             for (param_name, param_type) in zip(f.params, func_type.params):
-                self.symbols[param_name] = Symbol(param_type, LocalAttr())
+                self.symbols[param_name] = symbol.Symbol(param_type, symbol.LocalAttr())
             body = self.typecheck_block(body)
 
         return syntax.FuncDeclaration(
@@ -629,9 +582,9 @@ class Typecheck:
                 initial_value = self.make_static_init(v.name, v.init, v.var_type)
             case None:
                 if v.storage_class == syntax.Extern():
-                    initial_value = NoInitializer()
+                    initial_value = symbol.NoInitializer()
                 else:
-                    initial_value = Tentative()
+                    initial_value = symbol.Tentative()
             case _:
                 self.error(f'non-constant initializer for {v.name}')
 
@@ -648,16 +601,16 @@ class Typecheck:
             elif existing.attrs.is_global != is_global:
                 self.error(f'conflicting linkage for {v.name}')
 
-            if isinstance(existing.attrs.init, Initial):
-                if isinstance(initial_value, Initial):
+            if isinstance(existing.attrs.init, symbol.Initial):
+                if isinstance(initial_value, symbol.Initial):
                     self.error(f'conflicting file scope variable definitions for {v.name}')
                 else:
                     initial_value = existing.attrs.init
-            elif not isinstance(initial_value, Initial) and isinstance(existing.attrs.init, Tentative):
-                initial_value = Tentative()
+            elif not isinstance(initial_value, symbol.Initial) and isinstance(existing.attrs.init, symbol.Tentative):
+                initial_value = symbol.Tentative()
 
-        attrs = StaticAttr(init=initial_value, is_global=is_global)
-        self.symbols[v.name] = Symbol(v.var_type, attrs)
+        attrs = symbol.StaticAttr(init=initial_value, is_global=is_global)
+        self.symbols[v.name] = symbol.Symbol(v.var_type, attrs)
         return v
 
     def typecheck_var_decl_block_scope(self, v: syntax.VarDeclaration):
@@ -671,16 +624,16 @@ class Typecheck:
                 if existing.type != v.var_type:
                     self.error(f'variable {v.name} redeclared with a different type')
             else:
-                attrs = StaticAttr(NoInitializer(), True)
-                self.symbols[v.name] = Symbol(v.var_type, attrs)
+                attrs = symbol.StaticAttr(symbol.NoInitializer(), True)
+                self.symbols[v.name] = symbol.Symbol(v.var_type, attrs)
 
         elif v.storage_class == syntax.Static():
             initial_value = self.make_static_init(v.name, v.init, v.var_type)
-            attrs = StaticAttr(initial_value, False)
-            self.symbols[v.name] = Symbol(v.var_type, attrs)
+            attrs = symbol.StaticAttr(initial_value, False)
+            self.symbols[v.name] = symbol.Symbol(v.var_type, attrs)
 
         else:
-            self.symbols[v.name] = Symbol(v.var_type, LocalAttr())
+            self.symbols[v.name] = symbol.Symbol(v.var_type, symbol.LocalAttr())
             if v.init is not None:
                 init = self.typecheck_expr(v.init)
                 init = self.convert_to(init, v.var_type)
@@ -692,19 +645,19 @@ class Typecheck:
         match init:
             case None:
                 if is_long:
-                    return Initial(LongInit(0))
+                    return symbol.Initial(symbol.LongInit(0))
                 else:
-                    return Initial(IntInit(0))
+                    return symbol.Initial(symbol.IntInit(0))
             case syntax.Constant(syntax.ConstLong(value)):
                 if is_long:
-                    return Initial(LongInit(typeconversion.constant_to_long(value)))
+                    return symbol.Initial(symbol.LongInit(typeconversion.constant_to_long(value)))
                 else:
-                    return Initial(IntInit(typeconversion.constant_to_int(value)))
+                    return symbol.Initial(symbol.IntInit(typeconversion.constant_to_int(value)))
             case syntax.Constant(syntax.ConstInt(value)):
                 if is_long:
-                    return Initial(LongInit(value))
+                    return symbol.Initial(symbol.LongInit(value))
                 else:
-                    return Initial(IntInit(value))
+                    return symbol.Initial(symbol.IntInit(value))
             case syntax.Constant(x):
                 raise Exception(f'unhandled type of constant {x}')
             case _:

@@ -87,11 +87,27 @@ class Value:
     pass
 
 
-class Constant(Value, namedtuple('Constant', ['value'])):
+class Constant(Value, namedtuple('Constant', ['const'])):
     pass
 
 
 class Identifier(Value, namedtuple('Identifier', ['name'])):
+    pass
+
+
+##
+## Constants
+##
+
+class Const:
+    pass
+
+
+class ConstInt(Const, namedtuple('ConstInt', ['value'])):
+    pass
+
+
+class ConstLong(Const, namedtuple('ConstLong', ['value'])):
     pass
 
 
