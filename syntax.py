@@ -438,8 +438,16 @@ class Const:
 
 
 class ConstInt(Const, namedtuple('ConstInt', ['value'])):
-    pass
+    def __key(self):
+        return ('Int', int(self.value))
+
+    def __hash__(self):
+        return hash(self.__key())
 
 
 class ConstLong(Const, namedtuple('ConstLong', ['value'])):
-    pass
+    def __key(self):
+        return ('Long', int(self.value))
+
+    def __hash__(self):
+        return hash(self.__key())

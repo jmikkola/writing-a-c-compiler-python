@@ -1,6 +1,6 @@
 import syntax
 import tacky
-import validator
+import symbol
 
 
 def to_ir(syntax: syntax.Program, symbols: dict) -> tacky.Program:
@@ -21,6 +21,19 @@ class ToTacky:
         name = f'tmp.{self.n_temp_vars}'
         self.n_temp_vars += 1
         return tacky.Identifier(name)
+
+    def make_tacky_variable(self, var_type: syntax.Type):
+        var = self.new_temp_var()
+        self.symbols[var.name] = symbol.Symbol(var_type, symbol.LocalAttr())
+        return var
+
+    def make_constant_of_type(self, constant, const_type: syntax.Type):
+        if const_type == syntax.Int():
+            return tacky.Constant(tacky.ConstInt(constant))
+        elif const_type == syntax.Long():
+            return tacky.Constant(tacky.ConstLong(constant))
+        else:
+            raise Exception(f'unhandled type of constant {const_type}')
 
     def new_label(self, name):
         name = f'_{name}_{self.n_labels}'
@@ -54,19 +67,19 @@ class ToTacky:
         for (name, entry) in self.symbols.items():
             var_type = entry.type
             match entry.attrs:
-                case validator.StaticAttr(init, is_global):
+                case symbol.StaticAttr(init, is_global):
                     match init:
-                        case validator.Tentative():
+                        case symbol.Tentative():
                             top_level.append(tacky.StaticVariable(name, is_global, var_type, init))
-                        case validator.Initial(value):
+                        case symbol.Initial(value):
                             top_level.append(tacky.StaticVariable(name, is_global, var_type, init))
-                        case validator.NoInitializer():
+                        case symbol.NoInitializer():
                             pass
                         case _:
                             assert(False)
-                case validator.FuncAttr():
+                case symbol.FuncAttr():
                     pass
-                case validator.LocalAttr():
+                case symbol.LocalAttr():
                     pass
                 case _:
                     assert(False)
@@ -76,9 +89,9 @@ class ToTacky:
     def convert_function(self, function: syntax.FuncDeclaration) -> tacky.Function:
         self.user_labels = {}
         instructions = self.convert_block(function.body)
-        instructions.append(tacky.Return(tacky.Constant(0)))
-        symbol = self.symbols[function.name]
-        is_global = symbol.attrs.is_global
+        instructions.append(tacky.Return(tacky.Constant(tacky.ConstInt(0))))
+        sym = self.symbols[function.name]
+        is_global = sym.attrs.is_global
         return tacky.Function(
             name=function.name,
             is_global=is_global,
@@ -138,9 +151,9 @@ class ToTacky:
     def convert_declaration(self, name, init):
         if init is None:
             return []
-        symbol = self.symbols[name]
+        sym = self.symbols[name]
         # Static variables aren't initialized inside the function
-        if isinstance(symbol.attrs, validator.StaticAttr):
+        if isinstance(sym.attrs, symbol.StaticAttr):
             return []
         instructions, result = self.convert_expression(init)
         instructions.append(tacky.Copy(result, tacky.Identifier(name)))
@@ -217,10 +230,11 @@ class ToTacky:
         for case_value in stmt.case_values:
             if case_value == 'default':
                 continue
-            result_var = self.new_temp_var()
+            result_var = self.make_tacky_variable(stmt.condition.expr_type)
+            const_val = tacky.Constant(self.convert_constant(case_value))
             instructions += [
-                tacky.Binary(tacky.BinarySubtract(), val, tacky.Constant(case_value), result_var),
-                tacky.JumpIfZero(result_var, f'switch_{switch_label}_case_{case_value}'),
+                tacky.Binary(tacky.BinarySubtract(), val, const_val, result_var),
+                tacky.JumpIfZero(result_var, f'switch_{switch_label}_case_{case_value.value}'),
             ]
         # Handle no case statements matching
         if 'default' in stmt.case_values:
@@ -234,7 +248,7 @@ class ToTacky:
 
     def convert_case(self, stmt: syntax.Case) -> list:
         switch_label = stmt.switch_label
-        value = stmt.value.value
+        value = stmt.value.const.value
         instructions = [tacky.Label(f'switch_{switch_label}_case_{value}')]
         if stmt.stmt:
             instructions += self.convert_instructions(stmt.stmt)
@@ -269,7 +283,10 @@ class ToTacky:
         ''' returns (instructions, result value) '''
         match expr:
             case syntax.Constant(value):
-                return ([], tacky.Constant(value))
+                return ([], tacky.Constant(self.convert_constant(value)))
+
+            case syntax.Cast(_):
+                return self.convert_cast(expr)
 
             case syntax.Variable(name):
                 return ([], tacky.Identifier(name))
@@ -294,12 +311,12 @@ class ToTacky:
                     case syntax.UnaryIncrement() | syntax.UnaryDecrement():
                         assert(isinstance(inner,  syntax.Variable))
                         op = self.convert_modifying_op(operator)
-                        result_var = self.new_temp_var()
+                        result_var = self.make_tacky_variable(expr.expr_type)
                         instructions = [
                             tacky.Binary(
                                 operator=op,
                                 left=tacky.Identifier(inner.name),
-                                right=tacky.Constant(1),
+                                right=self.make_constant_of_type(1, expr.expr_type),
                                 dst=tacky.Identifier(inner.name)
                             ),
                             tacky.Copy(tacky.Identifier(inner.name), result_var)
@@ -308,20 +325,20 @@ class ToTacky:
                     case _:
                         instructions, val = self.convert_expression(inner)
                         op = self.convert_unary_op(operator)
-                        result_var = self.new_temp_var()
+                        result_var = self.make_tacky_variable(expr.expr_type)
                         instruction = tacky.Unary(unary_operator=op, src=val, dst=result_var)
                         return (instructions + [instruction], result_var)
 
             case syntax.Postfix(expr, operator):
                 assert(isinstance(expr,  syntax.Variable))
                 op = self.convert_modifying_op(operator)
-                result_var = self.new_temp_var()
+                result_var = self.make_tacky_variable(expr.expr_type)
                 instructions = [
                     tacky.Copy(tacky.Identifier(expr.name), result_var),
                     tacky.Binary(
                         operator=op,
                         left=tacky.Identifier(expr.name),
-                        right=tacky.Constant(1),
+                        right=self.make_constant_of_type(1, expr.expr_type),
                         dst=tacky.Identifier(expr.name)
                     ),
                 ]
@@ -332,14 +349,14 @@ class ToTacky:
                 end_label = self.new_label('and_end')
                 instructions_left, val_left = self.convert_expression(left)
                 instructions_right, val_right = self.convert_expression(right)
-                result_var = self.new_temp_var()
+                result_var = self.make_tacky_variable(expr.expr_type)
                 instructions = instructions_left + [tacky.JumpIfZero(val_left, false_label)]
                 instructions += instructions_right + [tacky.JumpIfZero(val_right, false_label)]
                 instructions += [
-                    tacky.Copy(tacky.Constant(1), result_var),
+                    tacky.Copy(tacky.Constant(tacky.ConstInt(1)), result_var),
                     tacky.Jump(end_label),
                     tacky.Label(false_label),
-                    tacky.Copy(tacky.Constant(0), result_var),
+                    tacky.Copy(tacky.Constant(tacky.ConstInt(0)), result_var),
                     tacky.Label(end_label),
                 ]
                 return (instructions, result_var)
@@ -349,14 +366,14 @@ class ToTacky:
                 end_label = self.new_label('or_end')
                 instructions_left, val_left = self.convert_expression(left)
                 instructions_right, val_right = self.convert_expression(right)
-                result_var = self.new_temp_var()
+                result_var = self.make_tacky_variable(expr.expr_type)
                 instructions = instructions_left + [tacky.JumpIfNotZero(val_left, true_label)]
                 instructions += instructions_right + [tacky.JumpIfNotZero(val_right, true_label)]
                 instructions += [
-                    tacky.Copy(tacky.Constant(0), result_var),
+                    tacky.Copy(tacky.Constant(tacky.ConstInt(0)), result_var),
                     tacky.Jump(end_label),
                     tacky.Label(true_label),
-                    tacky.Copy(tacky.Constant(1), result_var),
+                    tacky.Copy(tacky.Constant(tacky.ConstInt(1)), result_var),
                     tacky.Label(end_label),
                 ]
                 return (instructions, result_var)
@@ -365,7 +382,7 @@ class ToTacky:
                 instructions_left, val_left = self.convert_expression(left)
                 instructions_right, val_right = self.convert_expression(right)
                 op = self.convert_binary_op(operator)
-                result_var = self.new_temp_var()
+                result_var = self.make_tacky_variable(expr.expr_type)
                 instruction = tacky.Binary(operator=op, left=val_left, right=val_right, dst=result_var)
                 instructions = instructions_left + instructions_right + [instruction]
                 return (instructions, result_var)
@@ -379,10 +396,36 @@ class ToTacky:
             case _:
                 raise Exception(f'unhandled expression type, {expr}')
 
+    def convert_constant(self, constant: syntax.Const) -> tacky.Const:
+        match constant:
+            case syntax.ConstInt(x):
+                return tacky.ConstInt(x)
+            case syntax.ConstLong(x):
+                return tacky.ConstLong(x)
+            case _:
+                raise Exception(f'unhandled constant type {constant}')
+
+    def convert_cast(self, expr: syntax.Cast):
+        inner = expr.expr
+        target_type = expr.target_type
+
+        instructions, val = self.convert_expression(inner)
+        if target_type == inner.expr_type:
+            # No cast needed
+            return (instructions, val)
+
+        dst = self.make_tacky_variable(target_type)
+        if target_type == syntax.Long():
+            instructions.append(tacky.SignExtend(val, dst))
+        else:
+            instructions.append(tacky.Truncate(val, dst))
+
+        return (instructions, dst)
+
     def convert_conditional(self, expr: syntax.Conditional):
         false_label = self.new_label('cond_false')
         end_label = self.new_label('cond_end')
-        result_var = self.new_temp_var()
+        result_var = self.make_tacky_variable(expr.expr_type)
 
         instructions, val = self.convert_expression(expr.condition)
         instructions.append(tacky.JumpIfZero(val, false_label))
@@ -410,7 +453,7 @@ class ToTacky:
             instructions.extend(i)
             arg_vals.append(val)
 
-        dst = self.new_temp_var()
+        dst = self.make_tacky_variable(expr.expr_type)
         instructions.append(tacky.Call(function, arg_vals, dst))
         return (instructions, dst)
 

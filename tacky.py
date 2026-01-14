@@ -88,7 +88,9 @@ class Value:
 
 
 class Constant(Value, namedtuple('Constant', ['const'])):
-    pass
+    def __new__(cls, const):
+        assert(isinstance(const, Const))
+        return super().__new__(cls, const)
 
 
 class Identifier(Value, namedtuple('Identifier', ['name'])):
