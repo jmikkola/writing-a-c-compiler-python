@@ -9,7 +9,7 @@ class Program(namedtuple('Program', ['top_level'])):
         )
 
 
-class StaticVariable(namedtuple('StaticVariable', ['name', 'is_global', 'init'])):
+class StaticVariable(namedtuple('StaticVariable', ['name', 'is_global', 'var_type', 'init'])):
     def pretty_print(self):
         return str(self)
 
@@ -35,6 +35,14 @@ class Instruction:
 
 
 class Return(Instruction, namedtuple('Constant', ['val'])):
+    pass
+
+
+class SignExtend(Instruction, namedtuple('SignExtend', ['src', 'dst'])):
+    pass
+
+
+class Truncate(Instruction, namedtuple('Truncate', ['src', 'dst'])):
     pass
 
 
