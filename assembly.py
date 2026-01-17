@@ -6,6 +6,13 @@ class AssemblyType(Enum):
     Longword = 1
     Quardword = 2
 
+    def bytes(self):
+        if self == self.Longword:
+            return 4
+        if self == self.Quardword:
+            return 8
+        assert(False)
+
 
 class AsmSymbol:
     pass

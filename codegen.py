@@ -6,13 +6,14 @@ import syntax
 
 def gen(tacky: tacky.Program, symbols: dict) -> (assembly.Program, dict):
     cg = Codegen(tacky, symbols)
-    return cg.generate(), cg.convert_symbols()
+    return cg.generate(), cg.asm_symbols
 
 
 class Codegen:
     def __init__(self, tacky, symbols):
         self.tacky = tacky
         self.symbols = symbols
+        self.asm_symbols = self.convert_symbols()
         self.arg_registers = ['DI', 'SI', 'DX', 'CX', 'R8', 'R9']
 
     def generate(self):
@@ -116,7 +117,8 @@ class Codegen:
         return instructions
 
     def replace_pseudo_registers(self, instructions):
-        pseudo_registers = {}
+        stack_map = StackMap(self.asm_symbols)
+
         updated_instructions = []
         for instr in instructions:
             match instr:
@@ -125,51 +127,39 @@ class Codegen:
                 case assembly.Jmp() | assembly.JmpCC() | assembly.Label():
                     pass
                 case assembly.Mov(assembly_type, src, dst):
-                    src = self.convert_pseudo_register(pseudo_registers, src)
-                    dst = self.convert_pseudo_register(pseudo_registers, dst)
+                    src = stack_map.convert_pseudo_register(src)
+                    dst = stack_map.convert_pseudo_register(dst)
                     instr = assembly.Mov(assembly_type, src, dst)
                 case assembly.Movsx(src, dst):
-                    src = self.convert_pseudo_register(pseudo_registers, src)
-                    dst = self.convert_pseudo_register(pseudo_registers, dst)
+                    src = stack_map.convert_pseudo_register(src)
+                    dst = stack_map.convert_pseudo_register(dst)
                     assembly.Movsx(src, dst)
                 case assembly.Unary(unary_operator, assembly_type, operand):
-                    operand = self.convert_pseudo_register(pseudo_registers, operand)
+                    operand = stack_map.convert_pseudo_register(operand)
                     instr = assembly.Unary(unary_operator, assembly_type, operand)
                 case assembly.Binary(binary_operator, assembly_type, left, right):
-                    left = self.convert_pseudo_register(pseudo_registers, left)
-                    right = self.convert_pseudo_register(pseudo_registers, right)
+                    left = stack_map.convert_pseudo_register(left)
+                    right = stack_map.convert_pseudo_register(right)
                     instr = assembly.Binary(binary_operator, assembly_type, left, right)
                 case assembly.Idiv(assembly_type, operand):
-                    operand = self.convert_pseudo_register(pseudo_registers, operand)
+                    operand = stack_map.convert_pseudo_register(operand)
                     instr = assembly.Idiv(assembly_type, operand)
                 case assembly.Cmp(assembly_type, left, right):
-                    left = self.convert_pseudo_register(pseudo_registers, left)
-                    right = self.convert_pseudo_register(pseudo_registers, right)
+                    left = stack_map.convert_pseudo_register(left)
+                    right = stack_map.convert_pseudo_register(right)
                     instr = assembly.Cmp(assembly_type, left, right)
                 case assembly.SetCC(cond_code, operand):
-                    operand = self.convert_pseudo_register(pseudo_registers, operand)
+                    operand = stack_map.convert_pseudo_register(operand)
                     instr = assembly.SetCC(cond_code, operand)
                 case assembly.Call(_):
                     pass
                 case assembly.Push(operand):
-                    operand = self.convert_pseudo_register(pseudo_registers, operand)
+                    operand = stack_map.convert_pseudo_register(operand)
                     instr = assembly.Push(operand)
                 case _:
                     raise Exception(f'unhandled instruction type {instr}')
             updated_instructions.append(instr)
-        return (updated_instructions, 4 * len(pseudo_registers))
-
-    def convert_pseudo_register(self, pseudo_registers: dict, operand: assembly.Operand) -> assembly.Operand:
-        if not isinstance(operand, assembly.Pseudo):
-            return operand
-        name = operand.name
-        if name not in pseudo_registers:
-            if name in self.symbols and isinstance(self.symbols[name].attrs, symbol.StaticAttr):
-                return assembly.Data(name)
-            else:
-                pseudo_registers[name] = -4 * (1 + len(pseudo_registers))
-        offset = pseudo_registers[name]
-        return assembly.Stack(offset)
+        return (updated_instructions, stack_map.size_used)
 
     def fix_invalid_instructions(self, instructions):
         ''' Fix invalid instructions.
@@ -517,3 +507,37 @@ def is_mem(operand: assembly.Operand):
             return True
         case _:
             return False
+
+
+class StackMap:
+    '''This is used to figure out where each pseudo register gets stored in a
+    function's stack frame'''
+    def __init__(self, asm_symbols):
+        self.asm_symbols = asm_symbols
+        self.size_used = 0
+        self.pseudo_registers = {}
+
+    def convert_pseudo_register(self, operand):
+        if not isinstance(operand, assembly.Pseudo):
+            return operand
+
+        name = operand.name
+        if name in self.pseudo_registers:
+            return assembly.Stack(self.pseudo_registers[name])
+
+        entry = self.asm_symbols[name]
+        assert(isinstance(entry, assembly.ObjEntry))
+
+        if entry.is_static:
+            return assembly.Data(name)
+
+        location = self._get_next_location(entry)
+        self.pseudo_registers[name] = location
+        return assembly.Stack(location)
+
+    def _get_next_location(self, entry):
+        size = entry.assembly_type.bytes()
+        self.size_used += size
+        if self.size_used % size != 0:
+            self.size_used += size - (self.size_used % size)
+        return -1 * self.size_used
