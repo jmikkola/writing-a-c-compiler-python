@@ -58,7 +58,14 @@ class Codegen:
         instructions, stack_size = self.replace_pseudo_registers(instructions)
         if stack_size % 16 != 0:
             stack_size += 16 - (stack_size % 16)
-        instructions = [assembly.AllocateStack(stack_size)] + instructions
+
+        allocate = assembly.Binary(
+            assembly.Sub(),
+            assembly.AssemblyType.Quardword,
+            assembly.Immediate(stack_size),
+            assembly.Register('SP')
+        )
+        instructions = [allocate] + instructions
 
         # Fix instructions that are now invalid
         instructions = self.fix_invalid_instructions(instructions)
@@ -105,8 +112,6 @@ class Codegen:
                     src = self.convert_pseudo_register(pseudo_registers, src)
                     dst = self.convert_pseudo_register(pseudo_registers, dst)
                     assembly.Movsx(src, dst)
-                case assembly.AllocateStack(_) | assembly.DeallocateStack(_):
-                    pass
                 case assembly.Unary(unary_operator, assembly_type, operand):
                     operand = self.convert_pseudo_register(pseudo_registers, operand)
                     instr = assembly.Unary(unary_operator, assembly_type, operand)
@@ -273,7 +278,13 @@ class Codegen:
 
         # Add stack padding so the alignment comes out right
         if stack_padding > 0:
-            instructions.append(assembly.AllocateStack(stack_padding))
+            allocate = assembly.Binary(
+                assembly.Sub(),
+                assembly.AssemblyType.Quardword,
+                assembly.Immediate(stack_padding),
+                assembly.Register('SP')
+            )
+            instructions.append(allocate)
 
         # Pass the first 6 arguments in registers
         for (arg, register) in zip(register_args, self.arg_registers):
@@ -300,7 +311,13 @@ class Codegen:
         # Clean up the stack
         bytes_to_remove = 8 * len(stack_args) + stack_padding
         if bytes_to_remove > 0:
-            instructions.append(assembly.DeallocateStack(bytes_to_remove))
+            deallocate = assembly.Binary(
+                assembly.Add(),
+                assembly.AssemblyType.Quardword,
+                assembly.Immediate(bytes_to_remove),
+                assembly.Register('SP')
+            )
+            instructions.append(deallocate)
 
         # Move the result to the correct destination
         assembly_dst = self.convert_operand(instr.dst)

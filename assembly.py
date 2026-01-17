@@ -150,7 +150,7 @@ class Immediate(Operand, namedtuple('Immediate', ['value'])):
 
 
 class Register(Operand, namedtuple('Register', ['reg'])):
-    ''' reg can be 'AX', 'CX', 'DX', 'DI', 'SI', 'R8', 'R9', 'R10', or 'R11' '''
+    ''' reg can be 'AX', 'CX', 'DX', 'DI', 'SI', 'SP', 'R8', 'R9', 'R10', or 'R11' '''
     pass
 
 
