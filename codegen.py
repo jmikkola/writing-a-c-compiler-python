@@ -4,9 +4,9 @@ import symbol
 import syntax
 
 
-def gen(tacky: tacky.Program, symbols: dict) -> assembly.Program:
+def gen(tacky: tacky.Program, symbols: dict) -> (assembly.Program, dict):
     cg = Codegen(tacky, symbols)
-    return cg.generate()
+    return cg.generate(), cg.convert_symbols()
 
 
 class Codegen:
@@ -21,6 +21,26 @@ class Codegen:
             for d in self.tacky.top_level
         ]
         return assembly.Program(top_level)
+
+    def convert_symbols(self):
+        return {
+            name: self.convert_symbol(sym)
+            for (name, sym) in self.symbols.items()
+        }
+
+    def convert_symbol(self, sym: symbol.Symbol) -> assembly.AsmSymbol:
+        attrs = sym.attrs
+        match attrs:
+            case symbol.FuncAttr(is_defined, is_global):
+                return assembly.FunEntry(is_defined)
+            case symbol.StaticAttr(init, is_global):
+                a_type = self.sym_type_to_a_type(sym.type)
+                return assembly.ObjEntry(a_type, True)
+            case symbol.LocalAttr():
+                a_type = self.sym_type_to_a_type(sym.type)
+                return assembly.ObjEntry(a_type, False)
+            case _:
+                assert(False)
 
     def gen_top_level(self, top_level):
         match top_level:
@@ -417,25 +437,29 @@ class Codegen:
                 raise Exception(f'unhandled binary expression op {instr.operator}')
 
     def a_type_of(self, value: tacky.Value):
+        return self.sym_type_to_a_type(self.value_type(value))
+
+    def value_type(self, value: tacky.Value) -> syntax.Type:
         match value:
             case tacky.Constant(tacky.ConstInt(value)):
-                return assembly.AssemblyType.Longword
+                return syntax.Int()
             case tacky.Constant(tacky.ConstLong(value)):
-                return assembly.AssemblyType.Quardword
+                return syntax.Long()
             case tacky.Constant(_):
                 assert(False)
             case tacky.Identifier(name):
-                sym_type = self.symbols[name].type
-                match sym_type:
-                    case syntax.Int():
-                        return assembly.AssemblyType.Longword
-                    case syntax.Long():
-                        return assembly.AssemblyType.Quardword
-                    case _:
-                        print(self.symbols)
-                        raise Exception(f'unexpected type {sym_type} for {name}')
+                return self.symbols[name].type
             case _:
                 raise Exception(f'unexpected value {value}')
+
+    def sym_type_to_a_type(self, sym_type: syntax.Type):
+        match sym_type:
+            case syntax.Int():
+                return assembly.AssemblyType.Longword
+            case syntax.Long():
+                return assembly.AssemblyType.Quardword
+            case _:
+                raise Exception(f'unexpected type {sym_type} for {name}')
 
     def convert_comparison(self, op: tacky.BinaryOp) -> str:
         match op:

@@ -79,10 +79,12 @@ def compile(stage, preprocessed_file, assembly_file, print_output):
             print(ir.pretty_print())
         return
 
-    asm = codegen.gen(ir, symbols)
+    asm, backend_symbols = codegen.gen(ir, symbols)
     if stage == 'codegen':
         if print_output:
             print(asm.pretty_print())
+            for (name, sym) in backend_symbols.items():
+                print(f'{name}: {sym}')
         return
 
     emit.emit(asm, assembly_file)

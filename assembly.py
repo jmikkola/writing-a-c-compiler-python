@@ -7,6 +7,18 @@ class AssemblyType(Enum):
     Quardword = 2
 
 
+class AsmSymbol:
+    pass
+
+
+class ObjEntry(AsmSymbol, namedtuple('ObjEntry', ['assembly_type', 'is_static'])):
+    pass
+
+
+class FunEntry(AsmSymbol, namedtuple('FunEntry', ['is_defined'])):
+    pass
+
+
 class Program(namedtuple('Program', ['top_level'])):
     def pretty_print(self):
         return '\n\n'.join(d.pretty_print() for d in self.top_level)
