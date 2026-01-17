@@ -864,10 +864,10 @@ class Typecheck:
                         self.error('variables defined in a for loop init cannot have a storage class')
                 stmt = self.typecheck_statement(decl)
                 return syntax.InitDecl(stmt)
-            case syntax.InitExp(exp):
-                if exp:
-                    expr = self.typecheck_expr(exp)
-                return syntax.InitExp(exp)
+            case syntax.InitExp(expr):
+                if expr:
+                    expr = self.typecheck_expr(expr)
+                return syntax.InitExp(expr)
             case None:
                 return None
             case _:
