@@ -169,6 +169,8 @@ class Codegen:
         '''
         r10 = assembly.Register('R10')
         r11 = assembly.Register('R11')
+        longword = assembly.AssemblyType.Longword
+        quadword = assembly.AssemblyType.Quardword
 
         updated_instructions = []
         for instr in instructions:
@@ -179,11 +181,24 @@ class Codegen:
                         assembly.Mov(assembly_type, r10, dst),
                     ])
 
-                case assembly.Movsx(src, dst) if is_mem(src) and is_mem(dst):
-                    # TODO
-                    updated_instructions.extend([
-                        instr
-                    ])
+                case assembly.Movsx(src, dst) if is_immediate(src) or is_mem(dst):
+                    if is_immediate(src) and is_mem(dst):
+                        updated_instructions.extend([
+                            assembly.Mov(longword, src, r10),
+                            assembly.Movsx(r10, r11),
+                            assembly.Mov(quadword, r11, dst),
+                        ])
+                    elif is_immediate(src):
+                        updated_instructions.extend([
+                            assembly.Mov(longword, src, r10),
+                            assembly.Movsx(r10, dst),
+                        ])
+                    else:
+                        assert(is_mem(dst))
+                        updated_instructions.extend([
+                            assembly.Movsx(src, r11),
+                            assembly.Mov(quadword, r11, dst),
+                        ])
 
                 case assembly.Cmp(assembly_type, left, right) if is_mem(left) and is_mem(right):
                     updated_instructions.extend([
@@ -504,6 +519,14 @@ def is_mem(operand: assembly.Operand):
         case assembly.Stack():
             return True
         case assembly.Data():
+            return True
+        case _:
+            return False
+
+
+def is_immediate(operand: assembly.Operand):
+    match operand:
+        case assembly.Immediate():
             return True
         case _:
             return False
