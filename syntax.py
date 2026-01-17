@@ -102,7 +102,8 @@ class FuncDeclaration(Declaration,
                       namedtuple('Declaration', ['name', 'params', 'body', 'fun_type', 'storage_class'])):
     def pretty_print(self):
         params = ', '.join(self.params)
-        header = f'function {self.name}({params})'
+        t = self.fun_type.pretty_print()
+        header = f'function {self.name}({params}) :: {t}'
         if self.body:
             body = self.body.pretty_print()
             return headed(header, body)
@@ -145,11 +146,13 @@ class Compound(Statement, namedtuple('Compound', ['block'])):
 
 
 class Return(Statement, namedtuple('Return', ['expr'])):
-    pass
+    def pretty_print(self):
+        return [f'return {self.expr.pretty_print()}']
 
 
 class ExprStmt(Statement, namedtuple('ExprStmt', ['expr'])):
-    pass
+    def pretty_print(self):
+        return [self.expr.pretty_print()]
 
 
 class NullStatement(Statement, namedtuple('NullStatement', [])):
@@ -269,7 +272,7 @@ class Expression:
         return self
 
     def pretty_print(self):
-        return str(self)
+        return f'<{self.expr_type}>{self}'
 
 
 class Constant(Expression, namedtuple('Constant', ['const'])):
@@ -281,31 +284,42 @@ class Variable(Expression, namedtuple('Variable', ['name'])):
 
 
 class Cast(Expression, namedtuple('Cast', ['target_type', 'expr'])):
-    pass
+    def __str__(self):
+        return f'Cast({self.target_type.pretty_print()}, {self.expr.pretty_print()})'
 
 
 class Unary(Expression, namedtuple('Unary', ['operator', 'expr'])):
-    pass
+    def __str__(self):
+        return f'Unary({self.operator.pretty_print()}, {self.expr.pretty_print()})'
 
 
 class Postfix(Expression, namedtuple('Postfix', ['expr', 'operator'])):
-    pass
+    def __str__(self):
+        return f'Postfix({self.expr.pretty_print()}, {self.operator.pretty_print()})'
 
 
 class Binary(Expression, namedtuple('Binary', ['operator', 'left', 'right'])):
-    pass
+    def __str__(self):
+        return f'Binary({self.operator.pretty_print()}, {self.left.pretty_print()}, {self.right.pretty_print()})'
 
 
 class Assignment(Expression, namedtuple('Assignment', ['lhs', 'rhs', 'op'])):
-    pass
+    def __str__(self):
+        op = '='
+        if self.op:
+            op = self.op.pretty_print()
+        return f'Assignment({self.lhs.pretty_print()}, {self.rhs.pretty_print()}, {op})'
 
 
 class Conditional(Expression, namedtuple('Conditional', ['condition', 't', 'e'])):
-    pass
+    def __str__(self):
+        return f'Conditional({self.condition.pretty_print()}, {self.t.pretty_print()}, {self.e.pretty_print()})'
 
 
 class Call(Expression, namedtuple('Call', ['function', 'arguments'])):
-    pass
+    def __str__(self):
+        args = [a.pretty_print() for a in self.arguments]
+        return f'Call({self.function.pretty_print()}, {args})'
 
 
 ##
@@ -318,6 +332,9 @@ class UnaryOp:
 
     def __ne__(self, other):
         return not (self == other)
+
+    def pretty_print(self):
+        return self.__class__.__name__
 
 
 class UnaryNegate(UnaryOp, namedtuple('UnaryNegate', [])):
@@ -355,6 +372,9 @@ class BinaryOp:
 
     def __ne__(self, other):
         return not (self == other)
+
+    def pretty_print(self):
+        return self.__class__.__name__
 
 
 class BinaryAdd(BinaryOp, namedtuple('BinaryAdd', [])):
@@ -444,6 +464,9 @@ class ConstInt(Const, namedtuple('ConstInt', ['value'])):
     def __hash__(self):
         return hash(self.__key())
 
+    def pretty_print(self):
+        return f'ConstInt({self.value})'
+
 
 class ConstLong(Const, namedtuple('ConstLong', ['value'])):
     def __key(self):
@@ -451,3 +474,6 @@ class ConstLong(Const, namedtuple('ConstLong', ['value'])):
 
     def __hash__(self):
         return hash(self.__key())
+
+    def pretty_print(self):
+        return f'ConstLong({self.value})'
