@@ -1,4 +1,10 @@
 from collections import namedtuple
+from enum import Enum
+
+
+class AssemblyType(Enum):
+    Longword = 1
+    Quardword = 2
 
 
 class Program(namedtuple('Program', ['top_level'])):
@@ -6,7 +12,7 @@ class Program(namedtuple('Program', ['top_level'])):
         return '\n\n'.join(d.pretty_print() for d in self.top_level)
 
 
-class StaticVariable(namedtuple('StaticVariable', ['name', 'is_global', 'init'])):
+class StaticVariable(namedtuple('StaticVariable', ['name', 'is_global', 'alignment', 'init'])):
     def pretty_print(self):
         return str(self)
 
@@ -26,7 +32,11 @@ class Ret(Instruction, namedtuple('Ret', [])):
     pass
 
 
-class Mov(Instruction, namedtuple('Mov', ['src', 'dst'])):
+class Mov(Instruction, namedtuple('Mov', ['assembly_type', 'src', 'dst'])):
+    pass
+
+
+class Movsx(Instruction, namedtuple('Mov', ['src', 'dst'])):
     pass
 
 
@@ -46,23 +56,23 @@ class Call(Instruction, namedtuple('Call', ['identifier'])):
     pass
 
 
-class Unary(Instruction, namedtuple('Unary', ['unary_operator', 'operand'])):
+class Unary(Instruction, namedtuple('Unary', ['unary_operator', 'assembly_type', 'operand'])):
     pass
 
 
-class Binary(Instruction, namedtuple('Binary', ['binary_operator', 'src', 'dst'])):
+class Binary(Instruction, namedtuple('Binary', ['binary_operator', 'assembly_type', 'src', 'dst'])):
     pass
 
 
-class Cmp(Instruction, namedtuple('Cmp', ['left', 'right'])):
+class Cmp(Instruction, namedtuple('Cmp', ['assembly_type', 'left', 'right'])):
     pass
 
 
-class Idiv(Instruction, namedtuple('Idiv', ['operand'])):
+class Idiv(Instruction, namedtuple('Idiv', ['assembly_type', 'operand'])):
     pass
 
 
-class Cdq(Instruction, namedtuple('Cdq', [])):
+class Cdq(Instruction, namedtuple('Cdq', ['assembly_type'])):
     pass
 
 

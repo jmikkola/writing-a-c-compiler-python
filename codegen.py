@@ -1,6 +1,7 @@
 import assembly
 import tacky
-import validator
+import symbol
+import syntax
 
 
 def gen(tacky: tacky.Program, symbols: dict) -> assembly.Program:
@@ -31,11 +32,22 @@ class Codegen:
                 assert(False)
 
     def gen_static_var(self, var: tacky.StaticVariable) -> assembly.StaticVariable:
+        alignment = self.alignment_of(var.var_type)
         return assembly.StaticVariable(
             name=var.name,
             is_global=var.is_global,
+            alignment=alignment,
             init=var.init,
         )
+
+    def alignment_of(self, var_type):
+        match var_type:
+            case syntax.Int():
+                return 4
+            case syntax.Long():
+                return 8
+            case _:
+                raise Exception(f'Unexpected type to find alignment of {var_type}')
 
     def gen_function(self, function: tacky.Function) -> assembly.Function:
         # Generate the basic assembly
@@ -63,13 +75,15 @@ class Codegen:
 
         # Handle arguments that are passed in registers
         for (param, reg) in zip(params, self.arg_registers):
-            instructions.append(assembly.Mov(assembly.Register(reg), assembly.Pseudo(param)))
+            a_type = self.a_type_of(tacky.Identifier(param))
+            instructions.append(assembly.Mov(a_type, assembly.Register(reg), assembly.Pseudo(param)))
 
         # Handle arguments that are passed on the stack
         stack_offset = 16
         stack_params = params[6:]
         for param in stack_params:
-            instructions.append(assembly.Mov(assembly.Stack(stack_offset), assembly.Pseudo(param)))
+            a_type = self.a_type_of(tacky.Identifier(param))
+            instructions.append(assembly.Mov(a_type, assembly.Stack(stack_offset), assembly.Pseudo(param)))
             stack_offset += 8
 
         return instructions
@@ -83,26 +97,30 @@ class Codegen:
                     pass
                 case assembly.Jmp() | assembly.JmpCC() | assembly.Label():
                     pass
-                case assembly.Mov(src, dst):
+                case assembly.Mov(assembly_type, src, dst):
                     src = self.convert_pseudo_register(pseudo_registers, src)
                     dst = self.convert_pseudo_register(pseudo_registers, dst)
-                    instr = assembly.Mov(src, dst)
+                    instr = assembly.Mov(assembly_type, src, dst)
+                case assembly.Movsx(src, dst):
+                    src = self.convert_pseudo_register(pseudo_registers, src)
+                    dst = self.convert_pseudo_register(pseudo_registers, dst)
+                    assembly.Movsx(src, dst)
                 case assembly.AllocateStack(_) | assembly.DeallocateStack(_):
                     pass
-                case assembly.Unary(unary_operator, operand):
+                case assembly.Unary(unary_operator, assembly_type, operand):
                     operand = self.convert_pseudo_register(pseudo_registers, operand)
-                    instr = assembly.Unary(unary_operator, operand)
-                case assembly.Binary(binary_operator, left, right):
+                    instr = assembly.Unary(unary_operator, assembly_type, operand)
+                case assembly.Binary(binary_operator, assembly_type, left, right):
                     left = self.convert_pseudo_register(pseudo_registers, left)
                     right = self.convert_pseudo_register(pseudo_registers, right)
-                    instr = assembly.Binary(binary_operator, left, right)
-                case assembly.Idiv(operand):
+                    instr = assembly.Binary(binary_operator, assembly_type, left, right)
+                case assembly.Idiv(assembly_type, operand):
                     operand = self.convert_pseudo_register(pseudo_registers, operand)
-                    instr = assembly.Idiv(operand)
-                case assembly.Cmp(left, right):
+                    instr = assembly.Idiv(assembly_type, operand)
+                case assembly.Cmp(assembly_type, left, right):
                     left = self.convert_pseudo_register(pseudo_registers, left)
                     right = self.convert_pseudo_register(pseudo_registers, right)
-                    instr = assembly.Cmp(left, right)
+                    instr = assembly.Cmp(assembly_type, left, right)
                 case assembly.SetCC(cond_code, operand):
                     operand = self.convert_pseudo_register(pseudo_registers, operand)
                     instr = assembly.SetCC(cond_code, operand)
@@ -121,7 +139,7 @@ class Codegen:
             return operand
         name = operand.name
         if name not in pseudo_registers:
-            if name in self.symbols and isinstance(self.symbols[name].attrs, validator.StaticAttr):
+            if name in self.symbols and isinstance(self.symbols[name].attrs, symbol.StaticAttr):
                 return assembly.Data(name)
             else:
                 pseudo_registers[name] = -4 * (1 + len(pseudo_registers))
@@ -140,44 +158,50 @@ class Codegen:
         updated_instructions = []
         for instr in instructions:
             match instr:
-                case assembly.Mov(src, dst) if is_mem(src) and is_mem(dst):
+                case assembly.Mov(assembly_type, src, dst) if is_mem(src) and is_mem(dst):
                     updated_instructions.extend([
-                        assembly.Mov(src, r10),
-                        assembly.Mov(r10, dst),
+                        assembly.Mov(assembly_type, src, r10),
+                        assembly.Mov(assembly_type, r10, dst),
                     ])
 
-                case assembly.Cmp(left, right) if is_mem(left) and is_mem(right):
+                case assembly.Movsx(src, dst) if is_mem(src) and is_mem(dst):
+                    # TODO
                     updated_instructions.extend([
-                        assembly.Mov(left, r10),
-                        assembly.Cmp(r10, right)
+                        instr
                     ])
 
-                case assembly.Cmp(left, assembly.Immediate(_) as right):
+                case assembly.Cmp(assembly_type, left, right) if is_mem(left) and is_mem(right):
                     updated_instructions.extend([
-                        assembly.Mov(right, r11),
-                        assembly.Cmp(left, r11),
+                        assembly.Mov(assembly_type, left, r10),
+                        assembly.Cmp(assembly_type, r10, right)
                     ])
 
-                case assembly.Idiv(assembly.Immediate(_) as imm):
+                case assembly.Cmp(assembly_type, left, assembly.Immediate(_) as right):
                     updated_instructions.extend([
-                        assembly.Mov(imm, r10),
-                        assembly.Idiv(r10),
+                        assembly.Mov(assembly_type, right, r11),
+                        assembly.Cmp(assembly_type, left, r11),
                     ])
 
-                case assembly.Binary(assembly.Mult() as op, src, dst) if is_mem(dst):
+                case assembly.Idiv(assembly_type, assembly.Immediate(_) as imm):
+                    updated_instructions.extend([
+                        assembly.Mov(assembly_type, imm, r10),
+                        assembly.Idiv(assembly_type, r10),
+                    ])
+
+                case assembly.Binary(assembly.Mult() as op, assembly_type, src, dst) if is_mem(dst):
                     # It's important that Mult is handled differently from other
                     # binary operations because it can't have a memory address
                     # in the destination
                     updated_instructions.extend([
-                        assembly.Mov(dst, r11),
-                        assembly.Binary(op, src, r11),
-                        assembly.Mov(r11, dst),
+                        assembly.Mov(assembly_type, dst, r11),
+                        assembly.Binary(op, assembly_type, src, r11),
+                        assembly.Mov(assembly_type, r11, dst),
                     ])
 
-                case assembly.Binary(op, src, dst) if is_mem(src) and is_mem(dst):
+                case assembly.Binary(op, assembly_type, src, dst) if is_mem(src) and is_mem(dst):
                     updated_instructions.extend([
-                        assembly.Mov(src, r10),
-                        assembly.Binary(op, r10, dst),
+                        assembly.Mov(assembly_type, src, r10),
+                        assembly.Binary(op, assembly_type, r10, dst),
                     ])
 
                 case _:
@@ -194,34 +218,52 @@ class Codegen:
         ''' returns a list of assembly instructions '''
         assert(isinstance(instr, tacky.Instruction))
         match instr:
-            case tacky.Return(_):
+            case tacky.Return():
                 return self.gen_return(instr)
-            case tacky.Unary(_, _, _):
+            case tacky.Unary():
                 return self.gen_unary(instr)
-            case tacky.Binary(_, _, _, _):
+            case tacky.Binary():
                 return self.gen_binary(instr)
             case tacky.Copy(src, dst):
+                a_type = self.a_type_of(src)
                 return [
-                    assembly.Mov(self.convert_operand(src), self.convert_operand(dst)),
+                    assembly.Mov(a_type, self.convert_operand(src), self.convert_operand(dst)),
                 ]
             case tacky.Jump(target):
                 return [assembly.Jmp(target)]
             case tacky.JumpIfZero(cond, target):
+                a_type = self.a_type_of(cond)
                 return [
-                    assembly.Cmp(assembly.Immediate(0), self.convert_operand(cond)),
+                    assembly.Cmp(a_type, assembly.Immediate(0), self.convert_operand(cond)),
                     assembly.JmpCC('E', target),
                 ]
             case tacky.JumpIfNotZero(cond, target):
+                a_type = self.a_type_of(cond)
                 return [
-                    assembly.Cmp(assembly.Immediate(0), self.convert_operand(cond)),
+                    assembly.Cmp(a_type, assembly.Immediate(0), self.convert_operand(cond)),
                     assembly.JmpCC('NE', target),
                 ]
             case tacky.Label(name):
                 return [assembly.Label(name)]
-            case tacky.Call(_, _, _):
+            case tacky.Call():
                 return self.gen_call(instr)
+            case tacky.SignExtend():
+                return self.gen_sign_extend(instr)
+            case tacky.Truncate():
+                return self.gen_truncate(instr)
             case _:
                 raise Exception(f'unhandled instruction type, {instr}')
+
+    def gen_sign_extend(self, instr: tacky.SignExtend) -> list:
+        src = self.convert_operand(instr.src)
+        dst = self.convert_operand(instr.dst)
+        return [assembly.Movsx(src, dst)]
+
+    def gen_truncate(self, instr: tacky.Truncate) -> list:
+        src = self.convert_operand(instr.src)
+        dst = self.convert_operand(instr.dst)
+        longword = assembly.AssemblyType.Longword
+        return [assembly.Mov(longword, src, dst)]
 
     def gen_call(self, instr: tacky.Call) -> list:
         register_args, stack_args = (instr.arg_vals[:6], instr.arg_vals[6:])
@@ -236,15 +278,20 @@ class Codegen:
         # Pass the first 6 arguments in registers
         for (arg, register) in zip(register_args, self.arg_registers):
             assembly_arg = self.convert_operand(arg)
-            instructions.append(assembly.Mov(assembly_arg, assembly.Register(register)))
+            a_type = self.a_type_of(arg)
+            instructions.append(assembly.Mov(a_type, assembly_arg, assembly.Register(register)))
 
         # Pass the remaining arguments on the stack
         for arg in stack_args[::-1]:
             assembly_arg = self.convert_operand(arg)
-            if isinstance(assembly_arg, assembly.Register) or isinstance(assembly_arg, assembly.Immediate):
+            a_type = self.a_type_of(arg)
+            is_register = isinstance(assembly_arg, assembly.Register)
+            is_immediate = isinstance(assembly_arg, assembly.Immediate)
+            if is_register or is_immediate or a_type == assembly.AssemblyType.Quardword:
                 instructions.append(assembly.Push(assembly_arg))
             else:
-                instructions.append(assembly.Mov(assembly_arg, assembly.Register('AX')))
+                # Only longword from memory need to be extended to 64 bits before being pushed
+                instructions.append(assembly.Mov(a_type, assembly_arg, assembly.Register('AX')))
                 instructions.append(assembly.Push(assembly.Register('AX')))
 
         # The actual function call
@@ -257,14 +304,16 @@ class Codegen:
 
         # Move the result to the correct destination
         assembly_dst = self.convert_operand(instr.dst)
-        instructions.append(assembly.Mov(assembly.Register('AX'), assembly_dst))
+        a_type = self.a_type_of(instr.dst)
+        instructions.append(assembly.Mov(a_type, assembly.Register('AX'), assembly_dst))
 
         return instructions
 
     def gen_return(self, instr: tacky.Return) -> list:
         src = self.convert_operand(instr.val)
+        a_type = self.a_type_of(instr.val)
         return [
-            assembly.Mov(src=src, dst=assembly.Register('AX')),
+            assembly.Mov(a_type, src, assembly.Register('AX')),
             assembly.Ret(),
         ]
 
@@ -272,19 +321,21 @@ class Codegen:
         src = self.convert_operand(instr.src)
         dst = self.convert_operand(instr.dst)
 
+        a_type = self.a_type_of(instr.src)
+
         if isinstance(instr.unary_operator, tacky.UnaryNot):
             return [
-                assembly.Cmp(assembly.Immediate(0), src),
+                assembly.Cmp(a_type, assembly.Immediate(0), src),
                 # Zero the destination because the 'set' instruction only
                 # updates the lowest 8 bits.
-                assembly.Mov(assembly.Immediate(0), dst),
+                assembly.Mov(a_type, assembly.Immediate(0), dst),
                 assembly.SetCC('E', dst),
             ]
 
         op = self.convert_unary_operator(instr.unary_operator)
         return [
-            assembly.Mov(src, dst),
-            assembly.Unary(op, dst),
+            assembly.Mov(a_type, src, dst),
+            assembly.Unary(op, a_type, dst),
         ]
 
     def convert_unary_operator(self, op: tacky.UnaryOp) -> assembly.UnaryOperator:
@@ -301,50 +352,73 @@ class Codegen:
         right = self.convert_operand(instr.right)
         dst = self.convert_operand(instr.dst)
 
+        a_type = self.a_type_of(instr.left)
+
         match instr.operator:
             case tacky.BinaryAdd() | tacky.BinarySubtract() | tacky.BinaryMultiply():
                 op = self.convert_binary_operator(instr.operator)
                 return [
-                    assembly.Mov(left, dst),
-                    assembly.Binary(op, right, dst),
+                    assembly.Mov(a_type, left, dst),
+                    assembly.Binary(op, a_type, right, dst),
                 ]
             case tacky.BitOr() | tacky.BitXor() | tacky.BitAnd():
                 op = self.convert_binary_operator(instr.operator)
                 return [
-                    assembly.Mov(left, dst),
-                    assembly.Binary(op, right, dst),
+                    assembly.Mov(a_type, left, dst),
+                    assembly.Binary(op, a_type, right, dst),
                 ]
             case tacky.ShiftLeft() | tacky.ShiftRight():
                 op = self.convert_binary_operator(instr.operator)
                 return [
-                    assembly.Mov(left, dst),
-                    assembly.Mov(right, assembly.Register('CX')),
-                    assembly.Binary(op, assembly.Register('CX'), dst),
+                    assembly.Mov(a_type, left, dst),
+                    assembly.Mov(a_type, right, assembly.Register('CX')),
+                    assembly.Binary(op, a_type, assembly.Register('CX'), dst),
                 ]
             case tacky.BinaryDivide():
                 return [
-                    assembly.Mov(left, assembly.Register('AX')),
-                    assembly.Cdq(),
-                    assembly.Idiv(right),
-                    assembly.Mov(assembly.Register('AX'), dst),
+                    assembly.Mov(a_type, left, assembly.Register('AX')),
+                    assembly.Cdq(a_type),
+                    assembly.Idiv(a_type, right),
+                    assembly.Mov(a_type, assembly.Register('AX'), dst),
                 ]
             case tacky.BinaryRemainder():
                 return [
-                    assembly.Mov(left, assembly.Register('AX')),
-                    assembly.Cdq(),
-                    assembly.Idiv(right),
-                    assembly.Mov(assembly.Register('DX'), dst),
+                    assembly.Mov(a_type, left, assembly.Register('AX')),
+                    assembly.Cdq(a_type),
+                    assembly.Idiv(a_type, right),
+                    assembly.Mov(a_type, assembly.Register('DX'), dst),
                 ]
             case tacky.Less() | tacky.LessEqual() | tacky.Equals() | \
                  tacky.NotEquals() | tacky.Greater() | tacky.GreaterEqual():
                 comparison = self.convert_comparison(instr.operator)
                 return [
-                    assembly.Cmp(right, left),
-                    assembly.Mov(assembly.Immediate(0), dst),
+                    assembly.Cmp(a_type, right, left),
+                    assembly.Mov(a_type, assembly.Immediate(0), dst),
                     assembly.SetCC(comparison, dst),
                 ]
             case _:
                 raise Exception(f'unhandled binary expression op {instr.operator}')
+
+    def a_type_of(self, value: tacky.Value):
+        match value:
+            case tacky.Constant(tacky.ConstInt(value)):
+                return assembly.AssemblyType.Longword
+            case tacky.Constant(tacky.ConstLong(value)):
+                return assembly.AssemblyType.Quardword
+            case tacky.Constant(_):
+                assert(False)
+            case tacky.Identifier(name):
+                sym_type = self.symbols[name].type
+                match sym_type:
+                    case syntax.Int():
+                        return assembly.AssemblyType.Longword
+                    case syntax.Long():
+                        return assembly.AssemblyType.Quardword
+                    case _:
+                        print(self.symbols)
+                        raise Exception(f'unexpected type {sym_type} for {name}')
+            case _:
+                raise Exception(f'unexpected value {value}')
 
     def convert_comparison(self, op: tacky.BinaryOp) -> str:
         match op:
