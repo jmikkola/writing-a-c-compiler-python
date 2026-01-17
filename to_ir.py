@@ -23,6 +23,7 @@ class ToTacky:
         return tacky.Identifier(name)
 
     def make_tacky_variable(self, var_type: syntax.Type):
+        assert(var_type is not None)
         var = self.new_temp_var()
         self.symbols[var.name] = symbol.Symbol(var_type, symbol.LocalAttr())
         return var
@@ -306,7 +307,7 @@ class ToTacky:
                 )
                 return self.convert_expression(updated_expression)
 
-            case syntax.Unary(operator, expr=inner):
+            case syntax.Unary(operator, inner):
                 match operator:
                     case syntax.UnaryIncrement() | syntax.UnaryDecrement():
                         assert(isinstance(inner,  syntax.Variable))
