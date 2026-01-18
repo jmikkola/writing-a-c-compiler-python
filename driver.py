@@ -69,6 +69,7 @@ def compile(stage, preprocessed_file, assembly_file, print_output):
     if stage == 'validate':
         if print_output:
             print('\n'.join(syntax.pretty_print()))
+            print('\n# symbols:')
             for (name, sym) in symbols.items():
                 print(f'{name}: {sym}')
         return
@@ -83,6 +84,7 @@ def compile(stage, preprocessed_file, assembly_file, print_output):
     if stage == 'codegen':
         if print_output:
             print(asm.pretty_print())
+            print('\n# symbols:')
             for (name, sym) in backend_symbols.items():
                 print(f'{name}: {sym}')
         return
