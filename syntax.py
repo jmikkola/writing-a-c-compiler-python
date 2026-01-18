@@ -231,7 +231,7 @@ class Switch(Statement, namedtuple('Switch', ['condition', 'body', 'switch_label
 
 class Case(Statement, namedtuple('Case', ['value', 'stmt', 'switch_label'])):
     def pretty_print(self):
-        lines = [f'case {self.loop_label}:']
+        lines = [f'case {self.value}: <#{self.switch_label}>']
         if self.stmt:
             lines += self.stmt.pretty_print()
         return lines
@@ -239,7 +239,7 @@ class Case(Statement, namedtuple('Case', ['value', 'stmt', 'switch_label'])):
 
 class Default(Statement, namedtuple('Default', ['stmt', 'switch_label'])):
     def pretty_print(self):
-        lines = ['default:']
+        lines = [f'default: <#{self.switch_label}>']
         if self.stmt:
             lines += self.stmt.pretty_print()
         return lines
