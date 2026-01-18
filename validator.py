@@ -798,19 +798,20 @@ class Typecheck:
                 converted_r = self.convert_to(r, common_type)
                 expr = syntax.Binary(op, converted_l, converted_r)
 
-                math_operations = [
-                    syntax.BinaryAdd(),
-                    syntax.BinarySubtract(),
-                    syntax.BinaryMultiply(),
-                    syntax.BinaryDivide(),
-                    syntax.BinaryRemainder(),
+                comparison_operators = [
+                    syntax.Less(),
+                    syntax.LessEqual(),
+                    syntax.Greater(),
+                    syntax.GreaterEqual(),
+                    syntax.Equals(),
+                    syntax.NotEquals(),
                 ]
 
-                if op in math_operations:
-                    return expr.set_type(common_type)
-                else:
+                if op in comparison_operators:
                     # E.g. `==` of two longs returns an int
                     return expr.set_type(syntax.Int())
+
+                return expr.set_type(common_type)
 
             case syntax.Assignment(lhs, rhs, op):
                 name = lhs.name
