@@ -360,6 +360,9 @@ class Codegen:
 
     def gen_truncate(self, instr: tacky.Truncate) -> list:
         src = self.convert_operand(instr.src)
+        if isinstance(src, assembly.Immediate):
+            truncated = src.value & (2**32 - 1)
+            src = assembly.Immediate(truncated)
         dst = self.convert_operand(instr.dst)
         return [assembly.Mov(longword, src, dst)]
 
