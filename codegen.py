@@ -4,6 +4,12 @@ import symbol
 import syntax
 
 
+r10 = assembly.Register('R10')
+r11 = assembly.Register('R11')
+longword = assembly.AssemblyType.Longword
+quadword = assembly.AssemblyType.Quadword
+
+
 def gen(tacky: tacky.Program, symbols: dict) -> (assembly.Program, dict):
     cg = Codegen(tacky, symbols)
     return cg.generate(), cg.asm_symbols
@@ -82,7 +88,7 @@ class Codegen:
 
         allocate = assembly.Binary(
             assembly.Sub(),
-            assembly.AssemblyType.Quardword,
+            quadword,
             assembly.Immediate(stack_size),
             assembly.Register('SP')
         )
@@ -167,82 +173,81 @@ class Codegen:
         E.g. mov instructions that use a memory address as both
         the source and destination
         '''
-        r10 = assembly.Register('R10')
-        r11 = assembly.Register('R11')
-        longword = assembly.AssemblyType.Longword
-        quadword = assembly.AssemblyType.Quardword
 
         updated_instructions = []
         for instr in instructions:
-            match instr:
-                case assembly.Mov(assembly_type, src, dst) if is_mem(src) and is_mem(dst):
-                    updated_instructions.extend([
-                        assembly.Mov(assembly_type, src, r10),
-                        assembly.Mov(assembly_type, r10, dst),
-                    ])
-
-                case assembly.Movsx(src, dst) if is_immediate(src) or is_mem(dst):
-                    if is_immediate(src) and is_mem(dst):
-                        updated_instructions.extend([
-                            assembly.Mov(longword, src, r10),
-                            assembly.Movsx(r10, r11),
-                            assembly.Mov(quadword, r11, dst),
-                        ])
-                    elif is_immediate(src):
-                        updated_instructions.extend([
-                            assembly.Mov(longword, src, r10),
-                            assembly.Movsx(r10, dst),
-                        ])
-                    else:
-                        assert(is_mem(dst))
-                        updated_instructions.extend([
-                            assembly.Movsx(src, r11),
-                            assembly.Mov(quadword, r11, dst),
-                        ])
-
-                case assembly.Cmp(assembly_type, left, right) if is_mem(left) and is_mem(right):
-                    updated_instructions.extend([
-                        assembly.Mov(assembly_type, left, r10),
-                        assembly.Cmp(assembly_type, r10, right)
-                    ])
-
-                case assembly.Cmp(assembly_type, left, assembly.Immediate(_) as right):
-                    updated_instructions.extend([
-                        assembly.Mov(assembly_type, right, r11),
-                        assembly.Cmp(assembly_type, left, r11),
-                    ])
-
-                case assembly.Idiv(assembly_type, assembly.Immediate(_) as imm):
-                    updated_instructions.extend([
-                        assembly.Mov(assembly_type, imm, r10),
-                        assembly.Idiv(assembly_type, r10),
-                    ])
-
-                case assembly.Binary(assembly.Mult() as op, assembly_type, src, dst) if is_mem(dst):
-                    # It's important that Mult is handled differently from other
-                    # binary operations because it can't have a memory address
-                    # in the destination
-                    updated_instructions.extend([
-                        assembly.Mov(assembly_type, dst, r11),
-                        assembly.Binary(op, assembly_type, src, r11),
-                        assembly.Mov(assembly_type, r11, dst),
-                    ])
-
-                case assembly.Binary(op, assembly_type, src, dst) if is_mem(src) and is_mem(dst):
-                    updated_instructions.extend([
-                        assembly.Mov(assembly_type, src, r10),
-                        assembly.Binary(op, assembly_type, r10, dst),
-                    ])
-
-                case assembly.Binary(op, assembly_type, src, dst) if is_large_imm(src) and is_arith(op):
-                    updated_instructions.extend([
-                        assembly.Mov(assembly_type, src, r10),
-                        assembly.Binary(op, assembly_type, r10, dst),
-                    ])
-
-                case _:
-                    updated_instructions.append(instr)
+            updated_instructions += self.fix_invalid_instruction(instr)
         return updated_instructions
+
+    def fix_invalid_instruction(self, instr):
+        match instr:
+            case assembly.Mov(assembly_type, src, dst) if is_mem(src) and is_mem(dst):
+                return [
+                    assembly.Mov(assembly_type, src, r10),
+                    assembly.Mov(assembly_type, r10, dst),
+                ]
+
+            case assembly.Movsx(src, dst) if is_immediate(src) or is_mem(dst):
+                if is_immediate(src) and is_mem(dst):
+                    return [
+                        assembly.Mov(longword, src, r10),
+                        assembly.Movsx(r10, r11),
+                        assembly.Mov(quadword, r11, dst),
+                    ]
+                elif is_immediate(src):
+                    return [
+                        assembly.Mov(longword, src, r10),
+                        assembly.Movsx(r10, dst),
+                    ]
+                else:
+                    assert(is_mem(dst))
+                    return [
+                        assembly.Movsx(src, r11),
+                        assembly.Mov(quadword, r11, dst),
+                    ]
+
+            case assembly.Cmp(assembly_type, left, right) if is_mem(left) and is_mem(right):
+                return [
+                    assembly.Mov(assembly_type, left, r10),
+                    assembly.Cmp(assembly_type, r10, right)
+                ]
+
+            case assembly.Cmp(assembly_type, left, assembly.Immediate(_) as right):
+                return [
+                    assembly.Mov(assembly_type, right, r11),
+                    assembly.Cmp(assembly_type, left, r11),
+                ]
+
+            case assembly.Idiv(assembly_type, assembly.Immediate(_) as imm):
+                return [
+                    assembly.Mov(assembly_type, imm, r10),
+                    assembly.Idiv(assembly_type, r10),
+                ]
+
+            case assembly.Binary(assembly.Mult() as op, assembly_type, src, dst) if is_mem(dst):
+                # It's important that Mult is handled differently from other
+                # binary operations because it can't have a memory address
+                # in the destination
+                return [
+                    assembly.Mov(assembly_type, dst, r11),
+                    assembly.Binary(op, assembly_type, src, r11),
+                    assembly.Mov(assembly_type, r11, dst),
+                ]
+
+            case assembly.Binary(op, assembly_type, src, dst) if is_mem(src) and is_mem(dst):
+                return [
+                    assembly.Mov(assembly_type, src, r10),
+                    assembly.Binary(op, assembly_type, r10, dst),
+                ]
+
+            case assembly.Binary(op, assembly_type, src, dst) if is_large_imm(src) and is_arith(op):
+                return [
+                    assembly.Mov(assembly_type, src, r10),
+                    assembly.Binary(op, assembly_type, r10, dst),
+                ]
+
+            case _:
+                return [instr]
 
     def gen_instructions(self, body: list) -> list:
         result = []
@@ -298,7 +303,6 @@ class Codegen:
     def gen_truncate(self, instr: tacky.Truncate) -> list:
         src = self.convert_operand(instr.src)
         dst = self.convert_operand(instr.dst)
-        longword = assembly.AssemblyType.Longword
         return [assembly.Mov(longword, src, dst)]
 
     def gen_call(self, instr: tacky.Call) -> list:
@@ -311,7 +315,7 @@ class Codegen:
         if stack_padding > 0:
             allocate = assembly.Binary(
                 assembly.Sub(),
-                assembly.AssemblyType.Quardword,
+                quadword,
                 assembly.Immediate(stack_padding),
                 assembly.Register('SP')
             )
@@ -329,7 +333,7 @@ class Codegen:
             a_type = self.a_type_of(arg)
             is_register = isinstance(assembly_arg, assembly.Register)
             is_immediate = isinstance(assembly_arg, assembly.Immediate)
-            if is_register or is_immediate or a_type == assembly.AssemblyType.Quardword:
+            if is_register or is_immediate or a_type == quadword:
                 instructions.append(assembly.Push(assembly_arg))
             else:
                 # Only longword from memory need to be extended to 64 bits before being pushed
@@ -344,7 +348,7 @@ class Codegen:
         if bytes_to_remove > 0:
             deallocate = assembly.Binary(
                 assembly.Add(),
-                assembly.AssemblyType.Quardword,
+                quadword,
                 assembly.Immediate(bytes_to_remove),
                 assembly.Register('SP')
             )
@@ -466,9 +470,9 @@ class Codegen:
     def sym_type_to_a_type(self, sym_type: syntax.Type):
         match sym_type:
             case syntax.Int():
-                return assembly.AssemblyType.Longword
+                return longword
             case syntax.Long():
-                return assembly.AssemblyType.Quardword
+                return quadword
             case _:
                 raise Exception(f'unexpected type {sym_type} for {name}')
 

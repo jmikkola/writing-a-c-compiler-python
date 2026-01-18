@@ -4,12 +4,12 @@ from enum import Enum
 
 class AssemblyType(Enum):
     Longword = 1
-    Quardword = 2
+    Quadword = 2
 
     def bytes(self):
         if self == self.Longword:
             return 4
-        if self == self.Quardword:
+        if self == self.Quadword:
             return 8
         assert(False)
 
