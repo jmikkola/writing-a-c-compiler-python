@@ -191,6 +191,8 @@ class Codegen:
                 return self.fix_idiv(instr)
             case assembly.Binary():
                 return self.fix_binary(instr)
+            case assembly.Push():
+                return self.fix_push(instr)
             case _:
                 return [instr]
 
@@ -203,12 +205,19 @@ class Codegen:
                 assembly.Mov(assembly_type, src, r10),
                 assembly.Mov(assembly_type, r10, dst),
             ]
+        elif is_large_imm(src) and is_mem(dst):
+            return [
+                assembly.Mov(assembly_type, src, r10),
+                assembly.Mov(assembly_type, r10, dst),
+            ]
         else:
             return [instr]
 
     def fix_movsx(self, instr: assembly.Movsx) -> list:
         src = instr.src
         dst = instr.dst
+        # It can't use a memory address as the destination or and immediate as
+        # the source
         if is_immediate(src) and is_mem(dst):
             return [
                 assembly.Mov(longword, src, r10),
@@ -232,19 +241,21 @@ class Codegen:
         assembly_type = instr.assembly_type
         left = instr.left
         right = instr.right
-        if is_mem(left) and is_mem(right):
-            return [
-                assembly.Mov(assembly_type, left, r10),
-                assembly.Cmp(assembly_type, r10, right)
-            ]
-        elif is_immediate(right):
-            return [
-                assembly.Mov(assembly_type, right, r11),
-                assembly.Cmp(assembly_type, left, r11),
-            ]
-        else:
-            return [instr]
+        instructions = []
 
+        if is_mem(left) and is_mem(right):
+            instructions.append(assembly.Mov(assembly_type, left, r10))
+            left = r10
+        elif is_large_imm(left):
+            instructions.append(assembly.Mov(assembly_type, left, r10))
+            left = r10
+
+        if is_immediate(right):
+            instructions.append(assembly.Mov(assembly_type, right, r11))
+            right = r11
+
+        instructions.append(assembly.Cmp(assembly_type, left, right))
+        return instructions
 
     def fix_idiv(self, instr: assembly.Idiv) -> list:
         assembly_type = instr.assembly_type
@@ -277,9 +288,21 @@ class Codegen:
                 assembly.Binary(op, assembly_type, r10, dst),
             ]
         elif is_large_imm(src) and is_arith(op):
+            # The Add, Sub, and Mult instructions can't handle immediate values
+            # that don't fit in an int
             return [
                 assembly.Mov(assembly_type, src, r10),
                 assembly.Binary(op, assembly_type, r10, dst),
+            ]
+        else:
+            return [instr]
+
+    def fix_push(self, instr: assembly.Push) -> list:
+        operand = instr.operand
+        if is_large_imm(operand):
+            return [
+                assembly.Mov(quadword, operand, r10),
+                assembly.Push(r10),
             ]
         else:
             return [instr]
