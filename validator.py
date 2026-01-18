@@ -510,6 +510,7 @@ class LoopLabels:
 class Typecheck:
     def __init__(self):
         self.symbols = {}
+        self.current_return_type = None
 
     def error(self, msg):
         raise TypeError(msg)
@@ -538,6 +539,7 @@ class Typecheck:
 
     def typecheck_func_decl(self, f: syntax.FuncDeclaration, in_block=False):
         func_type = f.fun_type
+        self.current_return_type = func_type.ret
         has_body = f.body is not None
         already_defined = False
         is_global = f.storage_class != syntax.Static()
@@ -678,6 +680,7 @@ class Typecheck:
                 return self.typecheck_func_decl(block_item, in_block=True)
             case syntax.Return(expr):
                 expr = self.typecheck_expr(expr)
+                expr = self.convert_to(expr, self.current_return_type)
                 return syntax.Return(expr)
             case syntax.ExprStmt(expr):
                 expr = self.typecheck_expr(expr)
