@@ -793,6 +793,11 @@ class Typecheck:
                     expr = syntax.Binary(op, l, r)
                     return expr.set_type(syntax.Int())
 
+                # << and >> always take the type of the left hand side
+                if op == syntax.ShiftLeft() or op == syntax.ShiftRight():
+                    expr = syntax.Binary(op, l, r)
+                    return expr.set_type(l.expr_type)
+
                 common_type = self.get_common_type(l.expr_type, r.expr_type)
                 converted_l = self.convert_to(l, common_type)
                 converted_r = self.convert_to(r, common_type)
