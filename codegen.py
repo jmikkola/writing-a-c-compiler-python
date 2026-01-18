@@ -273,29 +273,30 @@ class Codegen:
         assembly_type = instr.assembly_type
         src = instr.src
         dst = instr.dst
+
+        prefix = []
+        suffix = []
+
         if op == assembly.Mult() and is_mem(dst):
             # It's important that Mult is handled differently from other
             # binary operations because it can't have a memory address
             # in the destination
-            return [
-                assembly.Mov(assembly_type, dst, r11),
-                assembly.Binary(op, assembly_type, src, r11),
-                assembly.Mov(assembly_type, r11, dst),
-            ]
-        elif is_mem(src) and is_mem(dst):
-            return [
-                assembly.Mov(assembly_type, src, r10),
-                assembly.Binary(op, assembly_type, r10, dst),
-            ]
-        elif is_large_imm(src) and is_arith(op):
+            prefix.append(assembly.Mov(assembly_type, dst, r11))
+            suffix.append(assembly.Mov(assembly_type, r11, dst))
+            dst = r11
+
+        if is_mem(src) and is_mem(dst):
+            prefix.append(assembly.Mov(assembly_type, src, r10))
+            src = r10
+
+        if is_large_imm(src) and is_arith(op):
             # The Add, Sub, and Mult instructions can't handle immediate values
             # that don't fit in an int
-            return [
-                assembly.Mov(assembly_type, src, r10),
-                assembly.Binary(op, assembly_type, r10, dst),
-            ]
-        else:
-            return [instr]
+            prefix.append(assembly.Mov(assembly_type, src, r10))
+            src = r10
+
+        instr = assembly.Binary(op, assembly_type, src, dst)
+        return prefix + [instr] + suffix
 
     def fix_push(self, instr: assembly.Push) -> list:
         operand = instr.operand
