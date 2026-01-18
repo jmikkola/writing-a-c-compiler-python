@@ -139,7 +139,7 @@ class Codegen:
                 case assembly.Movsx(src, dst):
                     src = stack_map.convert_pseudo_register(src)
                     dst = stack_map.convert_pseudo_register(dst)
-                    assembly.Movsx(src, dst)
+                    instr = assembly.Movsx(src, dst)
                 case assembly.Unary(unary_operator, assembly_type, operand):
                     operand = stack_map.convert_pseudo_register(operand)
                     instr = assembly.Unary(unary_operator, assembly_type, operand)

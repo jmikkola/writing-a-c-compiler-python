@@ -3,10 +3,13 @@ from enum import Enum
 
 
 class AssemblyType(Enum):
-    Longword = 1
-    Quadword = 2
+    Byte = 1
+    Longword = 4
+    Quadword = 8
 
     def bytes(self):
+        if self == self.Byte:
+            return 1
         if self == self.Longword:
             return 4
         if self == self.Quadword:
@@ -56,14 +59,6 @@ class Mov(Instruction, namedtuple('Mov', ['assembly_type', 'src', 'dst'])):
 
 
 class Movsx(Instruction, namedtuple('Mov', ['src', 'dst'])):
-    pass
-
-
-class AllocateStack(Instruction, namedtuple('AllocateStack', ['bytes'])):
-    pass
-
-
-class DeallocateStack(Instruction, namedtuple('DeallocateStack', ['bytes'])):
     pass
 
 
