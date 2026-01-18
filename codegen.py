@@ -181,12 +181,31 @@ class Codegen:
 
     def fix_invalid_instruction(self, instr):
         match instr:
+            case assembly.Mov():
+                return self.fix_mov(instr)
+            case assembly.Movsx():
+                return self.fix_movsx(instr)
+            case assembly.Cmp():
+                return self.fix_cmp(instr)
+            case assembly.Idiv():
+                return self.fix_idiv(instr)
+            case assembly.Binary():
+                return self.fix_binary(instr)
+            case _:
+                return [instr]
+
+    def fix_mov(self, instr: assembly.Mov) -> list:
+        match instr:
             case assembly.Mov(assembly_type, src, dst) if is_mem(src) and is_mem(dst):
                 return [
                     assembly.Mov(assembly_type, src, r10),
                     assembly.Mov(assembly_type, r10, dst),
                 ]
+            case _:
+                return [instr]
 
+    def fix_movsx(self, instr: assembly.Movsx) -> list:
+        match instr:
             case assembly.Movsx(src, dst) if is_immediate(src) or is_mem(dst):
                 if is_immediate(src) and is_mem(dst):
                     return [
@@ -205,25 +224,38 @@ class Codegen:
                         assembly.Movsx(src, r11),
                         assembly.Mov(quadword, r11, dst),
                     ]
+            case _:
+                return [instr]
 
+
+    def fix_cmp(self, instr: assembly.Cmp) -> list:
+        match instr:
             case assembly.Cmp(assembly_type, left, right) if is_mem(left) and is_mem(right):
                 return [
                     assembly.Mov(assembly_type, left, r10),
                     assembly.Cmp(assembly_type, r10, right)
                 ]
-
             case assembly.Cmp(assembly_type, left, assembly.Immediate(_) as right):
                 return [
                     assembly.Mov(assembly_type, right, r11),
                     assembly.Cmp(assembly_type, left, r11),
                 ]
+            case _:
+                return [instr]
 
+
+    def fix_idiv(self, instr: assembly.Idiv) -> list:
+        match instr:
             case assembly.Idiv(assembly_type, assembly.Immediate(_) as imm):
                 return [
                     assembly.Mov(assembly_type, imm, r10),
                     assembly.Idiv(assembly_type, r10),
                 ]
+            case _:
+                return [instr]
 
+    def fix_binary(self, instr: assembly.Binary) -> list:
+        match instr:
             case assembly.Binary(assembly.Mult() as op, assembly_type, src, dst) if is_mem(dst):
                 # It's important that Mult is handled differently from other
                 # binary operations because it can't have a memory address
@@ -233,7 +265,6 @@ class Codegen:
                     assembly.Binary(op, assembly_type, src, r11),
                     assembly.Mov(assembly_type, r11, dst),
                 ]
-
             case assembly.Binary(op, assembly_type, src, dst) if is_mem(src) and is_mem(dst):
                 return [
                     assembly.Mov(assembly_type, src, r10),
@@ -245,7 +276,6 @@ class Codegen:
                     assembly.Mov(assembly_type, src, r10),
                     assembly.Binary(op, assembly_type, r10, dst),
                 ]
-
             case _:
                 return [instr]
 

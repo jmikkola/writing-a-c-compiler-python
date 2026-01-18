@@ -125,7 +125,8 @@ class Neg(UnaryOperator, namedtuple('Neg', [])):
 
 
 class BinaryOperator:
-    pass
+    def __eq__(self, o):
+        return str(self) == str(o)
 
 
 class Add(BinaryOperator, namedtuple('Add', [])):
