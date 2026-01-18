@@ -818,6 +818,14 @@ class Typecheck:
                 if isinstance(self.symbols[name].type, syntax.Func):
                     self.error(f'Cannot assign to a function {name}')
                 lhs = self.typecheck_expr(lhs)
+
+                if op is not None:
+                    # This logic only works because the assign target has no
+                    # side effects (e.g. it isn't `a[i++]`) so it can safely be
+                    # duplicated
+                    rhs = syntax.Binary(op, lhs, rhs)
+                    op = None
+
                 rhs = self.typecheck_expr(rhs)
                 left_type = lhs.expr_type
                 assert(left_type is not None)

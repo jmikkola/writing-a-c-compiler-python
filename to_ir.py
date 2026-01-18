@@ -298,15 +298,7 @@ class ToTacky:
                 return (instructions, result)
 
             case syntax.Assignment(syntax.Variable(name) as var, rhs, op):
-                # This logic only works because the assign target has no side effects
-                # (e.g. it isn't `a[i++]`) so it can safely be duplicated
-                updated_expression = syntax.Assignment(
-                    syntax.Variable(name).set_type(var.expr_type),
-                    syntax.Binary(op, syntax.Variable(name), rhs).set_type(rhs.expr_type),
-                    None
-                )
-                updated_expression.set_type(expr.expr_type)
-                return self.convert_expression(updated_expression)
+                raise Exception(f'the typecheck phase should have removed this possibility')
 
             case syntax.Unary(operator, inner):
                 match operator:
