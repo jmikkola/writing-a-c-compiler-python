@@ -799,7 +799,7 @@ class Typecheck:
                 expr = syntax.Binary(op, converted_l, converted_r)
 
                 math_operations = [
-                    syntax.BinaryAnd(),
+                    syntax.BinaryAdd(),
                     syntax.BinarySubtract(),
                     syntax.BinaryMultiply(),
                     syntax.BinaryDivide(),
