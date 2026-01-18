@@ -506,7 +506,7 @@ class Codegen:
                 comparison = self.convert_comparison(instr.operator)
                 return [
                     assembly.Cmp(a_type, right, left),
-                    assembly.Mov(a_type, assembly.Immediate(0), dst),
+                    assembly.Mov(self.a_type_of(instr.dst), assembly.Immediate(0), dst),
                     assembly.SetCC(comparison, dst),
                 ]
             case _:
