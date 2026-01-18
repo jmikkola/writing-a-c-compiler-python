@@ -96,8 +96,8 @@ class Emit:
                 self.indented(f'mov{suffix} {src}, {dst}')
 
             case assembly.Movsx(src, dst):
-                src = self.render_operand(src, quadword)
-                dst = self.render_operand(dst, longword)
+                src = self.render_operand(src, longword)
+                dst = self.render_operand(dst, quadword)
                 self.indented(f'movslq {src}, {dst}')
 
             case assembly.Push(operand):
