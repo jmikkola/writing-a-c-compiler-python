@@ -314,7 +314,7 @@ class Binary(Expression, namedtuple('Binary', ['operator', 'left', 'right'])):
 class Assignment(Expression, namedtuple('Assignment', ['lhs', 'rhs', 'op'])):
     def __str__(self):
         op = '='
-        if self.op:
+        if self.op is not None:
             op = self.op.pretty_print()
         return f'Assignment({self.lhs.pretty_print()}, {self.rhs.pretty_print()}, {op})'
 
