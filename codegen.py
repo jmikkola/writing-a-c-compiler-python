@@ -288,8 +288,8 @@ class Codegen:
             prefix.append(assembly.Mov(assembly_type, src, r10))
             src = r10
 
-        if is_large_imm(src) and is_arith(op):
-            # The Add, Sub, and Mult instructions can't handle immediate values
+        if is_large_imm(src):
+            # The Add, Sub, Mult, etc instructions can't handle immediate values
             # that don't fit in an int
             prefix.append(assembly.Mov(assembly_type, src, r10))
             src = r10
@@ -607,18 +607,6 @@ def is_large_imm(operand: assembly.Operand):
     match operand:
         case assembly.Immediate(n):
             return n > (2**31 - 1)
-        case _:
-            return False
-
-
-def is_arith(op):
-    match op:
-        case assembly.Add():
-            return True
-        case assembly.Sub():
-            return True
-        case assembly.Mult():
-            return True
         case _:
             return False
 
