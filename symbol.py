@@ -17,7 +17,7 @@ class StaticAttr(IdentifierAttributes, namedtuple('StaticAttr', ['init', 'is_glo
     pass
 
 
-class LocalAttr(IdentifierAttributes):
+class LocalAttr(IdentifierAttributes, namedtuple('LocalAttr', [])):
     pass
 
 
@@ -25,7 +25,7 @@ class InitialValue:
     pass
 
 
-class Tentative(InitialValue):
+class Tentative(InitialValue, namedtuple('Tentative', [])):
     pass
 
 
@@ -33,7 +33,7 @@ class Initial(InitialValue, namedtuple('Initial', ['static_value'])):
     pass
 
 
-class NoInitializer(InitialValue):
+class NoInitializer(InitialValue, namedtuple('NoInitializer', [])):
     pass
 
 

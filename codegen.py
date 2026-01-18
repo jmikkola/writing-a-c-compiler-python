@@ -173,7 +173,6 @@ class Codegen:
         E.g. mov instructions that use a memory address as both
         the source and destination
         '''
-
         updated_instructions = []
         for instr in instructions:
             updated_instructions += self.fix_invalid_instruction(instr)

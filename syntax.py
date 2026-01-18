@@ -49,11 +49,13 @@ class Type:
 
 
 class Int(Type, namedtuple('Int', [])):
-    pass
+    def __str__(self):
+        return 'Int'
 
 
 class Long(Type, namedtuple('Type', [])):
-    pass
+    def __str__(self):
+        return 'Long'
 
 
 class Func(Type, namedtuple('Func', ['params', 'ret'])):
@@ -319,7 +321,7 @@ class Conditional(Expression, namedtuple('Conditional', ['condition', 't', 'e'])
 class Call(Expression, namedtuple('Call', ['function', 'arguments'])):
     def __str__(self):
         args = [a.pretty_print() for a in self.arguments]
-        return f'Call({self.function.pretty_print()}, {args})'
+        return f'Call({self.function}, {args})'
 
 
 ##
