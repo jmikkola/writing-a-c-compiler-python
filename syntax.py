@@ -97,7 +97,13 @@ class Declaration(BlockItem):
 
 
 class VarDeclaration(Declaration, namedtuple('Declaration', ['name', 'init', 'var_type', 'storage_class'])):
-    pass
+    def pretty_print(self):
+        parts = [self.var_type.pretty_print(), self.name]
+        if self.init:
+            parts.append('=')
+            parts.append(self.init.pretty_print())
+        parts.append(str(self.storage_class))
+        return [' '.join(parts)]
 
 
 class FuncDeclaration(Declaration,

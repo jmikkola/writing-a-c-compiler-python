@@ -494,15 +494,23 @@ class Parser:
     def parse_constant(self) -> syntax.Constant:
         ''' parse a constant (an integer) '''
         token = self.expect('constant')
-        if token.text[-1] in 'lL' or int(token.text) > (2**31 - 1):
-            value = int(token.text[:-1])
+
+        is_long = False
+        text = token.text
+        if text[-1] in ('l', 'L'):
+            is_long = True
+            text = text[:-1]
+
+        value = int(text)
+        if value > (2**31 - 1):
+            is_long = True
             if value > (2**63 - 1):
                 self.fail(f'constant is too large to represent as a long: {token.text}')
-            const = syntax.ConstLong(value)
+
+        if is_long:
+            return syntax.Constant(syntax.ConstLong(value))
         else:
-            value = int(token.text)
-            const = syntax.ConstInt(value)
-        return syntax.Constant(const)
+            return syntax.Constant(syntax.ConstInt(value))
 
     def peek(self, kind=None, value=None, offset=0):
         return self.token_iter.peek(kind, value, offset)
