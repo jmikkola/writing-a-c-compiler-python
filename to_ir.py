@@ -351,7 +351,7 @@ class ToTacky:
                 end_label = self.new_label('and_end')
                 instructions_left, val_left = self.convert_expression(left)
                 instructions_right, val_right = self.convert_expression(right)
-                result_var = self.make_tacky_variable(expr.expr_type)
+                result_var = self.make_tacky_variable(syntax.Int())
                 instructions = instructions_left + [tacky.JumpIfZero(val_left, false_label)]
                 instructions += instructions_right + [tacky.JumpIfZero(val_right, false_label)]
                 instructions += [
@@ -368,7 +368,7 @@ class ToTacky:
                 end_label = self.new_label('or_end')
                 instructions_left, val_left = self.convert_expression(left)
                 instructions_right, val_right = self.convert_expression(right)
-                result_var = self.make_tacky_variable(expr.expr_type)
+                result_var = self.make_tacky_variable(syntax.Int())
                 instructions = instructions_left + [tacky.JumpIfNotZero(val_left, true_label)]
                 instructions += instructions_right + [tacky.JumpIfNotZero(val_right, true_label)]
                 instructions += [
