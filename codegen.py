@@ -234,6 +234,12 @@ class Codegen:
                         assembly.Binary(op, assembly_type, r10, dst),
                     ])
 
+                case assembly.Binary(op, assembly_type, src, dst) if is_large_imm(src) and is_arith(op):
+                    updated_instructions.extend([
+                        assembly.Mov(assembly_type, src, r10),
+                        assembly.Binary(op, assembly_type, r10, dst),
+                    ])
+
                 case _:
                     updated_instructions.append(instr)
         return updated_instructions
@@ -506,8 +512,8 @@ class Codegen:
 
     def convert_operand(self, value: tacky.Value) -> assembly.Operand:
         match value:
-            case tacky.Constant(value):
-                return assembly.Immediate(value)
+            case tacky.Constant(const):
+                return assembly.Immediate(const.value)
             case tacky.Identifier(name):
                 return assembly.Pseudo(name)
             case _:
@@ -527,6 +533,26 @@ def is_mem(operand: assembly.Operand):
 def is_immediate(operand: assembly.Operand):
     match operand:
         case assembly.Immediate():
+            return True
+        case _:
+            return False
+
+
+def is_large_imm(operand: assembly.Operand):
+    match operand:
+        case assembly.Immediate(n):
+            return n > (2**31 - 1)
+        case _:
+            return False
+
+
+def is_arith(op):
+    match op:
+        case assembly.Add():
+            return True
+        case assembly.Sub():
+            return True
+        case assembly.Mult():
             return True
         case _:
             return False
