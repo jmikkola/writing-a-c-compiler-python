@@ -58,7 +58,11 @@ class Mov(Instruction, namedtuple('Mov', ['assembly_type', 'src', 'dst'])):
     pass
 
 
-class Movsx(Instruction, namedtuple('Mov', ['src', 'dst'])):
+class Movsx(Instruction, namedtuple('Movsx', ['src', 'dst'])):
+    pass
+
+
+class MovZeroExtend(Instruction, namedtuple('MovZeroExtend', ['src', 'dst'])):
     pass
 
 
@@ -86,6 +90,10 @@ class Idiv(Instruction, namedtuple('Idiv', ['assembly_type', 'operand'])):
     pass
 
 
+class Div(Instruction, namedtuple('Div', ['assembly_type', 'operand'])):
+    pass
+
+
 class Cdq(Instruction, namedtuple('Cdq', ['assembly_type'])):
     pass
 
@@ -95,7 +103,7 @@ class Jmp(Instruction, namedtuple('Jmp', ['label'])):
 
 
 class JmpCC(Instruction, namedtuple('JmpCC', ['cond_code', 'label'])):
-    ''' cond_code can be one of E, NE, G, GE, L, or LE '''
+    ''' cond_code can be one of E, NE, G, GE, L, LE, A, AE, B, or BE '''
     pass
 
 

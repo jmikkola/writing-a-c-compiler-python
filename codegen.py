@@ -4,6 +4,7 @@ import assembly
 import tacky
 import symbol
 import syntax
+import typeconversion
 
 
 r10 = assembly.Register('R10')
@@ -71,9 +72,9 @@ class Codegen:
 
     def alignment_of(self, var_type):
         match var_type:
-            case syntax.Int():
+            case syntax.Int() | syntax.UInt():
                 return 4
-            case syntax.Long():
+            case syntax.Long() | syntax.ULong():
                 return 8
             case _:
                 raise Exception(f'Unexpected type to find alignment of {var_type}')
@@ -142,6 +143,10 @@ class Codegen:
                     src = stack_map.convert_pseudo_register(src)
                     dst = stack_map.convert_pseudo_register(dst)
                     instr = assembly.Movsx(src, dst)
+                case assembly.MovZeroExtend(src, dst):
+                    src = stack_map.convert_pseudo_register(src)
+                    dst = stack_map.convert_pseudo_register(dst)
+                    instr = assembly.MovZeroExtend(src, dst)
                 case assembly.Unary(unary_operator, assembly_type, operand):
                     operand = stack_map.convert_pseudo_register(operand)
                     instr = assembly.Unary(unary_operator, assembly_type, operand)
@@ -152,6 +157,9 @@ class Codegen:
                 case assembly.Idiv(assembly_type, operand):
                     operand = stack_map.convert_pseudo_register(operand)
                     instr = assembly.Idiv(assembly_type, operand)
+                case assembly.Div(assembly_type, operand):
+                    operand = stack_map.convert_pseudo_register(operand)
+                    instr = assembly.Div(assembly_type, operand)
                 case assembly.Cmp(assembly_type, left, right):
                     left = stack_map.convert_pseudo_register(left)
                     right = stack_map.convert_pseudo_register(right)
@@ -186,10 +194,14 @@ class Codegen:
                 return self.fix_mov(instr)
             case assembly.Movsx():
                 return self.fix_movsx(instr)
+            case assembly.MovZeroExtend():
+                return self.fix_mov_zero_extend(instr)
             case assembly.Cmp():
                 return self.fix_cmp(instr)
             case assembly.Idiv():
                 return self.fix_idiv(instr)
+            case assembly.Div():
+                return self.fix_div(instr)
             case assembly.Binary():
                 return self.fix_binary(instr)
             case assembly.Push():
@@ -238,6 +250,19 @@ class Codegen:
         else:
             return [instr]
 
+    def fix_mov_zero_extend(self, instr: assembly.MovZeroExtend) -> list:
+        src = instr.src
+        dst = instr.dst
+        if is_register(dst):
+            return [assembly.Mov(longword, src, dst)]
+        elif is_mem(dst):
+            return [
+                assembly.Mov(longword, src, r11),
+                assembly.Mov(quadword, r11, dst),
+            ]
+        else:
+            return [instr]
+
     def fix_cmp(self, instr: assembly.Cmp) -> list:
         assembly_type = instr.assembly_type
         left = instr.left
@@ -265,6 +290,17 @@ class Codegen:
             return [
                 assembly.Mov(assembly_type, operand, r10),
                 assembly.Idiv(assembly_type, r10),
+            ]
+        else:
+            return [instr]
+
+    def fix_div(self, instr: assembly.Div) -> list:
+        assembly_type = instr.assembly_type
+        operand = instr.operand
+        if is_immediate(operand):
+            return [
+                assembly.Mov(assembly_type, operand, r10),
+                assembly.Div(assembly_type, r10),
             ]
         else:
             return [instr]
@@ -352,8 +388,15 @@ class Codegen:
                 return self.gen_sign_extend(instr)
             case tacky.Truncate():
                 return self.gen_truncate(instr)
+            case tacky.ZeroExtend():
+                return self.gen_zero_extend(instr)
             case _:
                 raise Exception(f'unhandled instruction type, {instr}')
+
+    def gen_zero_extend(self, instr: tacky.ZeroExtend) -> list:
+        src = self.convert_operand(instr.src)
+        dst = self.convert_operand(instr.dst)
+        return [assembly.MovZeroExtend(src, dst)]
 
     def gen_sign_extend(self, instr: tacky.SignExtend) -> list:
         src = self.convert_operand(instr.src)
@@ -468,6 +511,7 @@ class Codegen:
         dst = self.convert_operand(instr.dst)
 
         a_type = self.a_type_of(instr.left)
+        is_signed = self.is_value_signed(instr.left)
 
         match instr.operator:
             case tacky.BinaryAdd() | tacky.BinarySubtract() | tacky.BinaryMultiply():
@@ -490,22 +534,12 @@ class Codegen:
                     assembly.Binary(op, a_type, assembly.Register('CX'), dst),
                 ]
             case tacky.BinaryDivide():
-                return [
-                    assembly.Mov(a_type, left, assembly.Register('AX')),
-                    assembly.Cdq(a_type),
-                    assembly.Idiv(a_type, right),
-                    assembly.Mov(a_type, assembly.Register('AX'), dst),
-                ]
+                return self.generate_div(left, right, dst, a_type, False, is_signed)
             case tacky.BinaryRemainder():
-                return [
-                    assembly.Mov(a_type, left, assembly.Register('AX')),
-                    assembly.Cdq(a_type),
-                    assembly.Idiv(a_type, right),
-                    assembly.Mov(a_type, assembly.Register('DX'), dst),
-                ]
+                return self.generate_div(left, right, dst, a_type, True, is_signed)
             case tacky.Less() | tacky.LessEqual() | tacky.Equals() | \
                  tacky.NotEquals() | tacky.Greater() | tacky.GreaterEqual():
-                comparison = self.convert_comparison(instr.operator)
+                comparison = self.convert_comparison(instr.operator, is_signed)
                 return [
                     assembly.Cmp(a_type, right, left),
                     assembly.Mov(self.a_type_of(instr.dst), assembly.Immediate(0), dst),
@@ -514,8 +548,31 @@ class Codegen:
             case _:
                 raise Exception(f'unhandled binary expression op {instr.operator}')
 
+    def generate_div(self, left, right, dst, a_type, is_remainder, is_signed):
+        ax = assembly.Register('AX')
+        dx = assembly.Register('DX')
+        instructions = [assembly.Mov(a_type, left, ax)]
+
+        if is_signed:
+            instructions.append(assembly.Cdq(a_type))
+            instructions.append(assembly.Idiv(a_type, right))
+        else:
+            zero = assembly.Immediate(0)
+            instructions.append(assembly.Mov(a_type, zero, dx))
+            instructions.append(assembly.Div(a_type, right))
+
+        if is_remainder:
+            instructions.append(assembly.Mov(a_type, dx, dst))
+        else:
+            instructions.append(assembly.Mov(a_type, ax, dst))
+
+        return instructions
+
     def a_type_of(self, value: tacky.Value):
         return self.sym_type_to_a_type(self.value_type(value))
+
+    def is_value_signed(self, value: tacky.Value):
+        return typeconversion.is_signed(self.value_type(value))
 
     def value_type(self, value: tacky.Value) -> syntax.Type:
         match value:
@@ -523,6 +580,10 @@ class Codegen:
                 return syntax.Int()
             case tacky.Constant(tacky.ConstLong(value)):
                 return syntax.Long()
+            case tacky.Constant(tacky.ConstUInt(value)):
+                return syntax.UInt()
+            case tacky.Constant(tacky.ConstULong(value)):
+                return syntax.ULong()
             case tacky.Constant(_):
                 assert(False)
             case tacky.Identifier(name):
@@ -532,27 +593,35 @@ class Codegen:
 
     def sym_type_to_a_type(self, sym_type: syntax.Type):
         match sym_type:
-            case syntax.Int():
+            case syntax.Int() | syntax.UInt():
                 return longword
-            case syntax.Long():
+            case syntax.Long() | syntax.ULong():
                 return quadword
             case _:
                 raise Exception(f'unexpected type {sym_type}')
 
-    def convert_comparison(self, op: tacky.BinaryOp) -> str:
+    def convert_comparison(self, op: tacky.BinaryOp, is_signed: bool) -> str:
         match op:
-            case tacky.Less():
+            case tacky.Less() if is_signed:
                 return 'L'
-            case tacky.LessEqual():
+            case tacky.Less():
+                return 'B'
+            case tacky.LessEqual() if is_signed:
                 return 'LE'
+            case tacky.LessEqual():
+                return 'BE'
             case tacky.Equals():
                 return 'E'
             case tacky.NotEquals():
                 return 'NE'
-            case tacky.GreaterEqual():
+            case tacky.GreaterEqual() if is_signed:
                 return 'GE'
-            case tacky.Greater():
+            case tacky.GreaterEqual():
+                return 'AE'
+            case tacky.Greater() if is_signed:
                 return 'G'
+            case tacky.Greater():
+                return 'A'
             case _:
                 raise Exception(f'invalid op to convert to a comparison {op}')
 
@@ -609,6 +678,14 @@ def is_large_imm(operand: assembly.Operand):
     match operand:
         case assembly.Immediate(n):
             return n > (2**31 - 1)
+        case _:
+            return False
+
+
+def is_register(operand: assembly.Operand):
+    match operand:
+        case assembly.Register():
+            return True
         case _:
             return False
 
