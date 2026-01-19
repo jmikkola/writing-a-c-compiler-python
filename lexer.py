@@ -5,14 +5,15 @@ from token import Token
 
 
 IDENTIFIER = re.compile(r'[a-zA-Z_]\w*\b')
-CONSTANT   = re.compile(r'[0-9]+[lL]?\b')
+# Digits optionally ending in l, u, ul, or lu in any mix of case
+CONSTANT   = re.compile(r'[0-9]+([lL]|[uU]|[uU][lL]|[lL][uU])?\b')
 
 LINE_COMMENT = re.compile(r'//[^\n]*\n?')
 # The *? is non-greedy, so it will stop at the first */ not the last one
 MULTILINE_COMENT = re.compile(r'/\*.*?\*/')
 
 KEYWORDS = [
-    'int', 'void', 'long',
+    'int', 'void', 'long', 'signed', 'unsigned',
     'return', 'if', 'else', 'goto',
     'do', 'while', 'break', 'continue', 'for',
     'switch', 'case', 'default',
