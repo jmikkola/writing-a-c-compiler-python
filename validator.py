@@ -774,23 +774,32 @@ class Typecheck:
     def convert_case_value(self, value, target_type: syntax.Type):
         match value:
             case syntax.ConstInt(n):
-                match target_type:
-                    case syntax.Int():
-                        return value
-                    case syntax.Long():
-                        return syntax.ConstLong(n)
-                    case _:
-                        raise Exception(f'unexpected type in convert_case_value: {target_type}')
+                return self.convert_integer(n, target_type)
             case syntax.ConstLong(n):
-                match target_type:
-                    case syntax.Int():
-                        return syntax.ConstInt(typeconversion.constant_to_int(n))
-                    case syntax.Long():
-                        return value
-                    case _:
-                        raise Exception(f'unexpected type in convert_case_value: {target_type}')
+                return self.convert_integer(n, target_type)
+            case syntax.ConstUInt(n):
+                return self.convert_integer(n, target_type)
+            case syntax.ConstULong(n):
+                return self.convert_integer(n, target_type)
             case _:
                 raise Exception(f'unexpected constant value in convert_case_value: {value}')
+
+    def convert_integer(self, value, target_type: syntax.Type):
+        match target_type:
+            case syntax.Long():
+                value = typeconversion.constant_to_long(value)
+                return syntax.ConstLong(value)
+            case syntax.Int():
+                value = typeconversion.constant_to_int(value)
+                return syntax.ConstInt(value)
+            case syntax.ULong():
+                value = typeconversion.constant_to_long(value, unsigned=True)
+                return syntax.ConstULong(value)
+            case syntax.UInt():
+                value = typeconversion.constant_to_int(value, unsigned=True)
+                return syntax.ConstUInt(value)
+            case _:
+                raise Exception(f'unhandled type for constant {target_type}')
 
     def typecheck_expr(self, expr: syntax.Expression):
         match expr:

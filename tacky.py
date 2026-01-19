@@ -46,6 +46,10 @@ class Truncate(Instruction, namedtuple('Truncate', ['src', 'dst'])):
     pass
 
 
+class ZeroExtend(Instruction, namedtuple('ZeroExtend', ['src', 'dst'])):
+    pass
+
+
 class Unary(Instruction, namedtuple('Unary', ['unary_operator', 'src', 'dst'])):
     pass
 
@@ -110,6 +114,14 @@ class ConstInt(Const, namedtuple('ConstInt', ['value'])):
 
 
 class ConstLong(Const, namedtuple('ConstLong', ['value'])):
+    pass
+
+
+class ConstUInt(Const, namedtuple('ConstUInt', ['value'])):
+    pass
+
+
+class ConstULong(Const, namedtuple('ConstULong', ['value'])):
     pass
 
 

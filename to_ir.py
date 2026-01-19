@@ -3,6 +3,7 @@ import typing
 import syntax
 import tacky
 import symbol
+import typeconversion
 
 
 def to_ir(syntax: syntax.Program, symbols: dict) -> tacky.Program:
@@ -35,6 +36,10 @@ class ToTacky:
             return tacky.Constant(tacky.ConstInt(constant))
         elif const_type == syntax.Long():
             return tacky.Constant(tacky.ConstLong(constant))
+        elif const_type == syntax.UInt():
+            return tacky.Constant(tacky.ConstUInt(constant))
+        elif const_type == syntax.ULong():
+            return tacky.Constant(tacky.ConstULong(constant))
         else:
             raise Exception(f'unhandled type of constant {const_type}')
 
@@ -403,23 +408,32 @@ class ToTacky:
                 return tacky.ConstInt(x)
             case syntax.ConstLong(x):
                 return tacky.ConstLong(x)
+            case syntax.ConstUInt(x):
+                return tacky.ConstUInt(x)
+            case syntax.ConstULong(x):
+                return tacky.ConstULong(x)
             case _:
                 raise Exception(f'unhandled constant type {constant}')
 
     def convert_cast(self, expr: syntax.Cast):
         inner = expr.expr
+        inner_type = inner.expr_type
         target_type = expr.target_type
 
         instructions, val = self.convert_expression(inner)
-        if target_type == inner.expr_type:
+        if target_type == inner_type:
             # No cast needed
             return (instructions, val)
 
         dst = self.make_tacky_variable(target_type)
-        if target_type == syntax.Long():
+        if typeconversion.type_size(target_type) == typeconversion.type_size(inner_type):
+            instructions.append(tacky.Copy(val, dst))
+        elif typeconversion.type_size(target_type) < typeconversion.type_size(inner_type):
+            instructions.append(tacky.Truncate(val, dst))
+        elif typeconversion.is_signed(inner_type):
             instructions.append(tacky.SignExtend(val, dst))
         else:
-            instructions.append(tacky.Truncate(val, dst))
+            instructions.append(tacky.ZeroExtend(val, dst))
 
         return (instructions, dst)
 
