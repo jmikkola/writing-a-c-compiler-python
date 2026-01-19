@@ -1,3 +1,5 @@
+import typing
+
 import syntax
 import tacky
 import symbol
@@ -285,7 +287,7 @@ class ToTacky:
         instructions, val = self.convert_expression(stmt.expr)
         return instructions + [tacky.Return(val)]
 
-    def convert_expression(self, expr: syntax.Expression) -> (list, tacky.Value):
+    def convert_expression(self, expr: syntax.Expression) -> typing.Tuple[list, tacky.Value]:
         ''' returns (instructions, result value) '''
         match expr:
             case syntax.Constant(value):

@@ -573,7 +573,7 @@ class TokenIterator:
 
     def consume(self, parser):
         if self.at_end():
-            self.fail('unexpected EOF')
+            parser.fail('unexpected EOF')
         token = self._next()
         self.next_token += 1
         return token

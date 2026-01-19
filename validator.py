@@ -1,3 +1,4 @@
+import typing
 from collections import defaultdict
 from collections import namedtuple
 
@@ -7,7 +8,7 @@ from errors import ValidationError, TypeError
 import typeconversion
 
 
-def validate(program: syntax.Program) -> (syntax.Program, dict):
+def validate(program: syntax.Program) -> typing.Tuple[syntax.Program, dict]:
     program = IdentifierResolution().validate(program)
     program = LabelValidator().validate(program)
     program = LoopLabels().validate(program)
@@ -22,7 +23,7 @@ class MapEntry(namedtuple('MapEntry', ['new_name', 'from_current_scope', 'has_li
         return MapEntry(self.new_name, False, self.has_linkage)
 
     @classmethod
-    def for_name(self, name, has_linkage=False):
+    def for_name(cls, name, has_linkage=False):
         return MapEntry(name, True, has_linkage)
 
 
@@ -483,12 +484,12 @@ class LoopLabels:
             case syntax.Case(value, stmt, _):
                 switch_label = scope.switch_label
                 if switch_label is None:
-                    self.fail('case label outside of a switch statement')
+                    self.error('case label outside of a switch statement')
                 if not isinstance(value, syntax.Constant):
-                    self.fail(f'case value must be a constant, got {value}')
+                    self.error(f'case value must be a constant, got {value}')
                 constant = value.const
                 if constant in self._switch_case_values[switch_label]:
-                    self.fail(f'duplicate case labels with the value {constant}')
+                    self.error(f'duplicate case labels with the value {constant}')
                 self._switch_case_values[switch_label].add(constant)
                 if stmt:
                     stmt = self.validate_statements(stmt, scope)
@@ -496,9 +497,9 @@ class LoopLabels:
             case syntax.Default(stmt, _):
                 switch_label = scope.switch_label
                 if switch_label is None:
-                    self.fail('default outside of a switch statement')
+                    self.error('default outside of a switch statement')
                 if 'default' in self._switch_case_values[switch_label]:
-                    self.fail('duplicate default labels in a switch statement')
+                    self.error('duplicate default labels in a switch statement')
                 self._switch_case_values[switch_label].add('default')
                 if stmt:
                     stmt = self.validate_statements(stmt, scope)
@@ -798,7 +799,7 @@ class Typecheck:
                 if not isinstance(symbol_type, syntax.Func):
                     self.error(f'Variable {name} used as a function')
                 if len(symbol_type.params) != len(arguments):
-                    expected = len(symbol.type.params)
+                    expected = len(symbol_type.params)
                     actual = len(arguments)
                     self.error(f'Function {name} expects {expected} arguments, got {actual} arguments')
 

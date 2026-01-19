@@ -1,3 +1,5 @@
+import typing
+
 import assembly
 import tacky
 import symbol
@@ -10,7 +12,7 @@ longword = assembly.AssemblyType.Longword
 quadword = assembly.AssemblyType.Quadword
 
 
-def gen(tacky: tacky.Program, symbols: dict) -> (assembly.Program, dict):
+def gen(tacky: tacky.Program, symbols: dict) -> typing.Tuple[assembly.Program, dict]:
     cg = Codegen(tacky, symbols)
     return cg.generate(), cg.asm_symbols
 
@@ -535,7 +537,7 @@ class Codegen:
             case syntax.Long():
                 return quadword
             case _:
-                raise Exception(f'unexpected type {sym_type} for {name}')
+                raise Exception(f'unexpected type {sym_type}')
 
     def convert_comparison(self, op: tacky.BinaryOp) -> str:
         match op:
