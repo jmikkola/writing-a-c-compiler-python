@@ -930,30 +930,16 @@ class Typecheck:
     def get_common_type(self, t1, t2):
         if t1 == t2:
             return t1
-        if self.type_size(t1) == self.type_size(t2):
-            if self.is_signed(t1):
+        if typeconversion.type_size(t1) == typeconversion.type_size(t2):
+            if typeconversion.is_signed(t1):
                 return t2
             else:
                 return t1
-        if self.type_size(t1) > self.type_size(t2):
+        if typeconversion.type_size(t1) > typeconversion.type_size(t2):
             return t1
         else:
             return t2
         raise Exception(f'Unhandled combination of types {t1} and {t2}')
-
-    def type_size(self, t):
-        if t == syntax.Long() or t == syntax.ULong():
-            return 8
-        if t == syntax.Int() or t == syntax.UInt():
-            return 4
-        raise Exception(f'Unhandled type to get size of {repr(t)}')
-
-    def is_signed(self, t):
-        if t == syntax.Long() or t == syntax.Int():
-            return True
-        if t == syntax.ULong() or t == syntax.UInt():
-            return False
-        raise Exception(f'Unhandled type to get signedness of {t}')
 
     def typecheck_for_init(self, init: syntax.ForInit):
         match init:

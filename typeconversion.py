@@ -1,3 +1,22 @@
+import syntax
+
+
+def type_size(t):
+    if t == syntax.Long() or t == syntax.ULong():
+        return 8
+    if t == syntax.Int() or t == syntax.UInt():
+        return 4
+    raise Exception(f'Unhandled type to get size of {repr(t)}')
+
+
+def is_signed(t):
+    if t == syntax.Long() or t == syntax.Int():
+        return True
+    if t == syntax.ULong() or t == syntax.UInt():
+        return False
+    raise Exception(f'Unhandled type to get signedness of {t}')
+
+
 def constant_to_long(n, unsigned=False):
     assert(isinstance(n, int))
     return _constant_to_size(n, 8, unsigned)
