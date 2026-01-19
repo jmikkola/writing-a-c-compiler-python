@@ -9,6 +9,10 @@ def parse(tokens):
 
 ASSIGNMENT_OPS = ['=', '>>=', '<<=', '+=', '-=', '*=', '/=', '%=', '&=', '|=', '^=']
 
+TYPE_SPECIFIERS = ['int', 'long', 'signed', 'unsigned']
+STORAGE_CLASSES = ['static', 'extern']
+
+
 
 class Parser:
     def __init__(self, tokens):
@@ -68,9 +72,16 @@ class Parser:
 
     def parse_type_specifier(self) -> syntax.Type:
         specifier_list = []
-        while self.peek('keyword', 'int') or self.peek('keyword', 'long'):
+        while self.peek_type_specifier():
             specifier_list.append(self.expect('keyword').text)
         return self.type_from_specifiers(specifier_list)
+
+    def is_type_specifier(self, text):
+        return text in TYPE_SPECIFIERS
+
+    def peek_type_specifier(self):
+        token = self.peek('keyword')
+        return token is not None and self.is_type_specifier(token.text)
 
     def type_from_specifiers(self, specifier_list) -> syntax.Type:
         if not specifier_list:
@@ -114,10 +125,10 @@ class Parser:
             if not token:
                 break
 
-            if token.text in ('int', 'long',):
+            if self.is_type_specifier(token.text):
                 self.consume()
                 type_specifiers.append(token.text)
-            elif token.text in ('static', 'extern',):
+            elif token.text in STORAGE_CLASSES:
                 self.consume()
                 storage_classes.append(token.text)
             else:
@@ -147,11 +158,16 @@ class Parser:
         return syntax.Block(block_items)
 
     def parse_block_item(self) -> syntax.BlockItem:
-        keywords_starting_declaration = ['int', 'long', 'static', 'extern']
-        for keyword in keywords_starting_declaration:
-            if self.peek('keyword', keyword):
-                return self.parse_declaration()
+        if self.peek_declaration_keyword():
+            return self.parse_declaration()
         return self.parse_statement()
+
+    def peek_declaration_keyword(self):
+        token = self.peek('keyword')
+        return token is not None and self.is_declaration_keyword(token.text)
+
+    def is_declaration_keyword(self, text):
+        return text in TYPE_SPECIFIERS or text in STORAGE_CLASSES
 
     def parse_statement(self) -> syntax.Statement:
         ''' parse a single statement '''
@@ -226,8 +242,7 @@ class Parser:
         return syntax.For(init, condition, post, body, None)
 
     def parse_for_init(self) -> syntax.ForInit:
-        token = self.peek()
-        if token.text in ('int', 'long', 'extern', 'static'):
+        if self.peek_declaration_keyword():
             declaration = self.parse_var_declaration()
             return syntax.InitDecl(declaration)
         if self.peek(';'):
