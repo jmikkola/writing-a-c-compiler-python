@@ -128,6 +128,11 @@ class Emit:
                 suffix = self.suffix_for(assembly_type)
                 self.indented(f'idiv{suffix} {operand}')
 
+            case assembly.Div(assembly_type, operand):
+                operand = self.render_operand(operand, assembly_type)
+                suffix = self.suffix_for(assembly_type)
+                self.indented(f'div{suffix} {operand}')
+
             case assembly.Cmp(assembly_type, left, right):
                 left = self.render_operand(left, assembly_type)
                 right = self.render_operand(right, assembly_type)
