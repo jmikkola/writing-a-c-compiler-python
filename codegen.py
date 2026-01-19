@@ -515,19 +515,19 @@ class Codegen:
 
         match instr.operator:
             case tacky.BinaryAdd() | tacky.BinarySubtract() | tacky.BinaryMultiply():
-                op = self.convert_binary_operator(instr.operator)
+                op = self.convert_binary_operator(instr.operator, is_signed)
                 return [
                     assembly.Mov(a_type, left, dst),
                     assembly.Binary(op, a_type, right, dst),
                 ]
             case tacky.BitOr() | tacky.BitXor() | tacky.BitAnd():
-                op = self.convert_binary_operator(instr.operator)
+                op = self.convert_binary_operator(instr.operator, is_signed)
                 return [
                     assembly.Mov(a_type, left, dst),
                     assembly.Binary(op, a_type, right, dst),
                 ]
             case tacky.ShiftLeft() | tacky.ShiftRight():
-                op = self.convert_binary_operator(instr.operator)
+                op = self.convert_binary_operator(instr.operator, is_signed)
                 return [
                     assembly.Mov(a_type, left, dst),
                     assembly.Mov(a_type, right, assembly.Register('CX')),
@@ -625,7 +625,7 @@ class Codegen:
             case _:
                 raise Exception(f'invalid op to convert to a comparison {op}')
 
-    def convert_binary_operator(self, op: tacky.BinaryOp) -> assembly.BinaryOperator:
+    def convert_binary_operator(self, op: tacky.BinaryOp, is_signed: bool) -> assembly.BinaryOperator:
         match op:
             case tacky.BinaryAdd():
                 return assembly.Add()
@@ -641,8 +641,10 @@ class Codegen:
                 return assembly.BitXor()
             case tacky.ShiftLeft():
                 return assembly.ShiftLeft()
-            case tacky.ShiftRight():
+            case tacky.ShiftRight() if is_signed:
                 return assembly.ShiftRight()
+            case tacky.ShiftRight():
+                return assembly.ShiftRightLogical()
             case _:
                 raise Exception(f'invalid op to convert to assembly binary op {op}')
 

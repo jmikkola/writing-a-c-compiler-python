@@ -196,6 +196,8 @@ class Emit:
                 return 'sal'
             case assembly.ShiftRight():
                 return 'sar'
+            case assembly.ShiftRightLogical():
+                return 'shr'
             case _:
                 raise Exception(f'invalid binary operation to convert to an instruction {binary_operator}')
 

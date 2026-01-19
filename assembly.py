@@ -164,6 +164,10 @@ class ShiftRight(BinaryOperator, namedtuple('ShiftRight', [])):
     pass
 
 
+class ShiftRightLogical(BinaryOperator, namedtuple('ShiftRightLogical', [])):
+    pass
+
+
 class Operand:
     pass
 

@@ -1,6 +1,6 @@
 This implements the extra credit from the compiler.
 
-At the time of writing, this completes chapter 11.
+At the time of writing, this completes chapter 12.
 
 # Running
 
