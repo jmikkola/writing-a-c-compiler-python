@@ -233,9 +233,12 @@ class ToTacky:
                 continue
             result_var = self.make_tacky_variable(stmt.condition.expr_type)
             const_val = tacky.Constant(self.convert_constant(case_value))
+            value = case_value.value
+            if value < 0:
+                value = 'neg' + str(-value)
             instructions += [
                 tacky.Binary(tacky.BinarySubtract(), val, const_val, result_var),
-                tacky.JumpIfZero(result_var, f'switch_{switch_label}_case_{case_value.value}'),
+                tacky.JumpIfZero(result_var, f'switch_{switch_label}_case_{value}'),
             ]
         # Handle no case statements matching
         if 'default' in stmt.case_values:
@@ -250,6 +253,8 @@ class ToTacky:
     def convert_case(self, stmt: syntax.Case) -> list:
         switch_label = stmt.switch_label
         value = stmt.value.const.value
+        if value < 0:
+            value = 'neg' + str(-value)
         instructions = [tacky.Label(f'switch_{switch_label}_case_{value}')]
         if stmt.stmt:
             instructions += self.convert_instructions(stmt.stmt)

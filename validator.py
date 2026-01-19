@@ -511,6 +511,7 @@ class Typecheck:
     def __init__(self):
         self.symbols = {}
         self.current_return_type = None
+        self._switch_condition_types = {}
 
     def error(self, msg):
         raise TypeError(msg)
@@ -722,9 +723,14 @@ class Typecheck:
                 return syntax.Compound(block)
             case syntax.Switch(condition, body, switch_label, case_values):
                 condition = self.typecheck_expr(condition)
+                condition_type = condition.expr_type
+                self._switch_condition_types[switch_label] = condition_type
                 body = self.typecheck_statement(body)
+                case_values = self.convert_case_values(case_values, condition_type)
                 return syntax.Switch(condition, body, switch_label, case_values)
             case syntax.Case(value, stmt, switch_label):
+                condition_type = self._switch_condition_types[switch_label]
+                value = syntax.Constant(self.convert_case_value(value.const, condition_type))
                 if stmt:
                     stmt = self.typecheck_statement(stmt)
                 return syntax.Case(value, stmt, switch_label)
@@ -734,6 +740,40 @@ class Typecheck:
                 return syntax.Default(stmt, switch_label)
             case _:
                 raise Exception(f'unhandled type of block item {block_item}')
+
+    def convert_case_values(self, case_values: set, target_type: syntax.Type) -> set:
+        updated_values = set()
+        for value in case_values:
+            if value == 'default':
+                converted = value
+            else:
+                converted = self.convert_case_value(value, target_type)
+            if converted in updated_values:
+                self.error(f'multiple case values are equivalent to {converted}')
+            else:
+                updated_values.add(converted)
+        return updated_values
+
+    def convert_case_value(self, value, target_type: syntax.Type):
+        match value:
+            case syntax.ConstInt(n):
+                match target_type:
+                    case syntax.Int():
+                        return value
+                    case syntax.Long():
+                        return syntax.ConstLong(n)
+                    case _:
+                        raise Exception(f'unexpected type in convert_case_value: {target_type}')
+            case syntax.ConstLong(n):
+                match target_type:
+                    case syntax.Int():
+                        return syntax.ConstInt(typeconversion.constant_to_int(n))
+                    case syntax.Long():
+                        return value
+                    case _:
+                        raise Exception(f'unexpected type in convert_case_value: {target_type}')
+            case _:
+                raise Exception(f'unexpected constant value in convert_case_value: {value}')
 
     def typecheck_expr(self, expr: syntax.Expression):
         match expr:
