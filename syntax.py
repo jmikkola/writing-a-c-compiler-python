@@ -42,7 +42,7 @@ class Type:
 
     def __eq__(self, other):
         # Super lazy
-        return repr(self) == repr(other)
+        return str(self) == str(other)
 
     def __ne__(self, other):
         return not (self == other)

@@ -47,3 +47,11 @@ class IntInit(StaticInit, namedtuple('IntInit', ['value'])):
 
 class LongInit(StaticInit, namedtuple('LongInit', ['value'])):
     pass
+
+
+class UIntInit(StaticInit, namedtuple('UIntInit', ['value'])):
+    pass
+
+
+class ULongInit(StaticInit, namedtuple('ULongInit', ['value'])):
+    pass

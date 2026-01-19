@@ -645,27 +645,43 @@ class Typecheck:
         return v
 
     def make_static_init(self, name, init, var_type):
-        is_long = var_type == syntax.Long()
         match init:
             case None:
-                if is_long:
-                    return symbol.Initial(symbol.LongInit(0))
-                else:
-                    return symbol.Initial(symbol.IntInit(0))
+                init_value = self.to_static_init(0, var_type)
+                return symbol.Initial(init_value)
             case syntax.Constant(syntax.ConstLong(value)):
-                if is_long:
-                    return symbol.Initial(symbol.LongInit(typeconversion.constant_to_long(value)))
-                else:
-                    return symbol.Initial(symbol.IntInit(typeconversion.constant_to_int(value)))
+                init_value = self.to_static_init(value, var_type)
+                return symbol.Initial(init_value)
             case syntax.Constant(syntax.ConstInt(value)):
-                if is_long:
-                    return symbol.Initial(symbol.LongInit(value))
-                else:
-                    return symbol.Initial(symbol.IntInit(value))
+                init_value = self.to_static_init(value, var_type)
+                return symbol.Initial(init_value)
+            case syntax.Constant(syntax.ConstULong(value)):
+                init_value = self.to_static_init(value, var_type)
+                return symbol.Initial(init_value)
+            case syntax.Constant(syntax.ConstUInt(value)):
+                init_value = self.to_static_init(value, var_type)
+                return symbol.Initial(init_value)
             case syntax.Constant(x):
                 raise Exception(f'unhandled type of constant {x}')
             case _:
                 self.error(f'non-constant initializer for {name}')
+
+    def to_static_init(self, value, var_type):
+        match var_type:
+            case syntax.Long():
+                value = typeconversion.constant_to_long(value)
+                return symbol.LongInit(value)
+            case syntax.Int():
+                value = typeconversion.constant_to_int(value)
+                return symbol.IntInit(value)
+            case syntax.ULong():
+                value = typeconversion.constant_to_long(value, unsigned=True)
+                return symbol.ULongInit(value)
+            case syntax.UInt():
+                value = typeconversion.constant_to_int(value, unsigned=True)
+                return symbol.UIntInit(value)
+            case _:
+                raise Exception(f'unhandled type for static constant {var_type}')
 
     def typecheck_block(self, block: syntax.Block):
         block_items = [
@@ -784,6 +800,10 @@ class Typecheck:
                         return expr.set_type(syntax.Int())
                     case syntax.ConstLong(_):
                         return expr.set_type(syntax.Long())
+                    case syntax.ConstUInt(_):
+                        return expr.set_type(syntax.UInt())
+                    case syntax.ConstULong(_):
+                        return expr.set_type(syntax.ULong())
                     case _:
                         raise Exception(f'unhandled type of const {const}')
 
@@ -910,9 +930,30 @@ class Typecheck:
     def get_common_type(self, t1, t2):
         if t1 == t2:
             return t1
-        if t1 == syntax.Long() or t2 == syntax.Long():
-            return syntax.Long()
+        if self.type_size(t1) == self.type_size(t2):
+            if self.is_signed(t1):
+                return t2
+            else:
+                return t1
+        if self.type_size(t1) > self.type_size(t2):
+            return t1
+        else:
+            return t2
         raise Exception(f'Unhandled combination of types {t1} and {t2}')
+
+    def type_size(self, t):
+        if t == syntax.Long() or t == syntax.ULong():
+            return 8
+        if t == syntax.Int() or t == syntax.UInt():
+            return 4
+        raise Exception(f'Unhandled type to get size of {repr(t)}')
+
+    def is_signed(self, t):
+        if t == syntax.Long() or t == syntax.Int():
+            return True
+        if t == syntax.ULong() or t == syntax.UInt():
+            return False
+        raise Exception(f'Unhandled type to get signedness of {t}')
 
     def typecheck_for_init(self, init: syntax.ForInit):
         match init:
