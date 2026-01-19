@@ -1,16 +1,21 @@
+import re
+
 import syntax
 from errors import SyntaxError
-
-
-def parse(tokens):
-    p = Parser(tokens)
-    return p.parse()
 
 
 ASSIGNMENT_OPS = ['=', '>>=', '<<=', '+=', '-=', '*=', '/=', '%=', '&=', '|=', '^=']
 
 TYPE_SPECIFIERS = ['int', 'long', 'signed', 'unsigned']
 STORAGE_CLASSES = ['static', 'extern']
+
+DIGITS = re.compile(r'\d+')
+INT_TYPE_SPEC = re.compile(r'[lLuU]+')
+
+
+def parse(tokens):
+    p = Parser(tokens)
+    return p.parse()
 
 
 
@@ -86,15 +91,24 @@ class Parser:
     def type_from_specifiers(self, specifier_list) -> syntax.Type:
         if not specifier_list:
             self.fail('expected a type specifier')
+        if len(specifier_list) != len(set(specifier_list)):
+            self.fail(f'duplicates in the specifier list: {specifier_list}')
+        if 'signed' in specifier_list and 'unsigned' in specifier_list:
+            self.fail('a type cannot have both signed and unsigned')
 
-        if specifier_list == ['int']:
-            return syntax.Int()
-        elif specifier_list == ['long']:
-            return syntax.Long()
-        elif sorted(specifier_list) == ['int', 'long']:
-            return syntax.Long()
+        is_unsigned = 'unsigned' in specifier_list
+        is_long = 'long' in specifier_list
+
+        if is_unsigned:
+            if is_long:
+                return syntax.ULong()
+            else:
+                return syntax.UInt()
         else:
-            self.fail(f'invalid set of type specifiers: {specifier_list}')
+            if is_long:
+                return syntax.Long()
+            else:
+                return syntax.Int()
 
     def parse_declaration(self) -> syntax.Declaration:
         type_spec, storage_class = self.parse_storage_class_and_type()
@@ -509,23 +523,39 @@ class Parser:
     def parse_constant(self) -> syntax.Constant:
         ''' parse a constant (an integer) '''
         token = self.expect('constant')
+        text = token.text
+
+        digits = DIGITS.match(text).group()
+        value = int(digits)
 
         is_long = False
-        text = token.text
-        if text[-1] in ('l', 'L'):
-            is_long = True
-            text = text[:-1]
+        is_unsigned = False
+        spec_match = INT_TYPE_SPEC.search(text)
+        if spec_match is not None:
+            spec = spec_match.group()
+            is_long = 'l' in spec or 'L' in spec
+            is_unsigned = 'u' in spec or 'U' in spec
 
-        value = int(text)
-        if value > (2**31 - 1):
-            is_long = True
-            if value > (2**63 - 1):
-                self.fail(f'constant is too large to represent as a long: {token.text}')
+        if is_unsigned:
+            if value > (2**32 - 1):
+                is_long = True
+                if value > (2**64 - 1):
+                    self.fail(f'constant is too large to represent as an unsigned long: {token.text}')
 
-        if is_long:
-            return syntax.Constant(syntax.ConstLong(value))
+            if is_long:
+                return syntax.Constant(syntax.ConstULong(value))
+            else:
+                return syntax.Constant(syntax.ConstUInt(value))
         else:
-            return syntax.Constant(syntax.ConstInt(value))
+            if value > (2**31 - 1):
+                is_long = True
+                if value > (2**63 - 1):
+                    self.fail(f'constant is too large to represent as a long: {token.text}')
+
+            if is_long:
+                return syntax.Constant(syntax.ConstLong(value))
+            else:
+                return syntax.Constant(syntax.ConstInt(value))
 
     def peek(self, kind=None, value=None, offset=0):
         return self.token_iter.peek(kind, value, offset)
