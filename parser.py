@@ -529,7 +529,7 @@ class Parser:
         token = self.expect('constant')
         text = token.text
 
-        if '.' in text:
+        if '.' in text or 'e' in text or 'E' in text:
             # based on sys.float_info, it seems like python uses 64-bit floats
             return syntax.Constant(syntax.ConstDouble(float(text)))
 

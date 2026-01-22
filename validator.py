@@ -873,7 +873,15 @@ class Typecheck:
                 common_type = self.get_common_type(l.expr_type, r.expr_type)
 
                 if common_type == syntax.Double():
-                    if op == syntax.BinaryRemainder():
+                    int_only_ops = [
+                        syntax.BinaryRemainder(),
+                        syntax.BitAnd(),
+                        syntax.BitOr(),
+                        syntax.BitXor(),
+                        syntax.ShiftLeft(),
+                        syntax.ShiftRight(),
+                    ]
+                    if op in int_only_ops:
                         self.error(f'Cannot apply operator {op} to doubles')
 
                 # && and || always return an int
