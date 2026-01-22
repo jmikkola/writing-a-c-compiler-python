@@ -40,6 +40,8 @@ class ToTacky:
             return tacky.Constant(tacky.ConstUInt(constant))
         elif const_type == syntax.ULong():
             return tacky.Constant(tacky.ConstULong(constant))
+        elif const_type == syntax.Double():
+            return tacky.Constant(tacky.ConstDouble(float(constant)))
         else:
             raise Exception(f'unhandled type of constant {const_type}')
 
@@ -412,6 +414,8 @@ class ToTacky:
                 return tacky.ConstUInt(x)
             case syntax.ConstULong(x):
                 return tacky.ConstULong(x)
+            case syntax.ConstDouble(x):
+                return tacky.ConstDouble(x)
             case _:
                 raise Exception(f'unhandled constant type {constant}')
 
@@ -426,7 +430,18 @@ class ToTacky:
             return (instructions, val)
 
         dst = self.make_tacky_variable(target_type)
-        if typeconversion.type_size(target_type) == typeconversion.type_size(inner_type):
+
+        if inner_type == syntax.Double():
+            if typeconversion.is_signed(target_type):
+                instructions.append(tacky.DoubleToInt(val, dst))
+            else:
+                instructions.append(tacky.DoubleToUInt(val, dst))
+        elif target_type == syntax.Double():
+            if typeconversion.is_signed(inner_type):
+                instructions.append(tacky.IntToDouble(val, dst))
+            else:
+                instructions.append(tacky.UIntToDouble(val, dst))
+        elif typeconversion.type_size(target_type) == typeconversion.type_size(inner_type):
             instructions.append(tacky.Copy(val, dst))
         elif typeconversion.type_size(target_type) < typeconversion.type_size(inner_type):
             instructions.append(tacky.Truncate(val, dst))

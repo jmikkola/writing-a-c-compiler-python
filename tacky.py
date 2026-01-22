@@ -50,6 +50,22 @@ class ZeroExtend(Instruction, namedtuple('ZeroExtend', ['src', 'dst'])):
     pass
 
 
+class DoubleToInt(Instruction, namedtuple('DoubleToInt', ['src', 'dst'])):
+    pass
+
+
+class DoubleToUInt(Instruction, namedtuple('DoubleToUInt', ['src', 'dst'])):
+    pass
+
+
+class IntToDouble(Instruction, namedtuple('IntToDouble', ['src', 'dst'])):
+    pass
+
+
+class UIntToDouble(Instruction, namedtuple('UIntToDouble', ['src', 'dst'])):
+    pass
+
+
 class Unary(Instruction, namedtuple('Unary', ['unary_operator', 'src', 'dst'])):
     pass
 
@@ -122,6 +138,10 @@ class ConstUInt(Const, namedtuple('ConstUInt', ['value'])):
 
 
 class ConstULong(Const, namedtuple('ConstULong', ['value'])):
+    pass
+
+
+class ConstDouble(Const, namedtuple('ConstDouble', ['value'])):
     pass
 
 
