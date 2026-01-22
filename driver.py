@@ -35,7 +35,7 @@ def run_compiler(args: options.Args):
         sys.exit(1)
 
     if stage == 'all':
-        assemble_and_link(assembly_file, compiled_file, args.object)
+        assemble_and_link(assembly_file, compiled_file, args.object, args.libraries)
 
     # Clean up temporary files
     # (if the previous stages errored out, leave the files alone for debugging)
@@ -96,8 +96,10 @@ def compile(stage, preprocessed_file, assembly_file, print_output):
                 print(inf.read())
 
 
-def assemble_and_link(assembly_file, compiled_file, object):
+def assemble_and_link(assembly_file, compiled_file, object, libraries):
     command = ['gcc', assembly_file, '-o', compiled_file]
     if object:
         command.append('-c')
+    for lib in libraries:
+        command.append('-l' + lib)
     subprocess.run(command, check=True)
