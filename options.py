@@ -12,6 +12,7 @@ class Args(namedtuple('Args', ['name', 'stage', 'print_output', 'object', 'libra
         parser.add_argument('-l', dest='libraries', action='append', default=[], metavar='library')
 
         stage_group = parser.add_mutually_exclusive_group()
+        stage_group.add_argument('--lex', dest='stage', action='store_const', const='lex')
         stage_group.add_argument('--parse', dest='stage', action='store_const', const='parse')
         stage_group.add_argument('--validate', dest='stage', action='store_const', const='validate')
         stage_group.add_argument('--tacky', dest='stage', action='store_const', const='tacky')
