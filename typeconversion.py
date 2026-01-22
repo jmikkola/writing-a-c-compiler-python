@@ -2,7 +2,7 @@ import syntax
 
 
 def type_size(t):
-    if t == syntax.Long() or t == syntax.ULong():
+    if t == syntax.Long() or t == syntax.ULong() or t == syntax.Double():
         return 8
     if t == syntax.Int() or t == syntax.UInt():
         return 4
@@ -18,12 +18,12 @@ def is_signed(t):
 
 
 def constant_to_long(n, unsigned=False):
-    assert(isinstance(n, int))
+    n = int(n)
     return _constant_to_size(n, 8, unsigned)
 
 
 def constant_to_int(n, unsigned=False):
-    assert(isinstance(n, int))
+    n = int(n)
     return _constant_to_size(n, 4, unsigned)
 
 

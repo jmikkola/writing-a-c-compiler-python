@@ -552,7 +552,7 @@ class Typecheck:
         if f.name in self.symbols:
             existing = self.symbols.get(f.name)
             if existing.type != func_type:
-                self.error(f'mismatched types for {f.name}')
+                self.error(f'mismatched type in declarations for {f.name}')
             already_defined = existing.attrs.is_defined
             if already_defined and has_body:
                 self.error(f'function {f.name} is defined more than once')
@@ -661,6 +661,9 @@ class Typecheck:
             case syntax.Constant(syntax.ConstUInt(value)):
                 init_value = self.to_static_init(value, var_type)
                 return symbol.Initial(init_value)
+            case syntax.Constant(syntax.ConstDouble(value)):
+                init_value = self.to_static_init(value, var_type)
+                return symbol.Initial(init_value)
             case syntax.Constant(x):
                 raise Exception(f'unhandled type of constant {x}')
             case _:
@@ -680,6 +683,10 @@ class Typecheck:
             case syntax.UInt():
                 value = typeconversion.constant_to_int(value, unsigned=True)
                 return symbol.UIntInit(value)
+            case syntax.Double():
+                if isinstance(value, int):
+                    value = float(value)
+                return symbol.DoubleInit(value)
             case _:
                 raise Exception(f'unhandled type for static constant {var_type}')
 
@@ -813,6 +820,8 @@ class Typecheck:
                         return expr.set_type(syntax.UInt())
                     case syntax.ConstULong(_):
                         return expr.set_type(syntax.ULong())
+                    case syntax.ConstDouble(_):
+                        return expr.set_type(syntax.Double())
                     case _:
                         raise Exception(f'unhandled type of const {const}')
 
@@ -843,6 +852,9 @@ class Typecheck:
 
             case syntax.Unary(op, e):
                 e = self.typecheck_expr(e)
+                if e.expr_type == syntax.Double():
+                    if op == syntax.UnaryInvert():
+                        self.error(f'Cannot apply unary op {op} to a double')
                 expr = syntax.Unary(op, e)
                 if isinstance(op, syntax.UnaryNot()):
                     return expr.set_type(syntax.Int())
@@ -858,6 +870,12 @@ class Typecheck:
                 l = self.typecheck_expr(l)
                 r = self.typecheck_expr(r)
 
+                common_type = self.get_common_type(l.expr_type, r.expr_type)
+
+                if common_type == syntax.Double():
+                    if op == syntax.BinaryRemainder():
+                        self.error(f'Cannot apply operator {op} to doubles')
+
                 # && and || always return an int
                 if op == syntax.BinaryAnd() or op == syntax.BinaryOr():
                     expr = syntax.Binary(op, l, r)
@@ -868,7 +886,6 @@ class Typecheck:
                     expr = syntax.Binary(op, l, r)
                     return expr.set_type(l.expr_type)
 
-                common_type = self.get_common_type(l.expr_type, r.expr_type)
                 converted_l = self.convert_to(l, common_type)
                 converted_r = self.convert_to(r, common_type)
                 expr = syntax.Binary(op, converted_l, converted_r)
@@ -939,6 +956,8 @@ class Typecheck:
     def get_common_type(self, t1, t2):
         if t1 == t2:
             return t1
+        if syntax.Double() in [t1, t2]:
+            return syntax.Double()
         if typeconversion.type_size(t1) == typeconversion.type_size(t2):
             if typeconversion.is_signed(t1):
                 return t2

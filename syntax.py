@@ -74,7 +74,9 @@ class Double(Type):
 
 
 class Func(Type, namedtuple('Func', ['params', 'ret'])):
-    pass
+    def __str__(self):
+        params = ', '.join(str(param) for param in self.params)
+        return f'Func(params=[{params}], ret={self.ret})'
 
 
 ##
