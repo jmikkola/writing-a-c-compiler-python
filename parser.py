@@ -6,7 +6,7 @@ from errors import SyntaxError
 
 ASSIGNMENT_OPS = ['=', '>>=', '<<=', '+=', '-=', '*=', '/=', '%=', '&=', '|=', '^=']
 
-TYPE_SPECIFIERS = ['int', 'long', 'signed', 'unsigned']
+TYPE_SPECIFIERS = ['int', 'long', 'signed', 'unsigned', 'double']
 STORAGE_CLASSES = ['static', 'extern']
 
 DIGITS = re.compile(r'\d+')
@@ -93,6 +93,10 @@ class Parser:
             self.fail('expected a type specifier')
         if len(specifier_list) != len(set(specifier_list)):
             self.fail(f'duplicates in the specifier list: {specifier_list}')
+        if specifier_list == ['double']:
+            return syntax.Double()
+        if 'double' in specifier_list:
+            self.fail(f'invalid specifier list: {specifier_list}')
         if 'signed' in specifier_list and 'unsigned' in specifier_list:
             self.fail('a type cannot have both signed and unsigned')
 
@@ -521,9 +525,13 @@ class Parser:
         raise Exception(f'unhandled unary operator {token.text}')
 
     def parse_constant(self) -> syntax.Constant:
-        ''' parse a constant (an integer) '''
+        ''' parse a constant (an integer or a double) '''
         token = self.expect('constant')
         text = token.text
+
+        if '.' in text:
+            # based on sys.float_info, it seems like python uses 64-bit floats
+            return syntax.Constant(syntax.ConstDouble(float(text)))
 
         digits = DIGITS.match(text).group()
         value = int(digits)

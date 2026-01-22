@@ -69,7 +69,7 @@ def tokenize(text):
         if constant_match is None:
             constant_match = INT_CONSTANT.match(text)
         if constant_match is not None:
-            constant = constant_match.group()
+            constant = constant_match.group(1)
             text = text[len(constant):]
             tokens.append(Token('constant', constant))
             continue
