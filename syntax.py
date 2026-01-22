@@ -68,6 +68,11 @@ class ULong(Type):
         return 'ULong'
 
 
+class Double(Type):
+    def __str__(self):
+        return 'Double'
+
+
 class Func(Type, namedtuple('Func', ['params', 'ret'])):
     pass
 
@@ -517,3 +522,14 @@ class ConstULong(Const, namedtuple('ConstULong', ['value'])):
 
     def pretty_print(self):
         return f'ConstULong({self.value})'
+
+
+class ConstDouble(Const, namedtuple('ConstDouble', ['value'])):
+    def __key(self):
+        return ('Double', self.value)
+
+    def __hash__(self):
+        return hash(self.__key())
+
+    def pretty_print(self):
+        return f'ConstDouble({self.value})'
