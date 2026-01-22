@@ -1,32 +1,26 @@
+import argparse
 from collections import namedtuple
-import sys
 
 
-class Args(namedtuple('Args', ['name', 'stage', 'print_output', 'object'])):
+class Args(namedtuple('Args', ['name', 'stage', 'print_output', 'object', 'libraries'])):
     @classmethod
     def parse(cls, args):
-        stage = 'all'
-        if '--emit' in args:
-            stage = 'emit'
-        if '--codegen' in args:
-            stage = 'codegen'
-        if '--tacky' in args:
-            stage = 'tacky'
-        if '--validate' in args:
-            stage = 'validate'
-        if '--parse' in args:
-            stage = 'parse'
-        if '--lex' in args:
-            stage = 'lex'
+        parser = argparse.ArgumentParser(description='C compiler')
+        parser.add_argument('name', metavar='filename.c', help='source file to compile')
 
-        print_output = '--print' in args
+        parser.add_argument('-c', dest='object', action='store_true', help='compile to object file')
+        parser.add_argument('-l', dest='libraries', action='append', default=[], metavar='library')
 
-        object = '-c' in args
+        stage_group = parser.add_mutually_exclusive_group()
+        stage_group.add_argument('--parse', dest='stage', action='store_const', const='parse')
+        stage_group.add_argument('--validate', dest='stage', action='store_const', const='validate')
+        stage_group.add_argument('--tacky', dest='stage', action='store_const', const='tacky')
+        stage_group.add_argument('--codegen', dest='stage', action='store_const', const='codegen')
+        stage_group.add_argument('--emit', dest='stage', action='store_const', const='emit')
 
-        names = [a for a in args if not a.startswith('-')]
-        if not names:
-            print('Usage: compiler <filename.c> [--lex|--parse|--codegen]')
-            sys.exit(1)
-        name = names[0]
+        parser.add_argument('--print', dest='print_output', action='store_true', help='print output')
 
-        return Args(name, stage, print_output, object)
+        parsed = parser.parse_args(args)
+        stage = parsed.stage if parsed.stage else 'all'
+
+        return Args(parsed.name, stage, parsed.print_output, parsed.object, parsed.libraries)
