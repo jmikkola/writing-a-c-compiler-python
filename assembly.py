@@ -6,6 +6,7 @@ class AssemblyType(Enum):
     Byte = 1
     Longword = 4
     Quadword = 8
+    Double = 9
 
     def bytes(self):
         if self == self.Byte:
@@ -14,6 +15,8 @@ class AssemblyType(Enum):
             return 4
         if self == self.Quadword:
             return 8
+        if self == self.Double:
+            return 8
         assert(False)
 
 
@@ -21,7 +24,7 @@ class AsmSymbol:
     pass
 
 
-class ObjEntry(AsmSymbol, namedtuple('ObjEntry', ['assembly_type', 'is_static'])):
+class ObjEntry(AsmSymbol, namedtuple('ObjEntry', ['assembly_type', 'is_static', 'is_constant'])):
     pass
 
 
@@ -35,6 +38,11 @@ class Program(namedtuple('Program', ['top_level'])):
 
 
 class StaticVariable(namedtuple('StaticVariable', ['name', 'is_global', 'alignment', 'init'])):
+    def pretty_print(self):
+        return str(self)
+
+
+class StaticConstant(namedtuple('StaticConstant', ['name', 'alignment', 'init'])):
     def pretty_print(self):
         return str(self)
 
@@ -115,6 +123,14 @@ class Label(Instruction, namedtuple('Label', ['name'])):
     pass
 
 
+class Cvttsd2si(Instruction, namedtuple('Cvttsd2si', ['assembly_type', 'src', 'dst'])):
+    pass
+
+
+class Cvtsi2sd(Instruction, namedtuple('Cvtsi2sd', ['assembly_type', 'src', 'dst'])):
+    pass
+
+
 class UnaryOperator:
     pass
 
@@ -141,6 +157,10 @@ class Sub(BinaryOperator, namedtuple('Sub', [])):
 
 
 class Mult(BinaryOperator, namedtuple('Mult', [])):
+    pass
+
+
+class DivDouble(BinaryOperator, namedtuple('DivDouble', [])):
     pass
 
 
@@ -177,7 +197,8 @@ class Immediate(Operand, namedtuple('Immediate', ['value'])):
 
 
 class Register(Operand, namedtuple('Register', ['reg'])):
-    ''' reg can be 'AX', 'CX', 'DX', 'DI', 'SI', 'SP', 'R8', 'R9', 'R10', or 'R11' '''
+    ''' reg can be 'AX', 'CX', 'DX', 'DI', 'SI', 'SP', 'R8', 'R9', 'R10', 'R11',
+    or any XMM register. '''
     pass
 
 

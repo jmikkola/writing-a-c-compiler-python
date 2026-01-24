@@ -1,3 +1,4 @@
+import struct
 import typing
 
 import assembly
@@ -25,11 +26,23 @@ class Codegen:
         self.asm_symbols = self.convert_symbols()
         self.arg_registers = ['DI', 'SI', 'DX', 'CX', 'R8', 'R9']
 
+        self._doubles = {}
+        self._n_labels = 0
+
+    def new_const_label(self, name):
+        label = f'_const_{name}_{self._n_labels}'
+        self._n_labels += 1
+        return label
+
     def generate(self):
         top_level = [
             self.gen_top_level(d)
             for d in self.tacky.top_level
         ]
+        for (value, label) in self._doubles.values():
+            init = assembly.DoubleInit(value)
+            constant = assembly.StaticConstant(label, 8, init)
+            top_level.append(constant)
         return assembly.Program(top_level)
 
     def convert_symbols(self):
@@ -45,10 +58,10 @@ class Codegen:
                 return assembly.FunEntry(is_defined)
             case symbol.StaticAttr(init, is_global):
                 a_type = self.sym_type_to_a_type(sym.type)
-                return assembly.ObjEntry(a_type, True)
+                return assembly.ObjEntry(a_type, True, False)
             case symbol.LocalAttr():
                 a_type = self.sym_type_to_a_type(sym.type)
-                return assembly.ObjEntry(a_type, False)
+                return assembly.ObjEntry(a_type, False, False)
             case _:
                 assert(False)
 
@@ -597,6 +610,8 @@ class Codegen:
                 return longword
             case syntax.Long() | syntax.ULong():
                 return quadword
+            case syntax.Double():
+                return assembly.AssemblyType.Double
             case _:
                 raise Exception(f'unexpected type {sym_type}')
 
@@ -650,12 +665,26 @@ class Codegen:
 
     def convert_operand(self, value: tacky.Value) -> assembly.Operand:
         match value:
+            case tacky.Constant(tacky.ConstDouble(value)):
+                label = self.add_double(value)
+                return assembly.Data(label)
             case tacky.Constant(const):
                 return assembly.Immediate(const.value)
             case tacky.Identifier(name):
                 return assembly.Pseudo(name)
             case _:
                 raise Exception(f'unhandled operand type {value}')
+
+    def add_double(self, value: float):
+        # Packing the bytes helps distinguish 0.0 from -0.0
+        packed = struct.pack('d', value)
+        if packed not in self._doubles:
+            label = self.new_const_label('double')
+            self._doubles[packed] = (value, label)
+
+            a_type = assembly.AssemblyType.Double
+            self.asm_symbols[label] = assembly.ObjEntry(a_type, True, True)
+        return self._doubles[packed]
 
 
 def is_mem(operand: assembly.Operand):
