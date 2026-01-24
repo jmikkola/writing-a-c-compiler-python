@@ -12,6 +12,7 @@ r10 = assembly.Register('R10')
 r11 = assembly.Register('R11')
 longword = assembly.AssemblyType.Longword
 quadword = assembly.AssemblyType.Quadword
+double = assembly.AssemblyType.Double
 
 
 def gen(tacky: tacky.Program, symbols: dict) -> typing.Tuple[assembly.Program, dict]:
@@ -494,6 +495,13 @@ class Codegen:
 
         a_type = self.a_type_of(instr.src)
 
+        if a_type == double and instr.unary_operator == tacky.UnaryInvert():
+            # define new constant for -0.0, which has to be aligned to 16 bytes
+            # mov the source to the dest
+            # xor the constant with the dest
+            pass
+
+
         if isinstance(instr.unary_operator, tacky.UnaryNot):
             return [
                 assembly.Cmp(a_type, assembly.Immediate(0), src),
@@ -562,6 +570,12 @@ class Codegen:
                 raise Exception(f'unhandled binary expression op {instr.operator}')
 
     def generate_div(self, left, right, dst, a_type, is_remainder, is_signed):
+        if a_type == double:
+            return [
+                assembly.Mov(double, left, dst),
+                assembly.Binary(assembly.DivDouble(), double, right, dst),
+            ]
+
         ax = assembly.Register('AX')
         dx = assembly.Register('DX')
         instructions = [assembly.Mov(a_type, left, ax)]
@@ -611,7 +625,7 @@ class Codegen:
             case syntax.Long() | syntax.ULong():
                 return quadword
             case syntax.Double():
-                return assembly.AssemblyType.Double
+                return double
             case _:
                 raise Exception(f'unexpected type {sym_type}')
 
@@ -682,7 +696,7 @@ class Codegen:
             label = self.new_const_label('double')
             self._doubles[packed] = (value, label)
 
-            a_type = assembly.AssemblyType.Double
+            a_type = double
             self.asm_symbols[label] = assembly.ObjEntry(a_type, True, True)
         return self._doubles[packed]
 
