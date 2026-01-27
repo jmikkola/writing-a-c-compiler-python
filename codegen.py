@@ -40,9 +40,9 @@ class Codegen:
             self.gen_top_level(d)
             for d in self.tacky.top_level
         ]
-        for (value, label) in self._doubles.values():
+        for (value, label, alignment) in self._doubles.values():
             init = assembly.DoubleInit(value)
-            constant = assembly.StaticConstant(label, 8, init)
+            constant = assembly.StaticConstant(label, alignment, init)
             top_level.append(constant)
         return assembly.Program(top_level)
 
@@ -496,13 +496,19 @@ class Codegen:
         a_type = self.a_type_of(instr.src)
 
         if a_type == double and instr.unary_operator == tacky.UnaryInvert():
+            # Alignment has to be 16 because the instruction that loads it is
+            # going to load extra data
+            label = self.add_double(-0.0, alignment=16)
             # define new constant for -0.0, which has to be aligned to 16 bytes
             # mov the source to the dest
             # xor the constant with the dest
-            pass
-
+            return [
+                assembly.Mov(a_type, src, dst),
+                assembly.Binary(assembly.BitXor(), a_type, assembly.Data(label), dst),
+            ]
 
         if isinstance(instr.unary_operator, tacky.UnaryNot):
+            assert(a_type != double)
             return [
                 assembly.Cmp(a_type, assembly.Immediate(0), src),
                 # Zero the destination because the 'set' instruction only
@@ -571,6 +577,7 @@ class Codegen:
 
     def generate_div(self, left, right, dst, a_type, is_remainder, is_signed):
         if a_type == double:
+            assert(not is_remainder)
             return [
                 assembly.Mov(double, left, dst),
                 assembly.Binary(assembly.DivDouble(), double, right, dst),
@@ -689,16 +696,19 @@ class Codegen:
             case _:
                 raise Exception(f'unhandled operand type {value}')
 
-    def add_double(self, value: float):
+    def add_double(self, value: float, alignment=8):
         # Packing the bytes helps distinguish 0.0 from -0.0
         packed = struct.pack('d', value)
         if packed not in self._doubles:
             label = self.new_const_label('double')
-            self._doubles[packed] = (value, label)
+            self._doubles[packed] = (value, label, alignment)
 
             a_type = double
             self.asm_symbols[label] = assembly.ObjEntry(a_type, True, True)
-        return self._doubles[packed]
+        if self._doubles[packed][2] < alignment:
+            (value, label, _prev_alignment) = self._doubles[packed]
+            self._doubles[packed] = (value, label, alignment)
+        return self._doubles[packed][1]
 
 
 def is_mem(operand: assembly.Operand):

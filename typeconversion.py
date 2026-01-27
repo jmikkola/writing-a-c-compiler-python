@@ -14,6 +14,8 @@ def is_signed(t):
         return True
     if t == syntax.ULong() or t == syntax.UInt():
         return False
+    if t == syntax.Double():
+        return True
     raise Exception(f'Unhandled type to get signedness of {t}')
 
 
