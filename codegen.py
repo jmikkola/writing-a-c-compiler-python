@@ -391,12 +391,24 @@ class Codegen:
                 return [assembly.Jmp(target)]
             case tacky.JumpIfZero(cond, target):
                 a_type = self.a_type_of(cond)
+                if a_type == double:
+                    return [
+                        assembly.Binary(assembly.BitXor(), double, xmm1, xmm1),
+                        assembly.Cmp(double, cond, xmm1),
+                        assembly.JmpCC('E', target),
+                    ]
                 return [
                     assembly.Cmp(a_type, assembly.Immediate(0), self.convert_operand(cond)),
                     assembly.JmpCC('E', target),
                 ]
             case tacky.JumpIfNotZero(cond, target):
                 a_type = self.a_type_of(cond)
+                if a_type == double:
+                    return [
+                        assembly.Binary(assembly.BitXor(), double, xmm1, xmm1),
+                        assembly.Cmp(double, cond, xmm1),
+                        assembly.JmpCC('NE', target),
+                    ]
                 return [
                     assembly.Cmp(a_type, assembly.Immediate(0), self.convert_operand(cond)),
                     assembly.JmpCC('NE', target),
