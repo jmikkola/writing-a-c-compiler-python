@@ -1,22 +1,23 @@
 import typing
 
+import labels
 import syntax
 import tacky
 import symbol
 import typeconversion
 
 
-def to_ir(syntax: syntax.Program, symbols: dict) -> tacky.Program:
-    tt = ToTacky(syntax, symbols)
+def to_ir(syntax: syntax.Program, symbols: dict, label_gen: labels.Labels) -> tacky.Program:
+    tt = ToTacky(syntax, symbols, label_gen)
     return tt.convert()
 
 
 class ToTacky:
-    def __init__(self, syntax, symbols):
+    def __init__(self, syntax, symbols, label_gen):
         self.syntax = syntax
         self.symbols = symbols
+        self.label_gen = label_gen
         self.n_temp_vars = 0
-        self.n_labels = 0
         # To be set by convert_function
         self.user_labels = None
 
@@ -46,9 +47,7 @@ class ToTacky:
             raise Exception(f'unhandled type of constant {const_type}')
 
     def new_label(self, name):
-        name = f'_{name}_{self.n_labels}'
-        self.n_labels += 1
-        return name
+        return self.label_gen.new_label(name)
 
     def rename_user_label(self, label):
         if label not in self.user_labels:

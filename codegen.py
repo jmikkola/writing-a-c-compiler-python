@@ -1,6 +1,7 @@
 import struct
 import typing
 
+import labels
 import assembly
 import tacky
 import symbol
@@ -8,32 +9,34 @@ import syntax
 import typeconversion
 
 
+rdx = assembly.Register('DX')
 r10 = assembly.Register('R10')
 r11 = assembly.Register('R11')
+xmm1 = assembly.Register('XMM1')
+
 longword = assembly.AssemblyType.Longword
 quadword = assembly.AssemblyType.Quadword
 double = assembly.AssemblyType.Double
 
 
-def gen(tacky: tacky.Program, symbols: dict) -> typing.Tuple[assembly.Program, dict]:
-    cg = Codegen(tacky, symbols)
+def gen(tacky: tacky.Program, symbols: dict, label_gen: labels.Labels) ->\
+        typing.Tuple[assembly.Program, dict]:
+    cg = Codegen(tacky, symbols, label_gen)
     return cg.generate(), cg.asm_symbols
 
 
 class Codegen:
-    def __init__(self, tacky, symbols):
+    def __init__(self, tacky, symbols, label_gen):
         self.tacky = tacky
         self.symbols = symbols
+        self.label_gen = label_gen
         self.asm_symbols = self.convert_symbols()
         self.arg_registers = ['DI', 'SI', 'DX', 'CX', 'R8', 'R9']
 
         self._doubles = {}
-        self._n_labels = 0
 
     def new_const_label(self, name):
-        label = f'_const_{name}_{self._n_labels}'
-        self._n_labels += 1
-        return label
+        return self.label_gen.new_label('_const_' + name)
 
     def generate(self):
         top_level = [
@@ -404,8 +407,88 @@ class Codegen:
                 return self.gen_truncate(instr)
             case tacky.ZeroExtend():
                 return self.gen_zero_extend(instr)
+            case tacky.DoubleToInt():
+                return self.gen_double_to_int(instr)
+            case tacky.DoubleToUInt():
+                return self.gen_double_to_uint(instr)
+            case tacky.IntToDouble():
+                return self.gen_int_to_double(instr)
+            case tacky.UIntToDouble():
+                return self.gen_uint_to_double(instr)
             case _:
                 raise Exception(f'unhandled instruction type, {instr}')
+
+    def gen_double_to_int(self, instr: tacky.DoubleToInt) -> list:
+        src = self.convert_operand(instr.src)
+        dst = self.convert_operand(instr.dst)
+        a_type = self.a_type_of(instr.dst)
+        return [assembly.Cvttsd2si(a_type, src, dst)]
+
+    def gen_double_to_uint(self, instr: tacky.DoubleToUInt) -> list:
+        src = self.convert_operand(instr.src)
+        dst = self.convert_operand(instr.dst)
+        a_type = self.a_type_of(instr.dst)
+        if a_type == longword:
+            return [
+                assembly.Cvttsd2si(quadword, src, rdx),
+                # Truncate
+                assembly.Mov(longword, rdx, dst),
+            ]
+
+        assert(a_type == quadword)
+        upper_bound_label = self.add_double(9223372036854775808.0)
+        upper_bound = assembly.Data(upper_bound_label)
+        upper_bound_long = assembly.Immediate(9223372036854775808)
+        out_of_range_label = self.label_gen.new_label('out_of_range')
+        end_label = self.label_gen.new_label('end')
+        return [
+            assembly.Cmp(double, upper_bound, src),
+            assembly.JmpCC('AE', out_of_range_label),
+            assembly.Cvttsd2si(a_type, src, dst),
+            assembly.Jmp(end_label),
+            assembly.Label(out_of_range_label),
+            assembly.Mov(double, src, xmm1),
+            assembly.Binary(assembly.Sub(), double, upper_bound, xmm1),
+            # TODO: Is using rdx here and in gen_uint_to_double ok?
+            assembly.Mov(quadword, upper_bound_long, rdx),
+            assembly.Binary(assembly.Add(), quadword, rdx, dst),
+            assembly.Label(end_label),
+        ]
+
+    def gen_int_to_double(self, instr: tacky.IntToDouble) -> list:
+        src = self.convert_operand(instr.src)
+        dst = self.convert_operand(instr.dst)
+        a_type = self.a_type_of(instr.src)
+        return [assembly.Cvtsi2sd(a_type, src, dst)]
+
+    def gen_uint_to_double(self, instr: tacky.UIntToDouble) -> list:
+        src = self.convert_operand(instr.src)
+        dst = self.convert_operand(instr.dst)
+        a_type = self.a_type_of(instr.src)
+        if a_type == longword:
+            return [
+                assembly.MovZeroExtend(src, rdx),
+                assembly.Cvtsi2sd(quadword, rdx, dst),
+            ]
+
+        assert(a_type == quadword)
+        out_of_range_label = self.label_gen.new_label('out_of_range')
+        end_label = self.label_gen.new_label('end')
+        return [
+            assembly.Cmp(a_type, assembly.Immediate(0), src),
+            assembly.JmpCC('L', out_of_range_label),
+            assembly.Cvtsi2sd(a_type, src, xmm1),
+            assembly.Jmp(end_label),
+            assembly.Label(out_of_range_label),
+            assembly.Mov(a_type, src, rdx),
+            # Divide the source by two
+            assembly.Binary(assembly.ShiftRightLogical(), a_type, rdx, assembly.Immediate(1)),
+            assembly.Cvtsi2sd(a_type, rdx, xmm1),
+            # Double the result
+            assembly.Binary(assembly.Add(), double, xmm1, xmm1),
+            assembly.Label(end_label),
+            assembly.Mov(double, xmm1, dst),
+        ]
 
     def gen_zero_extend(self, instr: tacky.ZeroExtend) -> list:
         src = self.convert_operand(instr.src)
@@ -618,8 +701,10 @@ class Codegen:
                 return syntax.UInt()
             case tacky.Constant(tacky.ConstULong(value)):
                 return syntax.ULong()
-            case tacky.Constant(_):
-                assert(False)
+            case tacky.Constant(tacky.ConstDouble(value)):
+                return syntax.Double()
+            case tacky.Constant(c):
+                raise Exception(f'unhandled type of constant {c}')
             case tacky.Identifier(name):
                 return self.symbols[name].type
             case _:

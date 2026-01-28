@@ -2,6 +2,7 @@ import pathlib
 import subprocess
 import sys
 
+import labels
 import options
 import lexer
 import parser
@@ -74,13 +75,14 @@ def compile(stage, preprocessed_file, assembly_file, print_output):
                 print(f'{name}: {sym}')
         return
 
-    ir = to_ir.to_ir(syntax, symbols)
+    label_gen = labels.Labels()
+    ir = to_ir.to_ir(syntax, symbols, label_gen)
     if stage == 'tacky':
         if print_output:
             print(ir.pretty_print())
         return
 
-    asm, backend_symbols = codegen.gen(ir, symbols)
+    asm, backend_symbols = codegen.gen(ir, symbols, label_gen)
     if stage == 'codegen':
         if print_output:
             print(asm.pretty_print())
