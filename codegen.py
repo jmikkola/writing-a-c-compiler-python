@@ -13,6 +13,8 @@ rdx = assembly.Register('DX')
 r10 = assembly.Register('R10')
 r11 = assembly.Register('R11')
 xmm1 = assembly.Register('XMM1')
+xmm14 = assembly.Register('XMM14')
+xmm15 = assembly.Register('XMM15')
 
 longword = assembly.AssemblyType.Longword
 quadword = assembly.AssemblyType.Quadword
@@ -235,8 +237,36 @@ class Codegen:
                 return self.fix_binary(instr)
             case assembly.Push():
                 return self.fix_push(instr)
+            case assembly.Cvttsd2si():
+                return self.fix_cvttsd2si(instr)
+            case assembly.Cvtsi2sd():
+                return self.fix_cvtsi2sd(instr)
             case _:
                 return [instr]
+
+    def fix_cvttsd2si(self, instr: assembly.Cvttsd2si2) -> list:
+        dst = instr.dst
+        if not is_register(dst):
+            return [
+                assembly.Cvttsd2si2(instr.assembly_type, instr.src, r11),
+                assembly.Mov(quadword, r11, instr.dst)
+            ]
+        return [instr]
+
+    def fix_cvtsi2sd(self, instr: assembly.Cvtsi2sd) -> list:
+        src = instr.src
+        dst = instr.dst
+        a_type = instr.assembly_type
+        prefix = []
+        if is_immediate(src):
+            prefix.append(assembly.Mov(a_type, src, r10))
+            src = r10
+        postifx = []
+        if not is_register(dst):
+            postifx.append(assembly.Mov(double, xmm15, dst))
+            dst = xmm15
+        instructions = [assembly.Cvtsi2sd(a_type, src, dst)]
+        return prefix + instructions + postfix
 
     def fix_mov(self, instr: assembly.Mov) -> list:
         assembly_type = instr.assembly_type
@@ -298,7 +328,10 @@ class Codegen:
         right = instr.right
         instructions = []
 
-        if is_mem(left) and is_mem(right):
+        if assembly_type == double and not is_register(right):
+            instructions.append(assembly.Mov(assembly_type, left, xmm15))
+            right = xmm15
+        elif is_mem(left) and is_mem(right):
             instructions.append(assembly.Mov(assembly_type, left, r10))
             left = r10
         elif is_large_imm(left):
