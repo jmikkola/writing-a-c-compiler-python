@@ -45,7 +45,7 @@ class Codegen:
             for d in self.tacky.top_level
         ]
         for (value, label, alignment) in self._doubles.values():
-            init = assembly.DoubleInit(value)
+            init = symbol.DoubleInit(value)
             constant = assembly.StaticConstant(label, alignment, init)
             top_level.append(constant)
         return assembly.Program(top_level)
@@ -92,7 +92,7 @@ class Codegen:
         match var_type:
             case syntax.Int() | syntax.UInt():
                 return 4
-            case syntax.Long() | syntax.ULong():
+            case syntax.Long() | syntax.ULong() | syntax.Double():
                 return 8
             case _:
                 raise Exception(f'Unexpected type to find alignment of {var_type}')
@@ -193,6 +193,14 @@ class Codegen:
                 case assembly.Push(operand):
                     operand = stack_map.convert_pseudo_register(operand)
                     instr = assembly.Push(operand)
+                case assembly.Cvttsd2si(assembly_type, src, dst):
+                    src = stack_map.convert_pseudo_register(src)
+                    dst = stack_map.convert_pseudo_register(dst)
+                    instr = assembly.Cvttsd2si(assembly_type, src, dst)
+                case assembly.Cvtsi2sd(assembly_type, src, dst):
+                    src = stack_map.convert_pseudo_register(src)
+                    dst = stack_map.convert_pseudo_register(dst)
+                    instr = assembly.Cvtsi2sd(assembly_type, src, dst)
                 case _:
                     raise Exception(f'unhandled instruction type {instr}')
             updated_instructions.append(instr)
