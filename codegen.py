@@ -675,6 +675,7 @@ class Codegen:
 
         a_type = self.a_type_of(instr.left)
         is_signed = self.is_value_signed(instr.left)
+        is_double = a_type == double
 
         match instr.operator:
             case tacky.BinaryAdd() | tacky.BinarySubtract() | tacky.BinaryMultiply():
@@ -702,7 +703,7 @@ class Codegen:
                 return self.generate_div(left, right, dst, a_type, True, is_signed)
             case tacky.Less() | tacky.LessEqual() | tacky.Equals() | \
                  tacky.NotEquals() | tacky.Greater() | tacky.GreaterEqual():
-                comparison = self.convert_comparison(instr.operator, is_signed)
+                comparison = self.convert_comparison(instr.operator, is_signed, is_double)
                 return [
                     assembly.Cmp(a_type, right, left),
                     assembly.Mov(self.a_type_of(instr.dst), assembly.Immediate(0), dst),
@@ -774,13 +775,16 @@ class Codegen:
             case _:
                 raise Exception(f'unexpected type {sym_type}')
 
-    def convert_comparison(self, op: tacky.BinaryOp, is_signed: bool) -> str:
+    def convert_comparison(self, op: tacky.BinaryOp, is_signed: bool, is_double: bool) -> str:
+        # L/LE/G/GE are used for signed integers,
+        # unsigned integers and doubles use B/BE/A/AE.
+        use_less_greater = is_signed and not is_double
         match op:
-            case tacky.Less() if is_signed:
+            case tacky.Less() if use_less_greater:
                 return 'L'
             case tacky.Less():
                 return 'B'
-            case tacky.LessEqual() if is_signed:
+            case tacky.LessEqual() if use_less_greater:
                 return 'LE'
             case tacky.LessEqual():
                 return 'BE'
@@ -788,11 +792,11 @@ class Codegen:
                 return 'E'
             case tacky.NotEquals():
                 return 'NE'
-            case tacky.GreaterEqual() if is_signed:
+            case tacky.GreaterEqual() if use_less_greater:
                 return 'GE'
             case tacky.GreaterEqual():
                 return 'AE'
-            case tacky.Greater() if is_signed:
+            case tacky.Greater() if use_less_greater:
                 return 'G'
             case tacky.Greater():
                 return 'A'
