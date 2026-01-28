@@ -32,6 +32,7 @@ class Codegen:
         self.label_gen = label_gen
         self.asm_symbols = self.convert_symbols()
         self.arg_registers = ['DI', 'SI', 'DX', 'CX', 'R8', 'R9']
+        self.double_registers = ['XMM0', 'XMM1', 'XMM2', 'XMM3', 'XMM4', 'XMM5', 'XMM6', 'XMM7']
 
         self._doubles = {}
 
@@ -98,7 +99,7 @@ class Codegen:
 
     def gen_function(self, function: tacky.Function) -> assembly.Function:
         # Generate the basic assembly
-        instructions = self.save_arguments(function.params)
+        instructions = self.save_arguments([tacky.Identifier(p) for p in function.params])
         instructions += self.gen_instructions(function.body)
 
         # Replace pseudo registers with stack locations
@@ -125,19 +126,22 @@ class Codegen:
 
     def save_arguments(self, params):
         ''' For simplicity, copy all parameters to the current stack frame '''
+        # It seems like params is the wrong type of thing
+        int_reg_args, double_reg_args, stack_params = self.classify_parameters(params)
+
         instructions = []
 
         # Handle arguments that are passed in registers
-        for (param, reg) in zip(params, self.arg_registers):
-            a_type = self.a_type_of(tacky.Identifier(param))
-            instructions.append(assembly.Mov(a_type, assembly.Register(reg), assembly.Pseudo(param)))
+        for ((a_type, param), reg) in zip(int_reg_args, self.arg_registers):
+            instructions.append(assembly.Mov(a_type, assembly.Register(reg), param))
+
+        for (param, reg) in zip(double_reg_args, self.double_registers):
+            instructions.append(assembly.Mov(double, assembly.Register(reg), param))
 
         # Handle arguments that are passed on the stack
         stack_offset = 16
-        stack_params = params[6:]
-        for param in stack_params:
-            a_type = self.a_type_of(tacky.Identifier(param))
-            instructions.append(assembly.Mov(a_type, assembly.Stack(stack_offset), assembly.Pseudo(param)))
+        for (a_type, param) in stack_params:
+            instructions.append(assembly.Mov(a_type, assembly.Stack(stack_offset), param))
             stack_offset += 8
 
         return instructions
@@ -508,9 +512,33 @@ class Codegen:
         dst = self.convert_operand(instr.dst)
         return [assembly.Mov(longword, src, dst)]
 
+    def classify_parameters(self, values: list):
+        '''Decide whether each value passed to a function goes in an integer
+        register, an XMM register, or the stack'''
+        int_reg_args = []
+        double_reg_args = []
+        stack_args = []
+
+        for v in values:
+            operand = self.convert_operand(v)
+            t = self.a_type_of(v)
+            typed_operand = (t, operand)
+            if t == double:
+                if len(double_reg_args) < 8:
+                    double_reg_args.append(operand)
+                else:
+                    stack_args.append(typed_operand)
+            else:
+                if len(int_reg_args) < 6:
+                    int_reg_args.append(typed_operand)
+                else:
+                    stack_args.append(typed_operand)
+
+        return (int_reg_args, double_reg_args, stack_args)
+
     def gen_call(self, instr: tacky.Call) -> list:
-        register_args, stack_args = (instr.arg_vals[:6], instr.arg_vals[6:])
-        stack_padding = 8 * (len(stack_args) % 2)
+        int_reg_args, double_reg_args, stack_params = self.classify_parameters(instr.arg_vals)
+        stack_padding = 8 * (len(stack_params) % 2)
 
         instructions = []
 
@@ -524,30 +552,30 @@ class Codegen:
             )
             instructions.append(allocate)
 
-        # Pass the first 6 arguments in registers
-        for (arg, register) in zip(register_args, self.arg_registers):
-            assembly_arg = self.convert_operand(arg)
-            a_type = self.a_type_of(arg)
-            instructions.append(assembly.Mov(a_type, assembly_arg, assembly.Register(register)))
+        # Pass the first 6 integer arguments in registers
+        for ((a_type, arg), register) in zip(int_reg_args, self.arg_registers):
+            instructions.append(assembly.Mov(a_type, arg, assembly.Register(register)))
+
+        # Pass the first 8 double arguments in XMM registers
+        for (arg, register) in zip(double_reg_args, self.double_registers):
+            instructions.append(assembly.Mov(double, arg, assembly.Register(register)))
 
         # Pass the remaining arguments on the stack
-        for arg in stack_args[::-1]:
-            assembly_arg = self.convert_operand(arg)
-            a_type = self.a_type_of(arg)
-            is_register = isinstance(assembly_arg, assembly.Register)
-            is_immediate = isinstance(assembly_arg, assembly.Immediate)
-            if is_register or is_immediate or a_type == quadword:
-                instructions.append(assembly.Push(assembly_arg))
+        for (a_type, arg) in stack_params[::-1]:
+            is_register = isinstance(arg, assembly.Register)
+            is_immediate = isinstance(arg, assembly.Immediate)
+            if is_register or is_immediate or a_type == quadword or a_type == double:
+                instructions.append(assembly.Push(arg))
             else:
                 # Only longword from memory need to be extended to 64 bits before being pushed
-                instructions.append(assembly.Mov(a_type, assembly_arg, assembly.Register('AX')))
+                instructions.append(assembly.Mov(a_type, arg, assembly.Register('AX')))
                 instructions.append(assembly.Push(assembly.Register('AX')))
 
         # The actual function call
         instructions.append(assembly.Call(instr.func_name))
 
         # Clean up the stack
-        bytes_to_remove = 8 * len(stack_args) + stack_padding
+        bytes_to_remove = 8 * len(stack_params) + stack_padding
         if bytes_to_remove > 0:
             deallocate = assembly.Binary(
                 assembly.Add(),
@@ -559,18 +587,24 @@ class Codegen:
 
         # Move the result to the correct destination
         assembly_dst = self.convert_operand(instr.dst)
-        a_type = self.a_type_of(instr.dst)
-        instructions.append(assembly.Mov(a_type, assembly.Register('AX'), assembly_dst))
+        return_type = self.a_type_of(instr.dst)
+        if return_type == double:
+            instructions.append(assembly.Mov(return_type, assembly.Register('XMM0'), assembly_dst))
+        else:
+            instructions.append(assembly.Mov(return_type, assembly.Register('AX'), assembly_dst))
 
         return instructions
 
     def gen_return(self, instr: tacky.Return) -> list:
         src = self.convert_operand(instr.val)
         a_type = self.a_type_of(instr.val)
-        return [
-            assembly.Mov(a_type, src, assembly.Register('AX')),
-            assembly.Ret(),
-        ]
+        instructions = []
+        if a_type == double:
+            instructions.append(assembly.Mov(a_type, src, assembly.Register('XMM0')))
+        else:
+            instructions.append(assembly.Mov(a_type, src, assembly.Register('AX')))
+        instructions.append(assembly.Ret())
+        return instructions
 
     def gen_unary(self, instr: tacky.Unary) -> list:
         src = self.convert_operand(instr.src)
