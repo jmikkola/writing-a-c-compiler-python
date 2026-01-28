@@ -624,8 +624,15 @@ class Codegen:
                 assembly.Binary(assembly.BitXor(), a_type, assembly.Data(label), dst),
             ]
 
+        if a_type == double and instr.unary_operator == tacky.UnaryNot():
+            return [
+                assembly.Binary(assembly.BitXor(), double, xmm1, xmm1),
+                assembly.Cmp(double, src, xmm1),
+                assembly.Mov(self.a_type_of(instr.dst), assembly.Immediate(0), dst),
+                assembly.SetCC('E', dst),
+            ]
+
         if isinstance(instr.unary_operator, tacky.UnaryNot):
-            assert(a_type != double)
             return [
                 assembly.Cmp(a_type, assembly.Immediate(0), src),
                 # Zero the destination because the 'set' instruction only
