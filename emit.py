@@ -56,19 +56,23 @@ class Emit:
         alignment = var.alignment
         if var.is_global:
             self.indented('.globl ' + var.name)
-        if var.init == 0:
+        init = var.init
+        if init == 0:
             self.indented('.bss')
             self.indented(f'.align {alignment}')
             self.line(var.name + ':')
             self.indented(f'.zero {alignment}')
         else:
+            value = init.value
             self.indented('.data')
             self.indented(f'.align {alignment}')
             self.line(var.name + ':')
             if alignment == 4:
-                self.indented(f'.long {var.init}')
+                self.indented(f'.long {value}')
+            elif isinstance(init, symbol.DoubleInit):
+                self.indented(f'.double {value}')
             else:
-                self.indented(f'.quad {var.init}')
+                self.indented(f'.quad {value}')
 
     def emit_function(self, function: assembly.Function):
         if function.is_global:
