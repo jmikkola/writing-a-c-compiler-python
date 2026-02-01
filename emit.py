@@ -59,6 +59,7 @@ class Emit:
     def emit_static_constant(self, var: assembly.StaticConstant):
         alignment = var.alignment
         init = var.init
+        value = init.value
         self.indented('.section .rodata')
         self.line('L' + var.name + ':')
         self.indented(f'.align {alignment}')
@@ -134,11 +135,17 @@ class Emit:
                 self.indented(f'{operation}{suffix} {operand}')
 
             case assembly.Binary(binary_operator, assembly_type, src, dst):
-                operation = self.convert_binary_operator(binary_operator)
+                if assembly_type == double and binary_operator == assembly.BitXor():
+                    asm = 'xorpd'
+                elif assembly_type == double and binary_operator == assembly.Mult():
+                    asm = 'mulsd'
+                else:
+                    operation = self.convert_binary_operator(binary_operator)
+                    suffix = self.suffix_for(assembly_type)
+                    asm = operation + suffix
                 src = self.render_operand(src, assembly_type)
                 dst = self.render_operand(dst, assembly_type)
-                suffix = self.suffix_for(assembly_type)
-                self.indented(f'{operation}{suffix} {src}, {dst}')
+                self.indented(f'{asm} {src}, {dst}')
 
             case assembly.Cdq(assembly_type):
                 if assembly_type == longword:
@@ -160,7 +167,10 @@ class Emit:
                 left = self.render_operand(left, assembly_type)
                 right = self.render_operand(right, assembly_type)
                 suffix = self.suffix_for(assembly_type)
-                self.indented(f'cmp{suffix} {left}, {right}')
+                asm = 'cmp'
+                if assembly_type == double:
+                    asm = 'comi'
+                self.indented(f'{asm}{suffix} {left}, {right}')
 
             case assembly.Jmp(label):
                 label = self.add_label_prefix(label)
@@ -180,14 +190,29 @@ class Emit:
                 label = self.add_label_prefix(label)
                 self.line(label + ':')
 
+            case assembly.Cvttsd2si(assembly_type, src, dst):
+                src = self.render_operand(src, assembly_type)
+                dst = self.render_operand(dst, assembly_type)
+                suffix = self.suffix_for(assembly_type)
+                self.indented(f'cvttsd2si{suffix} {src}, {dst}')
+
+            case assembly.Cvtsi2sd(assembly_type, src, dst):
+                src = self.render_operand(src, assembly_type)
+                dst = self.render_operand(dst, assembly_type)
+                suffix = self.suffix_for(assembly_type)
+                self.indented(f'cvtsi2sd{suffix} {src}, {dst}')
+
             case _:
                 raise Exception(f'unhandled instruction type {instruction}')
 
     def suffix_for(self, assembly_type) -> str:
         if assembly_type == quadword:
             return 'q'
-        else:
+        if assembly_type == double:
+            return 'sd'
+        if assembly_type == longword:
             return 'l'
+        raise Exception(f'unexpected assembly type {assembly_type}')
 
     def add_label_prefix(self, name):
         return '.L' + name
@@ -209,6 +234,8 @@ class Emit:
                 return 'sub'
             case assembly.Mult():
                 return 'imul'
+            case assembly.DivDouble():
+                return 'div'
             case assembly.BitAnd():
                 return 'and'
             case assembly.BitOr():
