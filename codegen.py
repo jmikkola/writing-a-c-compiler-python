@@ -9,6 +9,7 @@ import syntax
 import typeconversion
 
 
+rax = assembly.Register('AX')
 rdx = assembly.Register('DX')
 r10 = assembly.Register('R10')
 r11 = assembly.Register('R11')
@@ -536,7 +537,6 @@ class Codegen:
             assembly.Label(out_of_range_label),
             assembly.Mov(double, src, xmm1),
             assembly.Binary(assembly.Sub(), double, upper_bound, xmm1),
-            # TODO: Is using rdx here and in gen_uint_to_double ok?
             assembly.Mov(quadword, upper_bound_long, rdx),
             assembly.Binary(assembly.Add(), quadword, rdx, dst),
             assembly.Label(end_label),
@@ -567,9 +567,15 @@ class Codegen:
             assembly.Cvtsi2sd(a_type, src, xmm1),
             assembly.Jmp(end_label),
             assembly.Label(out_of_range_label),
-            assembly.Mov(a_type, src, rdx),
+            assembly.Mov(a_type, src, rax),
+            assembly.Mov(a_type, rax, rdx),
             # Divide the source by two
             assembly.Binary(assembly.ShiftRightLogical(), a_type, assembly.Immediate(1), rdx),
+            # Grab the low bit of the source
+            assembly.Binary(assembly.BitAnd(), a_type, assembly.Immediate(1), rax),
+            # Or in the low bit of the source so that rouding in cvtsi2sdq goes in the right direction
+            assembly.Binary(assembly.BitOr(), a_type, rax, rdx),
+            # Convert to a double
             assembly.Cvtsi2sd(a_type, rdx, xmm1),
             # Double the result
             assembly.Binary(assembly.Add(), double, xmm1, xmm1),
