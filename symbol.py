@@ -2,7 +2,8 @@ from collections import namedtuple
 
 
 class Symbol(namedtuple('Symbol', ['type', 'attrs'])):
-    pass
+    def __str__(self):
+        return f'Symbol({self.type}, {self.attrs})'
 
 
 class IdentifierAttributes:
