@@ -66,7 +66,7 @@ class Emit:
         if alignment == 4:
             self.indented(f'.long {value}')
         elif isinstance(init, symbol.DoubleInit):
-            self.indented(f'.double {value}')
+            self.indented(f'.double {value:.18e}')
         else:
             self.indented(f'.quad {value}')
 
@@ -88,7 +88,7 @@ class Emit:
             if alignment == 4:
                 self.indented(f'.long {value}')
             elif isinstance(init, symbol.DoubleInit):
-                self.indented(f'.double {value}')
+                self.indented(f'.double {value:.18e}')
             else:
                 self.indented(f'.quad {value}')
 

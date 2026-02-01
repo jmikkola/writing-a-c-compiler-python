@@ -352,7 +352,7 @@ class Codegen:
         instructions = []
 
         if assembly_type == double and not is_register(right):
-            instructions.append(assembly.Mov(assembly_type, left, xmm15))
+            instructions.append(assembly.Mov(assembly_type, right, xmm15))
             right = xmm15
         elif is_mem(left) and is_mem(right):
             instructions.append(assembly.Mov(assembly_type, left, r10))
