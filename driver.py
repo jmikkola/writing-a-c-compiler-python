@@ -91,7 +91,7 @@ def compile(stage, preprocessed_file, assembly_file, print_output):
                 print(f'{name}: {sym}')
         return
 
-    emit.emit(asm, assembly_file)
+    emit.emit(asm, backend_symbols, assembly_file)
     if stage == 'emit':
         if print_output:
             with open(assembly_file, 'r') as inf:

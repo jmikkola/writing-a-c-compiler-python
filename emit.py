@@ -1,6 +1,7 @@
 from collections import namedtuple
 
 import assembly
+import symbol
 
 
 INDENT = '    '
@@ -28,15 +29,16 @@ REGISTERS = {
 }
 
 
-def emit(program: assembly.Program, output_name: str):
+def emit(program: assembly.Program, asm_symbols: dict, output_name: str):
     with open(output_name, 'w') as out:
-        e = Emit(out)
+        e = Emit(out, asm_symbols)
         e.emit_program(program)
 
 
 class Emit:
-    def __init__(self, out):
+    def __init__(self, out, asm_symbols):
         self.out = out
+        self.asm_symbols = asm_symbols
 
     def emit_program(self, program):
         for decl in program.top_level:
@@ -49,8 +51,23 @@ class Emit:
                 self.emit_function(decl)
             case assembly.StaticVariable():
                 self.emit_static_variable(decl)
+            case assembly.StaticConstant():
+                self.emit_static_constant(decl)
             case _:
                 raise Exception(f'unhandled declaration {decl}')
+
+    def emit_static_constant(self, var: assembly.StaticConstant):
+        alignment = var.alignment
+        init = var.init
+        self.indented('.section .rodata')
+        self.line('L' + var.name + ':')
+        self.indented(f'.align {alignment}')
+        if alignment == 4:
+            self.indented(f'.long {value}')
+        elif isinstance(init, symbol.DoubleInit):
+            self.indented(f'.double {value}')
+        else:
+            self.indented(f'.quad {value}')
 
     def emit_static_variable(self, var: assembly.StaticVariable):
         alignment = var.alignment
@@ -226,6 +243,8 @@ class Emit:
             case assembly.Stack(offset):
                 return f'{offset}(%rbp)'
             case assembly.Data(name):
+                if self.asm_symbols[name].is_constant:
+                    name = 'L' + name
                 return f'{name}(%rip)'
             case _:
                 raise Exception(f'unhandled operand type {operand}')

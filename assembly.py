@@ -21,6 +21,7 @@ class AssemblyType(Enum):
 
 
 class AsmSymbol:
+    ''' this is the type used in the asm_symbols table '''
     pass
 
 
