@@ -856,7 +856,7 @@ class Typecheck:
                     if op == syntax.UnaryInvert():
                         self.error(f'Cannot apply unary op {op} to a double')
                 expr = syntax.Unary(op, e)
-                if isinstance(op, syntax.UnaryNot()):
+                if op == syntax.UnaryNot():
                     return expr.set_type(syntax.Int())
                 else:
                     return expr.set_type(e.expr_type)

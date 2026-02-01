@@ -701,7 +701,7 @@ class Codegen:
 
         a_type = self.a_type_of(instr.src)
 
-        if a_type == double and instr.unary_operator == tacky.UnaryInvert():
+        if a_type == double and instr.unary_operator == tacky.UnaryNegate():
             # Alignment has to be 16 because the instruction that loads it is
             # going to load extra data
             label = self.add_double(-0.0, alignment=16)

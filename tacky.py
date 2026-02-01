@@ -151,7 +151,12 @@ class ConstDouble(Const, namedtuple('ConstDouble', ['value'])):
 
 
 class UnaryOp:
-    pass
+    def __eq__(self, other):
+        # Super lazy
+        return str(self) == str(other)
+
+    def __ne__(self, other):
+        return not (self == other)
 
 
 class UnaryNegate(UnaryOp, namedtuple('UnaryNegate', [])):
