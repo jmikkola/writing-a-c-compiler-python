@@ -39,7 +39,10 @@ Stepping one instruction
 
     si
 
-Example of printing a value in the stack (at `-0x24(%rbp)`):
+Example of printing an integer value in the stack (at `-0x24(%rbp)`):
 
     print *(int*)($rbp - 0x24)
 
+Example of printing a floating value in a register:
+
+    print $xmm0.v2_double[0]
