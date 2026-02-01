@@ -80,6 +80,9 @@ def compile(stage, preprocessed_file, assembly_file, print_output):
     if stage == 'tacky':
         if print_output:
             print(ir.pretty_print())
+            print('\n# symbols:')
+            for (name, sym) in symbols.items():
+                print(f'{name}: {sym}')
         return
 
     asm, backend_symbols = codegen.gen(ir, symbols, label_gen)

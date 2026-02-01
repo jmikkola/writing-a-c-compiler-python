@@ -568,7 +568,7 @@ class Codegen:
             assembly.Label(out_of_range_label),
             assembly.Mov(a_type, src, rdx),
             # Divide the source by two
-            assembly.Binary(assembly.ShiftRightLogical(), a_type, rdx, assembly.Immediate(1)),
+            assembly.Binary(assembly.ShiftRightLogical(), a_type, assembly.Immediate(1), rdx),
             assembly.Cvtsi2sd(a_type, rdx, xmm1),
             # Double the result
             assembly.Binary(assembly.Add(), double, xmm1, xmm1),

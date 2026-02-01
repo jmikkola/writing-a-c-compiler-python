@@ -191,14 +191,14 @@ class Emit:
                 self.line(label + ':')
 
             case assembly.Cvttsd2si(assembly_type, src, dst):
-                src = self.render_operand(src, assembly_type)
+                src = self.render_operand(src, double)
                 dst = self.render_operand(dst, assembly_type)
                 suffix = self.suffix_for(assembly_type)
                 self.indented(f'cvttsd2si{suffix} {src}, {dst}')
 
             case assembly.Cvtsi2sd(assembly_type, src, dst):
                 src = self.render_operand(src, assembly_type)
-                dst = self.render_operand(dst, assembly_type)
+                dst = self.render_operand(dst, double)
                 suffix = self.suffix_for(assembly_type)
                 self.indented(f'cvtsi2sd{suffix} {src}, {dst}')
 
