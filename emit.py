@@ -7,6 +7,7 @@ INDENT = '    '
 byte = assembly.AssemblyType.Byte
 longword = assembly.AssemblyType.Longword
 quadword = assembly.AssemblyType.Quadword
+double = assembly.AssemblyType.Double
 
 
 class Register(namedtuple('Register', ['byte', 'dword', 'qword'])):
@@ -49,7 +50,7 @@ class Emit:
             case assembly.StaticVariable():
                 self.emit_static_variable(decl)
             case _:
-                assert(False)
+                raise Exception(f'unhandled declaration {decl}')
 
     def emit_static_variable(self, var: assembly.StaticVariable):
         alignment = var.alignment
@@ -80,6 +81,7 @@ class Emit:
             self.emit_instruction(instruction)
 
     def emit_instruction(self, instruction: assembly.Instruction):
+        assert(isinstance(instruction, assembly.Instruction))
         match instruction:
             case assembly.Ret():
                 self.indented('movq %rbp, %rsp')
@@ -206,7 +208,9 @@ class Emit:
             case assembly.Immediate(value):
                 return '$' + str(value)
             case assembly.Register(reg):
-                if assembly_type == byte:
+                if assembly_type == double:
+                    return '%' + reg.lower()
+                elif assembly_type == byte:
                     return REGISTERS[reg].byte
                 elif assembly_type == quadword:
                     return REGISTERS[reg].qword

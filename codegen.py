@@ -222,7 +222,7 @@ class Codegen:
     def fix_invalid_instruction(self, instr):
         match instr:
             case assembly.Ret():
-                return instr
+                return [instr]
             case assembly.Mov():
                 return self.fix_mov(instr)
             case assembly.Movsx():
@@ -232,9 +232,9 @@ class Codegen:
             case assembly.Push():
                 return self.fix_push(instr)
             case assembly.Call():
-                return instr
+                return [instr]
             case assembly.Unary():
-                return instr
+                return [instr]
             case assembly.Binary():
                 return self.fix_binary(instr)
             case assembly.Cmp():
@@ -244,15 +244,15 @@ class Codegen:
             case assembly.Div():
                 return self.fix_div(instr)
             case assembly.Cdq():
-                return instr
+                return [instr]
             case assembly.Jmp():
-                return instr
+                return [instr]
             case assembly.JmpCC():
-                return instr
+                return [instr]
             case assembly.SetCC():
-                return instr
+                return [instr]
             case assembly.Label():
-                return instr
+                return [instr]
             case assembly.Cvttsd2si():
                 return self.fix_cvttsd2si(instr)
             case assembly.Cvtsi2sd():
