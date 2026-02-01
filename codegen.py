@@ -85,7 +85,7 @@ class Codegen:
         alignment = self.alignment_of(var.var_type)
         init = var.init
         if var.var_type == syntax.Double() and var.init == 0:
-            init = syntax.DoubleInit(0.0)
+            init = symbol.DoubleInit(0.0)
         return assembly.StaticVariable(
             name=var.name,
             is_global=var.is_global,
@@ -265,10 +265,11 @@ class Codegen:
 
     def fix_cvttsd2si(self, instr: assembly.Cvttsd2si) -> list:
         dst = instr.dst
+        a_type = instr.assembly_type
         if not is_register(dst):
             return [
-                assembly.Cvttsd2si(instr.assembly_type, instr.src, r11),
-                assembly.Mov(quadword, r11, instr.dst)
+                assembly.Cvttsd2si(a_type, instr.src, r11),
+                assembly.Mov(a_type, r11, instr.dst)
             ]
         return [instr]
 
@@ -464,7 +465,7 @@ class Codegen:
                 if a_type == double:
                     return [
                         assembly.Binary(assembly.BitXor(), double, xmm1, xmm1),
-                        assembly.Cmp(double, cond, xmm1),
+                        assembly.Cmp(double, self.convert_operand(cond), xmm1),
                         assembly.JmpCC('E', target),
                     ]
                 return [
@@ -476,7 +477,7 @@ class Codegen:
                 if a_type == double:
                     return [
                         assembly.Binary(assembly.BitXor(), double, xmm1, xmm1),
-                        assembly.Cmp(double, cond, xmm1),
+                        assembly.Cmp(double, self.convert_operand(cond), xmm1),
                         assembly.JmpCC('NE', target),
                     ]
                 return [
