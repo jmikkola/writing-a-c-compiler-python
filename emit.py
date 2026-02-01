@@ -61,8 +61,8 @@ class Emit:
         init = var.init
         value = init.value
         self.indented('.section .rodata')
-        self.line('L' + var.name + ':')
         self.indented(f'.align {alignment}')
+        self.line('L' + var.name + ':')
         if alignment == 4:
             self.indented(f'.long {value}')
         elif isinstance(init, symbol.DoubleInit):
