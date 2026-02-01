@@ -221,34 +221,50 @@ class Codegen:
 
     def fix_invalid_instruction(self, instr):
         match instr:
+            case assembly.Ret():
+                return instr
             case assembly.Mov():
                 return self.fix_mov(instr)
             case assembly.Movsx():
                 return self.fix_movsx(instr)
             case assembly.MovZeroExtend():
                 return self.fix_mov_zero_extend(instr)
+            case assembly.Push():
+                return self.fix_push(instr)
+            case assembly.Call():
+                return instr
+            case assembly.Unary():
+                return instr
+            case assembly.Binary():
+                return self.fix_binary(instr)
             case assembly.Cmp():
                 return self.fix_cmp(instr)
             case assembly.Idiv():
                 return self.fix_idiv(instr)
             case assembly.Div():
                 return self.fix_div(instr)
-            case assembly.Binary():
-                return self.fix_binary(instr)
-            case assembly.Push():
-                return self.fix_push(instr)
+            case assembly.Cdq():
+                return instr
+            case assembly.Jmp():
+                return instr
+            case assembly.JmpCC():
+                return instr
+            case assembly.SetCC():
+                return instr
+            case assembly.Label():
+                return instr
             case assembly.Cvttsd2si():
                 return self.fix_cvttsd2si(instr)
             case assembly.Cvtsi2sd():
                 return self.fix_cvtsi2sd(instr)
             case _:
-                return [instr]
+                return Exception(f'unhandled instruction type {instr}')
 
-    def fix_cvttsd2si(self, instr: assembly.Cvttsd2si2) -> list:
+    def fix_cvttsd2si(self, instr: assembly.Cvttsd2si) -> list:
         dst = instr.dst
         if not is_register(dst):
             return [
-                assembly.Cvttsd2si2(instr.assembly_type, instr.src, r11),
+                assembly.Cvttsd2si(instr.assembly_type, instr.src, r11),
                 assembly.Mov(quadword, r11, instr.dst)
             ]
         return [instr]
@@ -261,9 +277,9 @@ class Codegen:
         if is_immediate(src):
             prefix.append(assembly.Mov(a_type, src, r10))
             src = r10
-        postifx = []
+        postfix = []
         if not is_register(dst):
-            postifx.append(assembly.Mov(double, xmm15, dst))
+            postfix.append(assembly.Mov(double, xmm15, dst))
             dst = xmm15
         instructions = [assembly.Cvtsi2sd(a_type, src, dst)]
         return prefix + instructions + postfix
@@ -272,15 +288,18 @@ class Codegen:
         assembly_type = instr.assembly_type
         src = instr.src
         dst = instr.dst
+        scratch = r10
+        if assembly_type == double:
+            scratch = xmm14
         if is_mem(src) and is_mem(dst):
             return [
-                assembly.Mov(assembly_type, src, r10),
-                assembly.Mov(assembly_type, r10, dst),
+                assembly.Mov(assembly_type, src, scratch),
+                assembly.Mov(assembly_type, scratch, dst),
             ]
         elif is_large_imm(src) and is_mem(dst):
             return [
-                assembly.Mov(assembly_type, src, r10),
-                assembly.Mov(assembly_type, r10, dst),
+                assembly.Mov(assembly_type, src, scratch),
+                assembly.Mov(assembly_type, scratch, dst),
             ]
         else:
             return [instr]
@@ -347,6 +366,7 @@ class Codegen:
 
     def fix_idiv(self, instr: assembly.Idiv) -> list:
         assembly_type = instr.assembly_type
+        assert(assembly_type != double)
         operand = instr.operand
         if is_immediate(operand):
             return [
@@ -358,6 +378,7 @@ class Codegen:
 
     def fix_div(self, instr: assembly.Div) -> list:
         assembly_type = instr.assembly_type
+        assert(assembly_type != double)
         operand = instr.operand
         if is_immediate(operand):
             return [
@@ -375,6 +396,11 @@ class Codegen:
 
         prefix = []
         suffix = []
+
+        if assembly_type == double and is_mem(dst):
+            prefix.append(assembly.Mov(assembly_type, dst, xmm15))
+            suffix.append(assembly.Mov(assembly_type, xmm15, dst))
+            dst = xmm15
 
         if op == assembly.Mult() and is_mem(dst):
             # It's important that Mult is handled differently from other
