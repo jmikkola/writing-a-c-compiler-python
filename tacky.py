@@ -177,7 +177,12 @@ class UnaryNot(UnaryOp, namedtuple('UnaryNot', [])):
 
 
 class BinaryOp:
-    pass
+    def __eq__(self, other):
+        # Super lazy
+        return str(self) == str(other)
+
+    def __ne__(self, other):
+        return not (self == other)
 
 
 class BinaryAdd(BinaryOp, namedtuple('BinaryAdd', [])):
