@@ -480,6 +480,7 @@ class Codegen:
                         assembly.Binary(assembly.BitXor(), double, xmm1, xmm1),
                         assembly.Cmp(double, self.convert_operand(cond), xmm1),
                         assembly.JmpCC('NE', target),
+                        assembly.JmpCC('P', target),
                     ]
                 return [
                     assembly.Cmp(a_type, assembly.Immediate(0), self.convert_operand(cond)),
@@ -718,7 +719,10 @@ class Codegen:
                 assembly.Binary(assembly.BitXor(), double, xmm1, xmm1),
                 assembly.Cmp(double, src, xmm1),
                 assembly.Mov(self.a_type_of(instr.dst), assembly.Immediate(0), dst),
+                assembly.Mov(self.a_type_of(instr.dst), assembly.Immediate(0), rdx),
                 assembly.SetCC('E', dst),
+                assembly.SetCC('NP', rdx),
+                assembly.Binary(assembly.BitAnd(), self.a_type_of(instr.dst), rdx, dst),
             ]
 
         if isinstance(instr.unary_operator, tacky.UnaryNot):
@@ -781,6 +785,27 @@ class Codegen:
             case tacky.Less() | tacky.LessEqual() | tacky.Equals() | \
                  tacky.NotEquals() | tacky.Greater() | tacky.GreaterEqual():
                 comparison = self.convert_comparison(instr.operator, is_signed, is_double)
+                if a_type == double and instr.operator == tacky.NotEquals():
+                    # If either value is NaN, != evaluates to true
+                    return [
+                        assembly.Cmp(a_type, right, left),
+                        assembly.Mov(self.a_type_of(instr.dst), assembly.Immediate(0), dst),
+                        assembly.Mov(self.a_type_of(instr.dst), assembly.Immediate(0), rdx),
+                        assembly.SetCC('P', rdx),
+                        assembly.SetCC(comparison, dst),
+                        assembly.Binary(assembly.BitOr(), self.a_type_of(instr.dst), rdx, dst),
+                    ]
+                if a_type == double:
+                    # If either value is NaN, all other comparisons evaluate to false
+                    return [
+                        assembly.Cmp(a_type, right, left),
+                        assembly.Mov(self.a_type_of(instr.dst), assembly.Immediate(0), dst),
+                        assembly.Mov(self.a_type_of(instr.dst), assembly.Immediate(0), rdx),
+                        # Check the parity bit to see if either of the values was NaN
+                        assembly.SetCC('NP', rdx),
+                        assembly.SetCC(comparison, dst),
+                        assembly.Binary(assembly.BitAnd(), self.a_type_of(instr.dst), rdx, dst),
+                    ]
                 return [
                     assembly.Cmp(a_type, right, left),
                     assembly.Mov(self.a_type_of(instr.dst), assembly.Immediate(0), dst),
