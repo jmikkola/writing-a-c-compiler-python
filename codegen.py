@@ -467,7 +467,15 @@ class Codegen:
                     return [
                         assembly.Binary(assembly.BitXor(), double, xmm1, xmm1),
                         assembly.Cmp(double, self.convert_operand(cond), xmm1),
-                        assembly.JmpCC('E', target),
+                        # Check for equal to zero
+                        assembly.Mov(longword, assembly.Immediate(0), rax),
+                        assembly.SetCC('E', rax),
+                        # Check for NaN
+                        assembly.Mov(longword, assembly.Immediate(0), rdx),
+                        assembly.SetCC('NP', rdx),
+                        # Jump based on the combination of the two
+                        assembly.Binary(assembly.BitAnd(), longword, rdx, rax),
+                        assembly.JmpCC('NE', target),
                     ]
                 return [
                     assembly.Cmp(a_type, assembly.Immediate(0), self.convert_operand(cond)),
