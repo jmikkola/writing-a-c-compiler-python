@@ -501,12 +501,16 @@ class Parser:
         return expr
 
     def parse_unary_expression(self) -> syntax.Unary:
+        if self.peek('*'):
+            return self.parse_dereference()
+        if self.peek('&'):
+            return self.parse_addr_of()
         operator = self.parse_unary_operator()
         expr = self.parse_factor()
         return syntax.Unary(operator, expr)
 
     def is_unary(self):
-        unary_operators = ['-', '~', '!', '++', '--']
+        unary_operators = ['-', '~', '!', '++', '--', '*', '&']
         token = self.peek()
         return token and token.text in unary_operators
 
@@ -523,6 +527,16 @@ class Parser:
         if token.text == '--':
             return syntax.UnaryDecrement()
         raise Exception(f'unhandled unary operator {token.text}')
+
+    def parse_dereference(self) -> syntax.Dereference:
+        self.expect('*')
+        expr = self.parse_factor()
+        return syntax.Dereference(expr)
+
+    def parse_addr_of(self) -> syntax.AddrOf:
+        self.expect('&')
+        expr = self.parse_factor()
+        return syntax.AddrOf(expr)
 
     def parse_constant(self) -> syntax.Constant:
         ''' parse a constant (an integer or a double) '''
