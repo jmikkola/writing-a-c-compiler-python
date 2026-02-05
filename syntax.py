@@ -1,4 +1,7 @@
+from __future__ import annotations
 from collections import namedtuple
+from dataclasses import dataclass
+from typing import Union, List
 
 ##
 ## Pretty printing
@@ -83,6 +86,37 @@ class Pointer(Type, namedtuple('Pointer', ['referenced'])):
     def __str__(self):
         referenced = str(self.referenced)
         return f'Pointer({referenced})'
+
+
+##
+## Type declarator
+##
+
+
+@dataclass
+class Ident:
+    identifier: str
+
+
+@dataclass
+class PointerDeclarator:
+    # This needs `from __future__ import annotations` to not have a name error
+    declarator: Declarator
+
+
+@dataclass
+class FunDeclarator:
+    params: List[ParamInfo]
+    ret: Declarator
+
+
+Declarator = Union[Ident, PointerDeclarator, FunDeclarator]
+
+
+@dataclass
+class ParamInfo:
+    t: Type
+    declarator: Declarator
 
 
 ##

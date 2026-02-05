@@ -1,7 +1,7 @@
 import re
 import itertools
 
-from token import Token
+from wacc_token import Token
 
 
 IDENTIFIER = re.compile(r'[a-zA-Z_]\w*\b')
