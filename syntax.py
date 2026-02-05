@@ -79,6 +79,12 @@ class Func(Type, namedtuple('Func', ['params', 'ret'])):
         return f'Func(params=[{params}], ret={self.ret})'
 
 
+class Pointer(Type, namedtuple('Pointer', ['referenced'])):
+    def __str__(self):
+        referenced = str(self.referenced)
+        return f'Pointer({referenced})'
+
+
 ##
 ## Program structure
 ##
@@ -345,6 +351,18 @@ class Call(Expression, namedtuple('Call', ['function', 'arguments'])):
     def __str__(self):
         args = [a.pretty_print() for a in self.arguments]
         return f'Call({self.function}, {args})'
+
+
+class Dereference(Expression, namedtuple('Dereference', ['inner'])):
+    def __str__(self):
+        inner = self.inner.pretty_print()
+        return f'Dereference({inner})'
+
+
+class AddrOf(Expression, namedtuple('AddrOf', ['inner'])):
+    def __str__(self):
+        inner = self.inner.pretty_print()
+        return f'AddrOf({inner})'
 
 
 ##
