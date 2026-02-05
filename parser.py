@@ -1,4 +1,5 @@
 import re
+from typing import List
 
 import syntax
 from errors import SyntaxError
@@ -16,7 +17,6 @@ INT_TYPE_SPEC = re.compile(r'[lLuU]+')
 def parse(tokens):
     p = Parser(tokens)
     return p.parse()
-
 
 
 class Parser:
@@ -114,7 +114,81 @@ class Parser:
             else:
                 return syntax.Int()
 
+    def parse_declarator(self) -> syntax.Declarator:
+        if self.peek('*'):
+            self.expect('*')
+            inner = self.parse_declarator()
+            return syntax.PointerDeclarator(inner)
+        else:
+            return self.parse_direct_declarator()
+
+    def parse_direct_declarator(self) -> syntax.Declarator:
+        inner = self.parse_simple_declarator()
+        if self.peek('('):
+            param_list = self.parse_param_list()
+            return syntax.FunDeclarator(param_list, inner)
+        else:
+            return inner
+
+    def parse_simple_declarator(self) -> syntax.Declarator:
+        if self.peek('('):
+            self.expect('(')
+            inner = self.parse_declarator()
+            self.expect(')')
+            return inner
+        else:
+            identifier = self.expect('identifier')
+            return syntax.Ident(identifier.text)
+
+    def parse_param_list(self) -> List[syntax.ParamInfo]:
+        self.expect('(')
+        if self.peek('keyword', 'void'):
+            self.consume()
+            self.expect(')')
+            return []
+        params = []
+        while not self.peek(')'):
+            t = self.parse_type_specifier()
+            decl = self.parse_declarator()
+            params.append(syntax.ParamInfo(t, decl))
+            if self.peek(','):
+                self.consume()
+            else:
+                break
+        self.expect(')')
+        return params
+
+    def process_declarator(
+            self,
+            declarator: syntax.Declarator,
+            base_type: syntax.Type
+    ) -> (str, syntax.Type, list):
+        match declarator:
+            case syntax.Ident(identifier):
+                return (identifier, base_type, [])
+            case syntax.PointerDeclarator(declarator):
+                derived_type = syntax.Pointer(base_type)
+                return self.process_declarator(d, derived_type)
+            case syntax.FunDeclarator(params, decl):
+                match decl:
+                    case syntax.Ident(identifier):
+                        param_names = []
+                        param_types = []
+                        for p in params:
+                            param_name, param_t, _ = self.process_declarator(p.declarator, p.t)
+                            if isinstance(param_t, syntax.FunDeclarator):
+                                self.fail('function pointers in parameters are not supported')
+                            param_names.append(param_name)
+                            param_types.append(param_t)
+
+                        derived_type = syntax.Func(param_types, base_type)
+                        return (identifier, derived_type, param_names)
+                    case _:
+                        self.fail('types derived from a function type are not supported')
+
+
     def parse_declaration(self) -> syntax.Declaration:
+        # TODO: Change this to parse using parse_declarator
         type_spec, storage_class = self.parse_storage_class_and_type()
         if self.peek('(', offset=1):
             return self.parse_function_after_type(type_spec, storage_class)

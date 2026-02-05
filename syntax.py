@@ -107,7 +107,7 @@ class PointerDeclarator:
 @dataclass
 class FunDeclarator:
     params: List[ParamInfo]
-    ret: Declarator
+    decl: Declarator
 
 
 Declarator = Union[Ident, PointerDeclarator, FunDeclarator]
