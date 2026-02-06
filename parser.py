@@ -33,47 +33,27 @@ class Parser:
 
     def parse_function(self) -> syntax.FuncDeclaration:
         ''' parse a function definition '''
-        type_spec, storage_class = self.parse_storage_class_and_type()
-        return self.parse_function_after_type(type_spec, storage_class)
+        base_type, storage_class = self.parse_storage_class_and_type()
+        declarator = self.parse_declarator()
+        (name, decl_type, arg_names) = self.process_declarator(declarator, base_type)
+        if not self.is_function_type(decl_type):
+            self.fail(f'declaration be a function: {name}')
+        return self.parse_function_after_type(name, decl_type, arg_names, storage_class)
 
-    def parse_function_after_type(self, type_spec, storage_class):
-        (name, params, types) = self.parse_function_header()
+    def parse_function_after_type(self, name, decl_type, arg_names, storage_class):
+        body = None
         if self.peek(';'):
             self.consume()
-            body = None
         else:
             body = self.parse_block()
 
-        fun_type = syntax.Func(params=types, ret=type_spec)
         return syntax.FuncDeclaration(
-            name=name.text,
-            params=params,
+            name=name,
+            params=arg_names,
             body=body,
-            fun_type=fun_type,
+            fun_type=decl_type,
             storage_class=storage_class
         )
-
-    def parse_function_header(self):
-        name = self.expect('identifier')
-        self.expect('(')
-        params, types = self.parse_params()
-        self.expect(')')
-        return (name, params, types)
-
-    def parse_params(self):
-        if self.peek('keyword', 'void'):
-            self.consume()
-            return ([], [])
-        params = []
-        types = []
-        while not self.peek(')'):
-            if params:
-                self.expect(',')
-            type_spec = self.parse_type_specifier()
-            types.append(type_spec)
-            param_name = self.expect('identifier').text
-            params.append(param_name)
-        return params, types
 
     def parse_type_specifier(self) -> syntax.Type:
         specifier_list = []
@@ -148,13 +128,11 @@ class Parser:
             return []
         params = []
         while not self.peek(')'):
+            if params:
+                self.expect(',')
             t = self.parse_type_specifier()
             decl = self.parse_declarator()
             params.append(syntax.ParamInfo(t, decl))
-            if self.peek(','):
-                self.consume()
-            else:
-                break
         self.expect(')')
         return params
 
@@ -166,7 +144,7 @@ class Parser:
         match declarator:
             case syntax.Ident(identifier):
                 return (identifier, base_type, [])
-            case syntax.PointerDeclarator(declarator):
+            case syntax.PointerDeclarator(d):
                 derived_type = syntax.Pointer(base_type)
                 return self.process_declarator(d, derived_type)
             case syntax.FunDeclarator(params, decl):
@@ -188,25 +166,39 @@ class Parser:
 
 
     def parse_declaration(self) -> syntax.Declaration:
-        # TODO: Change this to parse using parse_declarator
-        type_spec, storage_class = self.parse_storage_class_and_type()
-        if self.peek('(', offset=1):
-            return self.parse_function_after_type(type_spec, storage_class)
+        base_type, storage_class = self.parse_storage_class_and_type()
+        declarator = self.parse_declarator()
+        (name, decl_type, arg_names) = self.process_declarator(declarator, base_type)
+
+        if self.is_function_type(decl_type):
+            return self.parse_function_after_type(name, decl_type, arg_names, storage_class)
         else:
-            return self.parse_var_declaration_after_type(type_spec, storage_class)
+            return self.parse_var_declaration_after_type(name, decl_type, storage_class)
+
+    def is_function_type(self, t: syntax.Type) -> bool:
+        match t:
+            case syntax.Func():
+                return True
+            case syntax.Pointer(inner):
+                return self.is_function_type(inner)
+            case _:
+                return False
 
     def parse_var_declaration(self) -> syntax.VarDeclaration:
-        type_spec, storage_class = self.parse_storage_class_and_type()
-        return self.parse_var_declaration_after_type(type_spec, storage_class)
+        base_type, storage_class = self.parse_storage_class_and_type()
+        declarator = self.parse_declarator()
+        (name, decl_type, arg_names) = self.process_declarator(declarator, base_type)
+        if self.is_function_type(decl_type):
+            self.fail(f'declaration must not be a function: {name}')
+        return self.parse_var_declaration_after_type(name, decl_type, storage_class)
 
-    def parse_var_declaration_after_type(self, type_spec, storage_class):
-        name_token = self.expect('identifier')
+    def parse_var_declaration_after_type(self, name, decl_type, storage_class):
         init = None
         if self.peek('='):
             self.expect('=')
             init = self.parse_expression()
         self.expect(';')
-        return syntax.VarDeclaration(name_token.text, init, type_spec, storage_class)
+        return syntax.VarDeclaration(name, init, decl_type, storage_class)
 
     def parse_storage_class_and_type(self):
         storage_classes = []
