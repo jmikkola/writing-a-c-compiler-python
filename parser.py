@@ -165,6 +165,39 @@ class Parser:
                         self.fail('types derived from a function type are not supported')
 
 
+    def parse_abstract_declarator(self) -> syntax.AbstractDeclarator:
+        if self.peek('*') or self.peek('('):
+            return self.parse_actual_abstract_declarator()
+        else:
+            return syntax.AbstractBase()
+
+    def parse_actual_abstract_declarator(self) -> syntax.AbstractDeclarator:
+        if self.peek('*'):
+            self.consume()
+            # This '*' might have been the end of the abstract declarator, in
+            # which case the recursive call will return AbstractBase
+            inner = self.parse_abstract_declarator()
+            return syntax.AbstractPointer(inner)
+        else:
+            self.expect('(')
+            declarator = self.parse_actual_abstract_declarator()
+            self.expect(')')
+            return declarator
+
+    def process_abstract_declarator(
+            self,
+            base_type: syntax.Type,
+            declarator: syntax.AbstractDeclarator
+    ) -> syntax.Type:
+        match declarator:
+            case syntax.AbstractBase():
+                return base_type
+            case syntax.AbstractPointer(inner):
+                derived_type = syntax.Pointer(base_type)
+                return self.process_abstract_declarator(derived_type, inner)
+            case _:
+                raise Exception(f'unhandled abstract declarator {declarator}')
+
     def parse_declaration(self) -> syntax.Declaration:
         base_type, storage_class = self.parse_storage_class_and_type()
         declarator = self.parse_declarator()
@@ -556,9 +589,11 @@ class Parser:
     def parse_cast(self) -> syntax.Expression:
         self.expect('(')
         target_type = self.parse_type_specifier()
+        declarator = self.parse_abstract_declarator()
+        derived_type = self.process_abstract_declarator(target_type, declarator)
         self.expect(')')
         expr = self.parse_factor()
-        return syntax.Cast(target_type, expr)
+        return syntax.Cast(derived_type, expr)
 
     def paren_expression(self) -> syntax.Expression:
         self.expect('(')

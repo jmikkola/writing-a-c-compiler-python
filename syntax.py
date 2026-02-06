@@ -93,6 +93,8 @@ class Pointer(Type, namedtuple('Pointer', ['referenced'])):
 ##
 
 
+# Concrete declarators
+
 @dataclass
 class Ident:
     identifier: str
@@ -117,6 +119,21 @@ Declarator = Union[Ident, PointerDeclarator, FunDeclarator]
 class ParamInfo:
     t: Type
     declarator: Declarator
+
+
+# Abstract declarators (for cast expressions)
+
+@dataclass
+class AbstractPointer:
+    declarator: AbstractDeclarator
+
+
+@dataclass
+class AbstractBase:
+    pass
+
+
+AbstractDeclarator = Union[AbstractPointer, AbstractBase]
 
 
 ##
