@@ -917,7 +917,12 @@ class Typecheck:
                 t = self.typecheck_expr(t)
                 e = self.typecheck_expr(e)
 
-                common_type = self.get_common_type(t.expr_type, e.expr_type)
+                t_type = t.expr_type
+                e_type = e.expr_type
+                if isinstance(t_type, syntax.Pointer) or isinstance(e_type, syntax.Pointer):
+                    common_type = self.get_common_pointer_type(t, e)
+                else:
+                    common_type = self.get_common_type(t_type, e_type)
                 converted_t = self.convert_to(t, common_type)
                 converted_e = self.convert_to(e, common_type)
 
@@ -1016,7 +1021,6 @@ class Typecheck:
         r_converted = self.convert_to(r, common_type)
         expr = syntax.Binary(op, l_converted, r_converted)
         return expr.set_type(syntax.Int())
-
 
     def is_lvalue(self, expression: syntax.Expression) -> bool:
         match expression:
