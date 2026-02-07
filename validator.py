@@ -870,52 +870,8 @@ class Typecheck:
                 expr = syntax.Postfix(e, op)
                 return expr.set_type(e.expr_type)
 
-            case syntax.Binary(op, l, r):
-                l = self.typecheck_expr(l)
-                r = self.typecheck_expr(r)
-
-                common_type = self.get_common_type(l.expr_type, r.expr_type)
-
-                if common_type == syntax.Double():
-                    int_only_ops = [
-                        syntax.BinaryRemainder(),
-                        syntax.BitAnd(),
-                        syntax.BitOr(),
-                        syntax.BitXor(),
-                        syntax.ShiftLeft(),
-                        syntax.ShiftRight(),
-                    ]
-                    if op in int_only_ops:
-                        self.error(f'Cannot apply operator {op} to doubles')
-
-                # && and || always return an int
-                if op == syntax.BinaryAnd() or op == syntax.BinaryOr():
-                    expr = syntax.Binary(op, l, r)
-                    return expr.set_type(syntax.Int())
-
-                # << and >> always take the type of the left hand side
-                if op == syntax.ShiftLeft() or op == syntax.ShiftRight():
-                    expr = syntax.Binary(op, l, r)
-                    return expr.set_type(l.expr_type)
-
-                converted_l = self.convert_to(l, common_type)
-                converted_r = self.convert_to(r, common_type)
-                expr = syntax.Binary(op, converted_l, converted_r)
-
-                comparison_operators = [
-                    syntax.Less(),
-                    syntax.LessEqual(),
-                    syntax.Greater(),
-                    syntax.GreaterEqual(),
-                    syntax.Equals(),
-                    syntax.NotEquals(),
-                ]
-
-                if op in comparison_operators:
-                    # E.g. `==` of two longs returns an int
-                    return expr.set_type(syntax.Int())
-
-                return expr.set_type(common_type)
+            case syntax.Binary():
+                return self.typecheck_binary(expr)
 
             case syntax.Assignment(lhs, rhs, op):
                 if not self.is_lvalue(lhs):
@@ -975,6 +931,54 @@ class Typecheck:
 
             case _:
                 raise Exception(f'Unhandled type of expression {expr}')
+
+    def typecheck_binary(self, expression: syntax.Binary) -> syntax.Binary:
+        l = self.typecheck_expr(expression.left)
+        r = self.typecheck_expr(expression.right)
+        op = expression.operator
+
+        common_type = self.get_common_type(l.expr_type, r.expr_type)
+
+        if common_type == syntax.Double():
+            int_only_ops = [
+                syntax.BinaryRemainder(),
+                syntax.BitAnd(),
+                syntax.BitOr(),
+                syntax.BitXor(),
+                syntax.ShiftLeft(),
+                syntax.ShiftRight(),
+            ]
+            if op in int_only_ops:
+                self.error(f'Cannot apply operator {op} to doubles')
+
+        # && and || always return an int
+        if op == syntax.BinaryAnd() or op == syntax.BinaryOr():
+            expr = syntax.Binary(op, l, r)
+            return expr.set_type(syntax.Int())
+
+        # << and >> always take the type of the left hand side
+        if op == syntax.ShiftLeft() or op == syntax.ShiftRight():
+            expr = syntax.Binary(op, l, r)
+            return expr.set_type(l.expr_type)
+
+        converted_l = self.convert_to(l, common_type)
+        converted_r = self.convert_to(r, common_type)
+        expr = syntax.Binary(op, converted_l, converted_r)
+
+        comparison_operators = [
+            syntax.Less(),
+            syntax.LessEqual(),
+            syntax.Greater(),
+            syntax.GreaterEqual(),
+            syntax.Equals(),
+            syntax.NotEquals(),
+        ]
+
+        if op in comparison_operators:
+            # E.g. `==` of two longs returns an int
+            return expr.set_type(syntax.Int())
+
+        return expr.set_type(common_type)
 
     def is_lvalue(self, expression: syntax.Expression) -> bool:
         match expression:
