@@ -4,6 +4,8 @@ import syntax
 def type_size(t):
     if t == syntax.Long() or t == syntax.ULong() or t == syntax.Double():
         return 8
+    if isinstance(t, syntax.Pointer):
+        return 8
     if t == syntax.Int() or t == syntax.UInt():
         return 4
     raise Exception(f'Unhandled type to get size of {repr(t)}')

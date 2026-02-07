@@ -362,7 +362,8 @@ class Constant(Expression, namedtuple('Constant', ['const'])):
 
 
 class Variable(Expression, namedtuple('Variable', ['name'])):
-    pass
+    def get_name(self):
+        return self.name
 
 
 class Cast(Expression, namedtuple('Cast', ['target_type', 'expr'])):
@@ -408,6 +409,9 @@ class Dereference(Expression, namedtuple('Dereference', ['inner'])):
     def __str__(self):
         inner = self.inner.pretty_print()
         return f'Dereference({inner})'
+
+    def get_name(self):
+        return self.inner.get_name()
 
 
 class AddrOf(Expression, namedtuple('AddrOf', ['inner'])):

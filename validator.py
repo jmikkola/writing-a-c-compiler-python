@@ -236,8 +236,6 @@ class IdentifierResolution:
                 right = self.resolve_expr(right, identifier_map)
                 return syntax.Binary(op, left, right)
             case syntax.Assignment(lhs, rhs, op):
-                if not isinstance(lhs, syntax.Variable):
-                    self.error(f'invalid target for assignment: {lhs}')
                 lhs = self.resolve_expr(lhs, identifier_map)
                 rhs = self.resolve_expr(rhs, identifier_map)
                 return syntax.Assignment(lhs, rhs, op)
@@ -255,6 +253,12 @@ class IdentifierResolution:
             case syntax.Cast(target_type, expr):
                 expr = self.resolve_expr(expr, identifier_map)
                 return syntax.Cast(target_type, expr)
+            case syntax.Dereference(expr):
+                expr = self.resolve_expr(expr, identifier_map)
+                return syntax.Dereference(expr)
+            case syntax.AddrOf(expr):
+                expr = self.resolve_expr(expr, identifier_map)
+                return syntax.AddrOf(expr)
             case _:
                 raise Exception(f'unhandled type of expression {expr}')
 
@@ -914,7 +918,9 @@ class Typecheck:
                 return expr.set_type(common_type)
 
             case syntax.Assignment(lhs, rhs, op):
-                name = lhs.name
+                if not self.is_lvalue(lhs):
+                    self.error(f'invalid target for assignment: {lhs}')
+                name = lhs.get_name()
                 if isinstance(self.symbols[name].type, syntax.Func):
                     self.error(f'Cannot assign to a function {name}')
                 lhs = self.typecheck_expr(lhs)
@@ -950,8 +956,34 @@ class Typecheck:
                 expr = syntax.Cast(target_type, e)
                 return expr.set_type(target_type)
 
+            case syntax.Dereference(e):
+                e = self.typecheck_expr(e)
+                match e.expr_type:
+                    case syntax.Pointer(referenced_type):
+                        expr = syntax.Dereference(e)
+                        return expr.set_type(referenced_type)
+                    case _:
+                        self.fail(f'Cannot dereference non-pointer: {e.expr_type}')
+
+            case syntax.AddrOf(e):
+                if not self.is_lvalue(e):
+                    self.fail(f'Cannot take the address of a non-lvalue: {e}')
+                e = self.typecheck_expr(e)
+                expr = syntax.AddrOf(e)
+                pointer_type = syntax.Pointer(e.expr_type)
+                return expr.set_type(pointer_type)
+
             case _:
                 raise Exception(f'Unhandled type of expression {expr}')
+
+    def is_lvalue(self, expression: syntax.Expression) -> bool:
+        match expression:
+            case syntax.Variable():
+                return True
+            case syntax.Dereference(inner):
+                return self.is_lvalue(inner)
+            case _:
+                return False
 
     def convert_to(self, expression, target_type):
         assert(expression.expr_type is not None)
