@@ -900,12 +900,14 @@ class Typecheck:
             case syntax.Assignment(lhs, rhs, op):
                 if not self.is_lvalue(lhs):
                     self.error(f'invalid target for assignment: {lhs}')
-                name = lhs.get_name()
-                if isinstance(self.symbols[name].type, syntax.Func):
-                    self.error(f'Cannot assign to a function {name}')
+                if isinstance(lhs, syntax.Variable):
+                    name = lhs.name
+                    if isinstance(self.symbols[name].type, syntax.Func):
+                        self.error(f'Cannot assign to a function {name}')
                 lhs = self.typecheck_expr(lhs)
 
                 if op is not None:
+                    # TODO: This is no longer correct!
                     # This logic only works because the assign target has no
                     # side effects (e.g. it isn't `a[i++]`) so it can safely be
                     # duplicated
@@ -1050,7 +1052,7 @@ class Typecheck:
             case syntax.Variable():
                 return True
             case syntax.Dereference(inner):
-                return self.is_lvalue(inner)
+                return True
             case _:
                 return False
 
