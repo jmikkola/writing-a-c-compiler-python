@@ -691,6 +691,10 @@ class Typecheck:
                 if isinstance(value, int):
                     value = float(value)
                 return symbol.DoubleInit(value)
+            case syntax.Pointer():
+                if value != 0:
+                    self.fail(f'cannot initialize a pointer to a non-zero constant: {value}')
+                return symbol.ULongInit(0)
             case _:
                 raise Exception(f'unhandled type for static constant {var_type}')
 
