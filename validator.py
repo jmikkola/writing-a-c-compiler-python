@@ -644,7 +644,7 @@ class Typecheck:
             self.symbols[v.name] = symbol.Symbol(v.var_type, symbol.LocalAttr())
             if v.init is not None:
                 init = self.typecheck_expr(v.init)
-                init = self.convert_to(init, v.var_type)
+                init = self.convert_by_assignment(init, v.var_type)
                 return syntax.VarDeclaration(v.name, init, v.var_type, v.storage_class)
         return v
 
@@ -726,7 +726,7 @@ class Typecheck:
                 return self.typecheck_func_decl(block_item, in_block=True)
             case syntax.Return(expr):
                 expr = self.typecheck_expr(expr)
-                expr = self.convert_to(expr, self.current_return_type)
+                expr = self.convert_by_assignment(expr, self.current_return_type)
                 return syntax.Return(expr)
             case syntax.ExprStmt(expr):
                 expr = self.typecheck_expr(expr)
@@ -865,7 +865,7 @@ class Typecheck:
                 converted_arguments = []
                 for (arg, param_type) in zip(arguments, symbol_type.params):
                     arg = self.typecheck_expr(arg)
-                    converted_arg = self.convert_to(arg, param_type)
+                    converted_arg = self.convert_by_assignment(arg, param_type)
                     converted_arguments.append(converted_arg)
 
                 expr = syntax.Call(name, converted_arguments)
@@ -908,7 +908,7 @@ class Typecheck:
                 rhs = self.typecheck_expr(rhs)
                 left_type = lhs.expr_type
                 assert(left_type is not None)
-                converted_rhs = self.convert_to(rhs, left_type)
+                converted_rhs = self.convert_by_assignment(rhs, left_type)
                 expr = syntax.Assignment(lhs, converted_rhs, op)
                 return expr.set_type(left_type)
 
@@ -1038,6 +1038,28 @@ class Typecheck:
         cast_expr = syntax.Cast(target_type, expression)
         cast_expr.set_type(target_type)
         return cast_expr
+
+    def convert_by_assignment(self, expression, target_type):
+        expr_type = expression.expr_type
+        assert(expr_type is not None)
+        if expr_type == target_type:
+            return expression
+        if self.is_arithmetic(expr_type) and self.is_arithmetic(target_type):
+            return self.convert_to(expression, target_type)
+        if self.is_null_pointer_constant(expression) and isinstance(target_type, syntax.Pointer):
+            return self.convert_to(expression, target_type)
+        self.fail(f'cannot convert type for assignment {expression} {target_type}')
+
+    def is_arithmetic(self, t):
+        match t:
+            case syntax.Int() | syntax.UInt():
+                return True
+            case syntax.Long() | syntax.ULong():
+                return True
+            case syntax.Double():
+                return True
+            case _:
+                return False
 
     def get_common_type(self, t1, t2):
         if t1 == t2:
