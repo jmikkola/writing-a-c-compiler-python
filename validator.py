@@ -876,6 +876,9 @@ class Typecheck:
                 if e.expr_type == syntax.Double():
                     if op == syntax.UnaryInvert():
                         self.error(f'Cannot apply unary op {op} to a double')
+                if isinstance(e.expr_type, syntax.Pointer):
+                    if op == syntax.UnaryNegate() or op == syntax.UnaryInvert():
+                        self.error(f'invalid unary operator for a pointer: {op}')
                 expr = syntax.Unary(op, e)
                 if op == syntax.UnaryNot():
                     return expr.set_type(syntax.Int())
@@ -931,6 +934,11 @@ class Typecheck:
 
             case syntax.Cast(target_type, e):
                 e = self.typecheck_expr(e)
+                match (e.expr_type, target_type):
+                    case (syntax.Double(), syntax.Pointer()):
+                        self.fail('Cannot cast doubles to pointers')
+                    case (syntax.Pointer(), syntax.Double()):
+                        self.fail('Cannot cast pointers to doubles')
                 expr = syntax.Cast(target_type, e)
                 return expr.set_type(target_type)
 
@@ -968,7 +976,7 @@ class Typecheck:
         common_type = self.get_common_type(l.expr_type, r.expr_type)
 
         if common_type == syntax.Double():
-            int_only_ops = [
+            non_double_ops = [
                 syntax.BinaryRemainder(),
                 syntax.BitAnd(),
                 syntax.BitOr(),
@@ -976,8 +984,19 @@ class Typecheck:
                 syntax.ShiftLeft(),
                 syntax.ShiftRight(),
             ]
-            if op in int_only_ops:
+            if op in non_double_ops:
                 self.error(f'Cannot apply operator {op} to doubles')
+
+        if isinstance(common_type, syntax.Pointer):
+            non_ponter_ops = [
+                syntax.BinaryRemainder(),
+                syntax.BinaryDivide(),
+                syntax.BinaryMultiply(),
+                syntax.ShiftLeft(),
+                syntax.ShiftRight(),
+            ]
+            if op in non_ponter_ops:
+                self.error(f'Cannot apply operator {op} to pointers')
 
         # && and || always return an int
         if op == syntax.BinaryAnd() or op == syntax.BinaryOr():
