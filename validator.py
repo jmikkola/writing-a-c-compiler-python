@@ -694,6 +694,23 @@ class Typecheck:
             case _:
                 raise Exception(f'unhandled type for static constant {var_type}')
 
+    def is_null_pointer_constant(self, e: syntax.Expression) -> bool:
+        match e:
+            case syntax.Constant(c):
+                match c:
+                    case syntax.ConstInt(0):
+                        return True
+                    case syntax.ConstUInt(0):
+                        return True
+                    case syntax.ConstLong(0):
+                        return True
+                    case syntax.ConstULong(0):
+                        return True
+                    case _:
+                        return False
+            case _:
+                return False
+
     def typecheck_block(self, block: syntax.Block):
         block_items = [
             self.typecheck_statement(block_item)
@@ -937,6 +954,12 @@ class Typecheck:
         r = self.typecheck_expr(expression.right)
         op = expression.operator
 
+        match op:
+            case syntax.Equals():
+                return self.typecheck_binary_equality(op, l, r)
+            case syntax.NotEquals():
+                return self.typecheck_binary_equality(op, l, r)
+
         common_type = self.get_common_type(l.expr_type, r.expr_type)
 
         if common_type == syntax.Double():
@@ -980,6 +1003,21 @@ class Typecheck:
 
         return expr.set_type(common_type)
 
+    def typecheck_binary_equality(self, op, l, r):
+        ''' equality operators can compare pointers '''
+        assert(op == syntax.Equals() or op == syntax.NotEquals())
+        l_type = l.expr_type
+        r_type = r.expr_type
+        if isinstance(l_type, syntax.Pointer) or isinstance(r_type, syntax.Pointer):
+            common_type = self.get_common_pointer_type(l, r)
+        else:
+            common_type = self.get_common_type(l_type, r_type)
+        l_converted = self.convert_to(l, common_type)
+        r_converted = self.convert_to(r, common_type)
+        expr = syntax.Binary(op, l_converted, r_converted)
+        return expr.set_type(syntax.Int())
+
+
     def is_lvalue(self, expression: syntax.Expression) -> bool:
         match expression:
             case syntax.Variable():
@@ -1012,6 +1050,18 @@ class Typecheck:
         else:
             return t2
         raise Exception(f'Unhandled combination of types {t1} and {t2}')
+
+    def get_common_pointer_type(self, e1: syntax.Expression, e2: syntax.Expression) -> syntax.Type:
+        t1 = e1.expr_type
+        t2 = e2.expr_type
+        if t1 == t2:
+            return t1
+        elif self.is_null_pointer_constant(e1):
+            return t2
+        elif self.is_null_pointer_constant(e2):
+            return t1
+        else:
+            self.fail(f'expressions have incompatible pointer types: {e1} and {e2}')
 
     def typecheck_for_init(self, init: syntax.ForInit):
         match init:
