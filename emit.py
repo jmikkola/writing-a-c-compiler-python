@@ -22,6 +22,7 @@ REGISTERS = {
     'DI': Register('%dil', '%edi', '%rdi'),
     'SI': Register('%sil', '%esi', '%rsi'),
     'SP': Register('%spl', '%esp', '%rsp'),
+    'BP': Register('%bpl', '%ebp', '%rbp'),
     'R8': Register('%r8b', '%r8d', '%r8'),
     'R9': Register('%r9b', '%r9d', '%r9'),
     'R10': Register('%r10b', '%r10d', '%r10'),
@@ -123,6 +124,11 @@ class Emit:
                 src = self.render_operand(src, longword)
                 dst = self.render_operand(dst, quadword)
                 self.indented(f'movslq {src}, {dst}')
+
+            case assembly.Lea(src, dst):
+                src = self.render_operand(src, quadword)
+                dst = self.render_operand(dst, quadword)
+                self.indented(f'leaq {src}, {dst}')
 
             case assembly.Push(operand):
                 operand = self.render_operand(operand, quadword)
@@ -267,8 +273,11 @@ class Emit:
                     return REGISTERS[reg].dword
             case assembly.Pseudo():
                 raise Exception('bug - there should not be a pseudo register by this phase')
-            case assembly.Stack(offset):
-                return f'{offset}(%rbp)'
+            case assembly.Memory(reg, offset):
+                register = REGISTERS[reg].qword
+                if offset == 0:
+                    return f'({register})'
+                return f'{offset}({register})'
             case assembly.Data(name):
                 if self.asm_symbols[name].is_constant:
                     name = 'L' + name
