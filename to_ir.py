@@ -425,7 +425,14 @@ class ToTacky:
                 return (instructions, DereferencedPointer(result))
 
             case syntax.AddrOf(inner):
-                pass
+                instructions, result = self.convert_expression(inner)
+                match result:
+                    case PlainOperand(obj):
+                        dst = self.make_tacky_variable(expr.expr_type)
+                        instructions.append(tacky.GetAddress(obj, dst))
+                        return (instructions, PlainOperand(dst))
+                    case DereferencedPointer(ptr):
+                        return (instructions, PlainOperand(ptr))
 
             case _:
                 raise Exception(f'unhandled expression type, {expr}')
