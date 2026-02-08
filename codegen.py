@@ -11,8 +11,10 @@ import typeconversion
 
 rax = assembly.Register('AX')
 rdx = assembly.Register('DX')
+rsp = assembly.Register('SP')
 r10 = assembly.Register('R10')
 r11 = assembly.Register('R11')
+xmm0 = assembly.Register('XMM0')
 xmm1 = assembly.Register('XMM1')
 xmm14 = assembly.Register('XMM14')
 xmm15 = assembly.Register('XMM15')
@@ -98,7 +100,7 @@ class Codegen:
         match var_type:
             case syntax.Int() | syntax.UInt():
                 return 4
-            case syntax.Long() | syntax.ULong() | syntax.Double():
+            case syntax.Long() | syntax.ULong() | syntax.Double() | syntax.Pointer():
                 return 8
             case _:
                 raise Exception(f'Unexpected type to find alignment of {var_type}')
@@ -147,7 +149,7 @@ class Codegen:
         # Handle arguments that are passed on the stack
         stack_offset = 16
         for (a_type, param) in stack_params:
-            instructions.append(assembly.Mov(a_type, assembly.Stack(stack_offset), param))
+            instructions.append(assembly.Mov(a_type, assembly.Memory('BP', stack_offset), param))
             stack_offset += 8
 
         return instructions
@@ -174,6 +176,10 @@ class Codegen:
                     src = stack_map.convert_pseudo_register(src)
                     dst = stack_map.convert_pseudo_register(dst)
                     instr = assembly.MovZeroExtend(src, dst)
+                case assembly.Lea(src, dst):
+                    src = stack_map.convert_pseudo_register(src)
+                    dst = stack_map.convert_pseudo_register(dst)
+                    instr = assembly.Lea(src, dst)
                 case assembly.Unary(unary_operator, assembly_type, operand):
                     operand = stack_map.convert_pseudo_register(operand)
                     instr = assembly.Unary(unary_operator, assembly_type, operand)
@@ -233,6 +239,8 @@ class Codegen:
                 return self.fix_movsx(instr)
             case assembly.MovZeroExtend():
                 return self.fix_mov_zero_extend(instr)
+            case assembly.Lea():
+                return self.fix_lea(instr)
             case assembly.Push():
                 return self.fix_push(instr)
             case assembly.Call():
@@ -346,6 +354,16 @@ class Codegen:
         else:
             return [instr]
 
+    def fix_lea(self, instr: assembly.Lea) -> list:
+        src = instr.src
+        dst = instr.dst
+        suffix = []
+        if not is_register(dst):
+            suffix = [assembly.Mov(quadword, r11, dst)]
+            dst = r11
+        instr = assembly.Lea(src, dst)
+        return [instr] + suffix
+
     def fix_cmp(self, instr: assembly.Cmp) -> list:
         assembly_type = instr.assembly_type
         left = instr.left
@@ -432,8 +450,8 @@ class Codegen:
         operand = instr.operand
         if is_large_imm(operand):
             return [
-                assembly.Mov(quadword, operand, r10),
-                assembly.Push(r10),
+                assembly.Binary(assembly.Sub(), quadword, assembly.Immediate(8), rsp),
+                assembly.Mov(double, xmm0, assembly.Memory('SP', 0)),
             ]
         else:
             return [instr]
@@ -458,6 +476,22 @@ class Codegen:
                 a_type = self.a_type_of(src)
                 return [
                     assembly.Mov(a_type, self.convert_operand(src), self.convert_operand(dst)),
+                ]
+            case tacky.GetAddress(src, dst):
+                return [
+                    assembly.Lea(self.convert_operand(src), self.convert_operand(dst)),
+                ]
+            case tacky.Load(src_ptr, dst):
+                a_type = self.a_type_of(dst)
+                return [
+                    assembly.Mov(quadword, self.convert_operand(src_ptr), rax),
+                    assembly.Mov(a_type, assembly.Memory('AX', 0), self.convert_operand(dst)),
+                ]
+            case tacky.Store(src, dst_ptr):
+                a_type = self.a_type_of(src)
+                return [
+                    assembly.Mov(quadword, self.convert_operand(dst_ptr), rax),
+                    assembly.Mov(a_type, self.convert_operand(src), assembly.Memory('AX', 0)),
                 ]
             case tacky.Jump(target):
                 return [assembly.Jmp(target)]
@@ -878,7 +912,7 @@ class Codegen:
         match sym_type:
             case syntax.Int() | syntax.UInt():
                 return longword
-            case syntax.Long() | syntax.ULong():
+            case syntax.Long() | syntax.ULong() | syntax.Pointer():
                 return quadword
             case syntax.Double():
                 return double
@@ -965,7 +999,7 @@ class Codegen:
 
 def is_mem(operand: assembly.Operand):
     match operand:
-        case assembly.Stack():
+        case assembly.Memory():
             return True
         case assembly.Data():
             return True
@@ -1011,7 +1045,7 @@ class StackMap:
 
         name = operand.name
         if name in self.pseudo_registers:
-            return assembly.Stack(self.pseudo_registers[name])
+            return assembly.Memory('BP', self.pseudo_registers[name])
 
         entry = self.asm_symbols[name]
         assert(isinstance(entry, assembly.ObjEntry))
@@ -1021,7 +1055,7 @@ class StackMap:
 
         location = self._get_next_location(entry)
         self.pseudo_registers[name] = location
-        return assembly.Stack(location)
+        return assembly.Memory('BP', location)
 
     def _get_next_location(self, entry):
         size = entry.assembly_type.bytes()

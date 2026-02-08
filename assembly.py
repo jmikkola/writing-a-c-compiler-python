@@ -75,6 +75,10 @@ class MovZeroExtend(Instruction, namedtuple('MovZeroExtend', ['src', 'dst'])):
     pass
 
 
+class Lea(Instruction, namedtuple('Lea', ['src', 'dst'])):
+    pass
+
+
 class Push(Instruction, namedtuple('Push', ['operand'])):
     pass
 
@@ -207,7 +211,7 @@ class Pseudo(Operand, namedtuple('Pseudo', ['name'])):
     pass
 
 
-class Stack(Operand, namedtuple('Stack', ['offset'])):
+class Memory(Operand, namedtuple('Memory', ['reg', 'offset'])):
     pass
 
 

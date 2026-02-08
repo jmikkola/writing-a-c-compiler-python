@@ -18,6 +18,8 @@ def is_signed(t):
         return False
     if t == syntax.Double():
         return True
+    if isinstance(t, syntax.Pointer):
+        return False
     raise Exception(f'Unhandled type to get signedness of {t}')
 
 
