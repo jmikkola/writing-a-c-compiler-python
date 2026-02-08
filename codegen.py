@@ -14,7 +14,6 @@ rdx = assembly.Register('DX')
 rsp = assembly.Register('SP')
 r10 = assembly.Register('R10')
 r11 = assembly.Register('R11')
-xmm0 = assembly.Register('XMM0')
 xmm1 = assembly.Register('XMM1')
 xmm14 = assembly.Register('XMM14')
 xmm15 = assembly.Register('XMM15')
@@ -450,8 +449,13 @@ class Codegen:
         operand = instr.operand
         if is_large_imm(operand):
             return [
+                assembly.Mov(quadword, operand, r10),
+                assembly.Push(r10),
+            ]
+        elif isinstance(operand, assembly.Register) and operand.reg.startswith('XMM'):
+            return [
                 assembly.Binary(assembly.Sub(), quadword, assembly.Immediate(8), rsp),
-                assembly.Mov(double, xmm0, assembly.Memory('SP', 0)),
+                assembly.Mov(double, operand, assembly.Memory('SP', 0)),
             ]
         else:
             return [instr]
