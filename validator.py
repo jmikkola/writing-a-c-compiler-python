@@ -910,7 +910,13 @@ class Typecheck:
                     # TODO: This is no longer correct!
                     # This logic only works because the assign target has no
                     # side effects (e.g. it isn't `a[i++]`) so it can safely be
-                    # duplicated
+                    # duplicated.
+                    #
+                    # An expression like
+                    #     *foo() &&= bar()
+                    # should convert into
+                    #     temp = foo()
+                    #     *temp = *temp && bar()
                     rhs = syntax.Binary(op, lhs, rhs)
                     op = None
 

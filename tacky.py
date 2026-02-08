@@ -78,6 +78,18 @@ class Copy(Instruction, namedtuple('Copy', ['src', 'dst'])):
     pass
 
 
+class GetAddress(Instruction, namedtuple('GetAddress', ['src', 'dst'])):
+    pass
+
+
+class Load(Instruction, namedtuple('Load', ['src_ptr', 'dst'])):
+    pass
+
+
+class Store(Instruction, namedtuple('Store', ['src', 'dst_ptr'])):
+    pass
+
+
 class Jump(Instruction, namedtuple('Jump', ['target'])):
     pass
 

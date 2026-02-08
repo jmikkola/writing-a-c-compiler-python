@@ -1,3 +1,5 @@
+from __future__ import annotations
+from dataclasses import dataclass
 import typing
 
 import labels
@@ -164,7 +166,7 @@ class ToTacky:
         # Static variables aren't initialized inside the function
         if isinstance(sym.attrs, symbol.StaticAttr):
             return []
-        instructions, result = self.convert_expression(init)
+        instructions, result = self.emit_tacky_and_convert(init)
         instructions.append(tacky.Copy(result, tacky.Identifier(name)))
         return instructions
 
@@ -177,7 +179,7 @@ class ToTacky:
         instructions = [tacky.Label(loop_start)]
         instructions += self.convert_instructions(stmt.body)
         instructions.append(tacky.Label(continue_label))
-        test_instructions, test_val = self.convert_expression(stmt.test)
+        test_instructions, test_val = self.emit_tacky_and_convert(stmt.test)
         instructions += test_instructions
         instructions.append(tacky.JumpIfNotZero(test_val, loop_start))
         instructions.append(tacky.Label(break_label))
@@ -189,7 +191,7 @@ class ToTacky:
         break_label = f'break_{loop_label}'
 
         instructions = [tacky.Label(continue_label)]
-        test_instructions, test_val = self.convert_expression(stmt.test)
+        test_instructions, test_val = self.emit_tacky_and_convert(stmt.test)
         instructions += test_instructions
         instructions.append(tacky.JumpIfZero(test_val, break_label))
         instructions += self.convert_instructions(stmt.body)
@@ -206,7 +208,7 @@ class ToTacky:
         instructions = self.convert_for_init(stmt.init)
         instructions.append(tacky.Label(start_label))
         if stmt.condition:
-            test_instrs, test_val = self.convert_expression(stmt.condition)
+            test_instrs, test_val = self.emit_tacky_and_convert(stmt.condition)
             instructions += test_instrs
             instructions.append(tacky.JumpIfZero(test_val, break_label))
         instructions += self.convert_instructions(stmt.body)
@@ -234,7 +236,7 @@ class ToTacky:
         switch_label = stmt.switch_label
         break_label = f'break_{switch_label}'
         # Convert the condition
-        instructions, val = self.convert_expression(stmt.condition)
+        instructions, val = self.emit_tacky_and_convert(stmt.condition)
         # Handle jumping to the different case statements
         for case_value in stmt.case_values:
             if case_value == 'default':
@@ -278,7 +280,7 @@ class ToTacky:
     def convert_if(self, stmt: syntax.IfStatement) -> list:
         after_then = self.new_label('if_false')
         after_else = self.new_label('if_end')
-        instructions, val = self.convert_expression(stmt.condition)
+        instructions, val = self.emit_tacky_and_convert(stmt.condition)
         instructions.append(tacky.JumpIfZero(val, after_then))
         instructions += self.convert_instructions(stmt.t)
         if stmt.e:
@@ -290,27 +292,45 @@ class ToTacky:
         return instructions
 
     def convert_return(self, stmt: syntax.Return) -> list:
-        instructions, val = self.convert_expression(stmt.expr)
+        instructions, val = self.emit_tacky_and_convert(stmt.expr)
         return instructions + [tacky.Return(val)]
 
-    def convert_expression(self, expr: syntax.Expression) -> typing.Tuple[list, tacky.Value]:
+    def emit_tacky_and_convert(self, expr: syntax.Expression) -> typing.Tuple[list, tacky.Value]:
+        instructions, result = self.convert_expression(expr)
+        match result:
+            case PlainOperand(val):
+                return instructions, val
+            case DereferencedPointer(ptr):
+                dst = self.make_tacky_variable(expr.expr_type)
+                instructions.append(tacky.Load(ptr, dst))
+                return instructions, dst
+
+    def convert_expression(self, expr: syntax.Expression) -> typing.Tuple[list, ExpResult]:
         ''' returns (instructions, result value) '''
         match expr:
             case syntax.Constant(value):
-                return ([], tacky.Constant(self.convert_constant(value)))
+                const = tacky.Constant(self.convert_constant(value))
+                return ([], PlainOperand(const))
 
             case syntax.Cast(_):
                 return self.convert_cast(expr)
 
             case syntax.Variable(name):
-                return ([], tacky.Identifier(name))
+                return ([], PlainOperand(tacky.Identifier(name)))
 
-            case syntax.Assignment(syntax.Variable(name), rhs, None):
-                instructions, result = self.convert_expression(rhs)
-                instructions += [tacky.Copy(result, tacky.Identifier(name))]
-                return (instructions, result)
+            case syntax.Assignment(lhs, rhs, None):
+                l_instructions, lval = self.convert_expression(lhs)
+                r_instructions, rval = self.emit_tacky_and_convert(rhs)
+                instructions = l_instructions + r_instructions
+                match lval:
+                    case PlainOperand(obj):
+                        instructions.append(tacky.Copy(rval, obj))
+                        return (instructions, lval)
+                    case DereferencedPointer(ptr):
+                        instructions.append(tacky.Store(rval, ptr))
+                        return (instructions, PlainOperand(rval))
 
-            case syntax.Assignment(syntax.Variable(name) as var, rhs, op):
+            case syntax.Assignment(lhs, rhs, op):
                 raise Exception(f'the typecheck phase should have removed this possibility')
 
             case syntax.Unary(operator, inner):
@@ -328,13 +348,13 @@ class ToTacky:
                             ),
                             tacky.Copy(tacky.Identifier(inner.name), result_var)
                         ]
-                        return (instructions, result_var)
+                        return (instructions, PlainOperand(result_var))
                     case _:
-                        instructions, val = self.convert_expression(inner)
+                        instructions, val = self.emit_tacky_and_convert(inner)
                         op = self.convert_unary_op(operator)
                         result_var = self.make_tacky_variable(expr.expr_type)
                         instruction = tacky.Unary(unary_operator=op, src=val, dst=result_var)
-                        return (instructions + [instruction], result_var)
+                        return (instructions + [instruction], PlainOperand(result_var))
 
             case syntax.Postfix(expr, operator):
                 assert(isinstance(expr,  syntax.Variable))
@@ -349,13 +369,13 @@ class ToTacky:
                         dst=tacky.Identifier(expr.name)
                     ),
                 ]
-                return (instructions, result_var)
+                return (instructions, PlainOperand(result_var))
 
             case syntax.Binary(syntax.BinaryAnd(), left, right):
                 false_label = self.new_label('and_false')
                 end_label = self.new_label('and_end')
-                instructions_left, val_left = self.convert_expression(left)
-                instructions_right, val_right = self.convert_expression(right)
+                instructions_left, val_left = self.emit_tacky_and_convert(left)
+                instructions_right, val_right = self.emit_tacky_and_convert(right)
                 result_var = self.make_tacky_variable(syntax.Int())
                 instructions = instructions_left + [tacky.JumpIfZero(val_left, false_label)]
                 instructions += instructions_right + [tacky.JumpIfZero(val_right, false_label)]
@@ -366,13 +386,13 @@ class ToTacky:
                     tacky.Copy(tacky.Constant(tacky.ConstInt(0)), result_var),
                     tacky.Label(end_label),
                 ]
-                return (instructions, result_var)
+                return (instructions, PlainOperand(result_var))
 
             case syntax.Binary(syntax.BinaryOr(), left, right):
                 true_label = self.new_label('or_true')
                 end_label = self.new_label('or_end')
-                instructions_left, val_left = self.convert_expression(left)
-                instructions_right, val_right = self.convert_expression(right)
+                instructions_left, val_left = self.emit_tacky_and_convert(left)
+                instructions_right, val_right = self.emit_tacky_and_convert(right)
                 result_var = self.make_tacky_variable(syntax.Int())
                 instructions = instructions_left + [tacky.JumpIfNotZero(val_left, true_label)]
                 instructions += instructions_right + [tacky.JumpIfNotZero(val_right, true_label)]
@@ -383,22 +403,29 @@ class ToTacky:
                     tacky.Copy(tacky.Constant(tacky.ConstInt(1)), result_var),
                     tacky.Label(end_label),
                 ]
-                return (instructions, result_var)
+                return (instructions, PlainOperand(result_var))
 
             case syntax.Binary(operator, left, right):
-                instructions_left, val_left = self.convert_expression(left)
-                instructions_right, val_right = self.convert_expression(right)
+                instructions_left, val_left = self.emit_tacky_and_convert(left)
+                instructions_right, val_right = self.emit_tacky_and_convert(right)
                 op = self.convert_binary_op(operator)
                 result_var = self.make_tacky_variable(expr.expr_type)
                 instruction = tacky.Binary(operator=op, left=val_left, right=val_right, dst=result_var)
                 instructions = instructions_left + instructions_right + [instruction]
-                return (instructions, result_var)
+                return (instructions, PlainOperand(result_var))
 
             case syntax.Conditional(_, _, _):
                 return self.convert_conditional(expr)
 
             case syntax.Call(_, _):
                 return self.convert_call(expr)
+
+            case syntax.Dereference(inner):
+                instructions, result = self.emit_tacky_and_convert(inner)
+                return (instructions, DereferencedPointer(result))
+
+            case syntax.AddrOf(inner):
+                pass
 
             case _:
                 raise Exception(f'unhandled expression type, {expr}')
@@ -423,10 +450,10 @@ class ToTacky:
         inner_type = inner.expr_type
         target_type = expr.target_type
 
-        instructions, val = self.convert_expression(inner)
+        instructions, val = self.emit_tacky_and_convert(inner)
         if target_type == inner_type:
             # No cast needed
-            return (instructions, val)
+            return (instructions, PlainOperand(val))
 
         dst = self.make_tacky_variable(target_type)
 
@@ -449,28 +476,28 @@ class ToTacky:
         else:
             instructions.append(tacky.ZeroExtend(val, dst))
 
-        return (instructions, dst)
+        return (instructions, PlainOperand(dst))
 
     def convert_conditional(self, expr: syntax.Conditional):
         false_label = self.new_label('cond_false')
         end_label = self.new_label('cond_end')
         result_var = self.make_tacky_variable(expr.expr_type)
 
-        instructions, val = self.convert_expression(expr.condition)
+        instructions, val = self.emit_tacky_and_convert(expr.condition)
         instructions.append(tacky.JumpIfZero(val, false_label))
 
-        t_instructions, t_val = self.convert_expression(expr.t)
+        t_instructions, t_val = self.emit_tacky_and_convert(expr.t)
         instructions += t_instructions
         instructions.append(tacky.Copy(t_val, result_var))
         instructions.append(tacky.Jump(end_label))
 
         instructions.append(tacky.Label(false_label))
-        e_instructions, e_val = self.convert_expression(expr.e)
+        e_instructions, e_val = self.emit_tacky_and_convert(expr.e)
         instructions += e_instructions
         instructions.append(tacky.Copy(e_val, result_var))
         instructions.append(tacky.Label(end_label))
 
-        return (instructions, result_var)
+        return (instructions, PlainOperand(result_var))
 
     def convert_call(self, expr: syntax.Call):
         function = expr.function
@@ -478,13 +505,13 @@ class ToTacky:
         arg_vals = []
 
         for arg in expr.arguments:
-            i, val = self.convert_expression(arg)
+            i, val = self.emit_tacky_and_convert(arg)
             instructions.extend(i)
             arg_vals.append(val)
 
         dst = self.make_tacky_variable(expr.expr_type)
         instructions.append(tacky.Call(function, arg_vals, dst))
-        return (instructions, dst)
+        return (instructions, PlainOperand(dst))
 
     def convert_binary_op(self, op: syntax.BinaryOp) -> tacky.BinaryOp:
         match op:
@@ -542,3 +569,16 @@ class ToTacky:
                 return tacky.BinarySubtract()
             case _:
                 raise Exception(f'not a modifying operator {op}')
+
+
+@dataclass
+class PlainOperand:
+    val: tacky.Value
+
+
+@dataclass
+class DereferencedPointer:
+    val: tacky.Value
+
+
+ExpResult = typing.Union[PlainOperand, DereferencedPointer]
