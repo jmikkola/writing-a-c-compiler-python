@@ -223,12 +223,12 @@ class IdentifierResolution:
                 return syntax.Variable(identifier_map[name].new_name)
             case syntax.Unary(op, expr):
                 if self.is_modifying_operator(op) and not self.is_variable(expr):
-                    self.error(f'invaild to apply {op} to {expr}')
+                    self.error(f'invalid to apply {op} to {expr}')
                 expr = self.resolve_expr(expr, identifier_map)
                 return syntax.Unary(op, expr)
             case syntax.Postfix(expr, op):
                 if self.is_modifying_operator(op) and not self.is_variable(expr):
-                    self.error(f'invaild to apply {op} to {expr}')
+                    self.error(f'invalid to apply {op} to {expr}')
                 expr = self.resolve_expr(expr, identifier_map)
                 return syntax.Postfix(expr, op)
             case syntax.Binary(op, left, right):
