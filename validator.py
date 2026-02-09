@@ -909,13 +909,18 @@ class Typecheck:
             case syntax.Assignment(lhs, rhs, op):
                 if not self.is_lvalue(lhs):
                     self.error(f'invalid target for assignment: {lhs}')
-                if isinstance(lhs, syntax.Variable):
-                    name = lhs.name
-                    if isinstance(self.symbols[name].type, syntax.Func):
-                        self.error(f'Cannot assign to a function {name}')
+
                 lhs = self.typecheck_expr(lhs)
+                left_type = lhs.expr_type
+                assert(left_type is not None)
+
+                if isinstance(left_type, syntax.Func):
+                    self.error(f'Cannot assign to a function {name}')
 
                 if op is not None:
+                    if isinstance(left_type, syntax.Pointer):
+                        self.check_pointer_op(op)
+
                     # TODO: This is no longer correct!
                     # This logic only works because the assign target has no
                     # side effects (e.g. it isn't `a[i++]`) so it can safely be
@@ -930,8 +935,6 @@ class Typecheck:
                     op = None
 
                 rhs = self.typecheck_expr(rhs)
-                left_type = lhs.expr_type
-                assert(left_type is not None)
                 converted_rhs = self.convert_by_assignment(rhs, left_type)
                 expr = syntax.Assignment(lhs, converted_rhs, op)
                 return expr.set_type(left_type)
@@ -1009,15 +1012,7 @@ class Typecheck:
                 self.error(f'Cannot apply operator {op} to doubles')
 
         if isinstance(common_type, syntax.Pointer):
-            non_ponter_ops = [
-                syntax.BinaryRemainder(),
-                syntax.BinaryDivide(),
-                syntax.BinaryMultiply(),
-                syntax.ShiftLeft(),
-                syntax.ShiftRight(),
-            ]
-            if op in non_ponter_ops:
-                self.error(f'Cannot apply operator {op} to pointers')
+            self.check_pointer_op(op)
 
         # && and || always return an int
         if op == syntax.BinaryAnd() or op == syntax.BinaryOr():
@@ -1047,6 +1042,20 @@ class Typecheck:
             return expr.set_type(syntax.Int())
 
         return expr.set_type(common_type)
+
+    def check_pointer_op(self, op):
+        non_ponter_ops = [
+            syntax.BinaryRemainder(),
+            syntax.BinaryDivide(),
+            syntax.BinaryMultiply(),
+            syntax.ShiftLeft(),
+            syntax.ShiftRight(),
+            syntax.BitAnd(),
+            syntax.BitOr(),
+            syntax.BitXor(),
+        ]
+        if op in non_ponter_ops:
+            self.error(f'Cannot apply operator {op} to pointers')
 
     def typecheck_binary_equality(self, op, l, r):
         ''' equality operators can compare pointers '''
