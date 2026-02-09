@@ -336,19 +336,39 @@ class ToTacky:
             case syntax.Unary(operator, inner):
                 match operator:
                     case syntax.UnaryIncrement() | syntax.UnaryDecrement():
-                        assert(isinstance(inner,  syntax.Variable))
+                        instructions, inner_result = self.convert_expression(inner)
+
                         op = self.convert_modifying_op(operator)
                         result_var = self.make_tacky_variable(expr.expr_type)
-                        instructions = [
-                            tacky.Binary(
-                                operator=op,
-                                left=tacky.Identifier(inner.name),
-                                right=self.make_constant_of_type(1, expr.expr_type),
-                                dst=tacky.Identifier(inner.name)
-                            ),
-                            tacky.Copy(tacky.Identifier(inner.name), result_var)
-                        ]
-                        return (instructions, PlainOperand(result_var))
+
+                        match inner_result:
+                            case PlainOperand(val):
+                                # E.g. ++x
+                                instructions += [
+                                    tacky.Binary(
+                                        operator=op,
+                                        left=val,
+                                        right=self.make_constant_of_type(1, expr.expr_type),
+                                        dst=val
+                                    ),
+                                    tacky.Copy(val, result_var)
+                                ]
+                                return (instructions, PlainOperand(result_var))
+                            case DereferencedPointer(ptr):
+                                # E.g. ++(*x)
+                                # Get the value by dereferencing the pointer
+                                current_value = self.make_tacky_variable(expr.expr_type)
+                                instructions += [
+                                    tacky.Load(ptr, current_value),
+                                    tacky.Binary(
+                                        operator=op,
+                                        left=current_value,
+                                        right=self.make_constant_of_type(1, expr.expr_type),
+                                        dst=result_var
+                                    ),
+                                    tacky.Store(result_var, ptr)
+                                ]
+                                return (instructions, PlainOperand(result_var))
                     case _:
                         instructions, val = self.emit_tacky_and_convert(inner)
                         op = self.convert_unary_op(operator)
@@ -357,19 +377,37 @@ class ToTacky:
                         return (instructions + [instruction], PlainOperand(result_var))
 
             case syntax.Postfix(expr, operator):
-                assert(isinstance(expr,  syntax.Variable))
+                instructions, inner_result = self.convert_expression(expr)
                 op = self.convert_modifying_op(operator)
-                result_var = self.make_tacky_variable(expr.expr_type)
-                instructions = [
-                    tacky.Copy(tacky.Identifier(expr.name), result_var),
-                    tacky.Binary(
-                        operator=op,
-                        left=tacky.Identifier(expr.name),
-                        right=self.make_constant_of_type(1, expr.expr_type),
-                        dst=tacky.Identifier(expr.name)
-                    ),
-                ]
-                return (instructions, PlainOperand(result_var))
+                output_var = self.make_tacky_variable(expr.expr_type)
+
+                match inner_result:
+                    case PlainOperand(val):
+                        # e.g. x++
+                        instructions += [
+                            tacky.Copy(val, output_var),
+                            tacky.Binary(
+                                operator=op,
+                                left=output_var,
+                                right=self.make_constant_of_type(1, expr.expr_type),
+                                dst=val
+                            ),
+                        ]
+                        return (instructions, PlainOperand(output_var))
+                    case DereferencedPointer(ptr):
+                        # e.g. (*x)++
+                        result_var = self.make_tacky_variable(expr.expr_type)
+                        instructions += [
+                            tacky.Load(ptr, output_var),
+                            tacky.Binary(
+                                operator=op,
+                                left=output_var,
+                                right=self.make_constant_of_type(1, expr.expr_type),
+                                dst=result_var,
+                            ),
+                            tacky.Store(result_var, ptr)
+                        ]
+                        return (instructions, PlainOperand(output_var))
 
             case syntax.Binary(syntax.BinaryAnd(), left, right):
                 false_label = self.new_label('and_false')

@@ -213,6 +213,15 @@ class IdentifierResolution:
             case _:
                 raise Exception(f'invalid type for ForInit {init}')
 
+    def is_lvalue(self, expr: syntax.Expression) -> bool:
+        match expr:
+            case syntax.Variable():
+                return True
+            case syntax.Dereference():
+                return True
+            case _:
+                return False
+
     def resolve_expr(self, expr: syntax.Expression, identifier_map: dict):
         match expr:
             case syntax.Constant(_):
@@ -222,12 +231,12 @@ class IdentifierResolution:
                     self.error(f'undefined variable {name}')
                 return syntax.Variable(identifier_map[name].new_name)
             case syntax.Unary(op, expr):
-                if self.is_modifying_operator(op) and not self.is_variable(expr):
+                if self.is_modifying_operator(op) and not self.is_lvalue(expr):
                     self.error(f'invalid to apply {op} to {expr}')
                 expr = self.resolve_expr(expr, identifier_map)
                 return syntax.Unary(op, expr)
             case syntax.Postfix(expr, op):
-                if self.is_modifying_operator(op) and not self.is_variable(expr):
+                if self.is_modifying_operator(op) and not self.is_lvalue(expr):
                     self.error(f'invalid to apply {op} to {expr}')
                 expr = self.resolve_expr(expr, identifier_map)
                 return syntax.Postfix(expr, op)
