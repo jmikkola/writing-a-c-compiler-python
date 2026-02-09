@@ -921,6 +921,25 @@ class Typecheck:
                     if isinstance(left_type, syntax.Pointer):
                         self.check_pointer_op(op)
 
+                    # The current problem is that the type casting needed for a
+                    # binary expression doesn't happen if the binary expression
+                    # is assembled in the next compiler pass.  So, it should
+                    # probably be rewritten here.
+                    #
+                    # Ideal way to rewrite this:
+                    #     var <op>= expr  --> var = var <op> expr
+                    #     *var <op>= expr --> *var = *var <op> expr
+                    # and
+                    #     *lexpr <op>= expr
+                    #     -->
+                    #     temp = lexpr
+                    #     *temp = *temp <op> expr
+                    #
+                    # The problem is that this is hard to express when this
+                    # assignment is an inner expression, e.g. `foo(*bar() += 10)`,
+                    # because the return type of this is another expression.
+                    # Would it help to add a sequence expression type?
+
                 rhs = self.typecheck_expr(rhs)
                 converted_rhs = self.convert_by_assignment(rhs, left_type)
                 expr = syntax.Assignment(lhs, converted_rhs, op)
