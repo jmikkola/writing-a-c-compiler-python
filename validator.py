@@ -921,19 +921,6 @@ class Typecheck:
                     if isinstance(left_type, syntax.Pointer):
                         self.check_pointer_op(op)
 
-                    # TODO: This is no longer correct!
-                    # This logic only works because the assign target has no
-                    # side effects (e.g. it isn't `a[i++]`) so it can safely be
-                    # duplicated.
-                    #
-                    # An expression like
-                    #     *foo() &&= bar()
-                    # should convert into
-                    #     temp = foo()
-                    #     *temp = *temp && bar()
-                    rhs = syntax.Binary(op, lhs, rhs)
-                    op = None
-
                 rhs = self.typecheck_expr(rhs)
                 converted_rhs = self.convert_by_assignment(rhs, left_type)
                 expr = syntax.Assignment(lhs, converted_rhs, op)

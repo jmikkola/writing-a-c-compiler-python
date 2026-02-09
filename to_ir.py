@@ -318,20 +318,11 @@ class ToTacky:
             case syntax.Variable(name):
                 return ([], PlainOperand(tacky.Identifier(name)))
 
-            case syntax.Assignment(lhs, rhs, None):
-                l_instructions, lval = self.convert_expression(lhs)
-                r_instructions, rval = self.emit_tacky_and_convert(rhs)
-                instructions = l_instructions + r_instructions
-                match lval:
-                    case PlainOperand(obj):
-                        instructions.append(tacky.Copy(rval, obj))
-                        return (instructions, lval)
-                    case DereferencedPointer(ptr):
-                        instructions.append(tacky.Store(rval, ptr))
-                        return (instructions, PlainOperand(rval))
+            case syntax.Assignment(_, _, None):
+                return self.convert_simple_assignment(expr)
 
-            case syntax.Assignment(lhs, rhs, op):
-                raise Exception(f'the typecheck phase should have removed this possibility')
+            case syntax.Assignment(_, _, op):
+                return self.convert_operator_assignment(expr)
 
             case syntax.Unary(operator, inner):
                 match operator:
@@ -409,48 +400,8 @@ class ToTacky:
                         ]
                         return (instructions, PlainOperand(output_var))
 
-            case syntax.Binary(syntax.BinaryAnd(), left, right):
-                false_label = self.new_label('and_false')
-                end_label = self.new_label('and_end')
-                instructions_left, val_left = self.emit_tacky_and_convert(left)
-                instructions_right, val_right = self.emit_tacky_and_convert(right)
-                result_var = self.make_tacky_variable(syntax.Int())
-                instructions = instructions_left + [tacky.JumpIfZero(val_left, false_label)]
-                instructions += instructions_right + [tacky.JumpIfZero(val_right, false_label)]
-                instructions += [
-                    tacky.Copy(tacky.Constant(tacky.ConstInt(1)), result_var),
-                    tacky.Jump(end_label),
-                    tacky.Label(false_label),
-                    tacky.Copy(tacky.Constant(tacky.ConstInt(0)), result_var),
-                    tacky.Label(end_label),
-                ]
-                return (instructions, PlainOperand(result_var))
-
-            case syntax.Binary(syntax.BinaryOr(), left, right):
-                true_label = self.new_label('or_true')
-                end_label = self.new_label('or_end')
-                instructions_left, val_left = self.emit_tacky_and_convert(left)
-                instructions_right, val_right = self.emit_tacky_and_convert(right)
-                result_var = self.make_tacky_variable(syntax.Int())
-                instructions = instructions_left + [tacky.JumpIfNotZero(val_left, true_label)]
-                instructions += instructions_right + [tacky.JumpIfNotZero(val_right, true_label)]
-                instructions += [
-                    tacky.Copy(tacky.Constant(tacky.ConstInt(0)), result_var),
-                    tacky.Jump(end_label),
-                    tacky.Label(true_label),
-                    tacky.Copy(tacky.Constant(tacky.ConstInt(1)), result_var),
-                    tacky.Label(end_label),
-                ]
-                return (instructions, PlainOperand(result_var))
-
-            case syntax.Binary(operator, left, right):
-                instructions_left, val_left = self.emit_tacky_and_convert(left)
-                instructions_right, val_right = self.emit_tacky_and_convert(right)
-                op = self.convert_binary_op(operator)
-                result_var = self.make_tacky_variable(expr.expr_type)
-                instruction = tacky.Binary(operator=op, left=val_left, right=val_right, dst=result_var)
-                instructions = instructions_left + instructions_right + [instruction]
-                return (instructions, PlainOperand(result_var))
+            case syntax.Binary():
+                return self.convert_binary(expr)
 
             case syntax.Conditional(_, _, _):
                 return self.convert_conditional(expr)
@@ -474,6 +425,94 @@ class ToTacky:
 
             case _:
                 raise Exception(f'unhandled expression type, {expr}')
+
+    def convert_simple_assignment(self, expr: syntax.Assignment):
+        assert(expr.op is None)
+        l_instructions, lval_expr = self.convert_expression(expr.lhs)
+        r_instructions, rval = self.emit_tacky_and_convert(expr.rhs)
+        instructions = l_instructions + r_instructions
+        match lval_expr:
+            case PlainOperand(obj):
+                instructions.append(tacky.Copy(rval, obj))
+                return (instructions, lval_expr)
+            case DereferencedPointer(ptr):
+                instructions.append(tacky.Store(rval, ptr))
+                return (instructions, PlainOperand(rval))
+
+    def convert_operator_assignment(self, expr: syntax.Assignment):
+        assert(expr.op is not None)
+
+        instructions, lval_expr = self.convert_expression(expr.lhs)
+        match lval_expr:
+            case PlainOperand(val):
+                # This should mean that the lhs was just a variable
+                left_expr = expr.lhs
+
+                b_expression = syntax.Binary(expr.op, left_expr, expr.rhs).set_type(expr.expr_type)
+                b_instructions, bval = self.emit_tacky_and_convert(b_expression)
+                instructions += b_instructions
+
+                instructions.append(tacky.Copy(bval, val))
+                return (instructions, PlainOperand(val))
+
+            case DereferencedPointer(ptr):
+                # The lhs dereferences a pointer, so the left hand side of the binary operator
+                # be loaded from that pointer
+                left_temp = self.make_tacky_variable(expr.expr_type)
+                instructions.append(tacky.Load(ptr, left_temp))
+                left_expr = syntax.Variable(left_temp.name).set_type(expr.expr_type)
+
+                b_expression = syntax.Binary(expr.op, left_expr, expr.rhs).set_type(expr.expr_type)
+                b_instructions, bval = self.emit_tacky_and_convert(b_expression)
+                instructions += b_instructions
+
+                instructions.append(tacky.Store(bval, ptr))
+                return (instructions, PlainOperand(bval))
+
+    def convert_binary(self, expr):
+        match expr.operator:
+            case syntax.BinaryAnd():
+                false_label = self.new_label('and_false')
+                end_label = self.new_label('and_end')
+                instructions_left, val_left = self.emit_tacky_and_convert(expr.left)
+                instructions_right, val_right = self.emit_tacky_and_convert(expr.right)
+                result_var = self.make_tacky_variable(syntax.Int())
+                instructions = instructions_left + [tacky.JumpIfZero(val_left, false_label)]
+                instructions += instructions_right + [tacky.JumpIfZero(val_right, false_label)]
+                instructions += [
+                    tacky.Copy(tacky.Constant(tacky.ConstInt(1)), result_var),
+                    tacky.Jump(end_label),
+                    tacky.Label(false_label),
+                    tacky.Copy(tacky.Constant(tacky.ConstInt(0)), result_var),
+                    tacky.Label(end_label),
+                ]
+                return (instructions, PlainOperand(result_var))
+
+            case syntax.BinaryOr():
+                true_label = self.new_label('or_true')
+                end_label = self.new_label('or_end')
+                instructions_left, val_left = self.emit_tacky_and_convert(expr.left)
+                instructions_right, val_right = self.emit_tacky_and_convert(expr.right)
+                result_var = self.make_tacky_variable(syntax.Int())
+                instructions = instructions_left + [tacky.JumpIfNotZero(val_left, true_label)]
+                instructions += instructions_right + [tacky.JumpIfNotZero(val_right, true_label)]
+                instructions += [
+                    tacky.Copy(tacky.Constant(tacky.ConstInt(0)), result_var),
+                    tacky.Jump(end_label),
+                    tacky.Label(true_label),
+                    tacky.Copy(tacky.Constant(tacky.ConstInt(1)), result_var),
+                    tacky.Label(end_label),
+                ]
+                return (instructions, PlainOperand(result_var))
+
+            case _:
+                instructions_left, val_left = self.emit_tacky_and_convert(expr.left)
+                instructions_right, val_right = self.emit_tacky_and_convert(expr.right)
+                op = self.convert_binary_op(expr.operator)
+                result_var = self.make_tacky_variable(expr.expr_type)
+                instruction = tacky.Binary(operator=op, left=val_left, right=val_right, dst=result_var)
+                instructions = instructions_left + instructions_right + [instruction]
+                return (instructions, PlainOperand(result_var))
 
     def convert_constant(self, constant: syntax.Const) -> tacky.Const:
         match constant:
