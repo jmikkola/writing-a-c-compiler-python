@@ -1,6 +1,8 @@
 import pathlib
 import subprocess
 import sys
+import time
+from contextlib import contextmanager
 
 import labels
 import options
@@ -28,15 +30,18 @@ def run_compiler(args: options.Args):
     if stage == 'all':
         to_clean_up.append(assembly_file)
 
-    preprocess(name, preprocessed_file)
+    with timed('preprocess'):
+        preprocess(name, preprocessed_file)
     try:
-        compile(stage, preprocessed_file, assembly_file, args.print_output)
+        with timed('compile'):
+            compile(stage, preprocessed_file, assembly_file, args.print_output)
     except WACCException as e:
         print(e, file=sys.stderr)
         sys.exit(1)
 
     if stage == 'all':
-        assemble_and_link(assembly_file, compiled_file, args.object, args.libraries)
+        with timed('assemble_and_link'):
+            assemble_and_link(assembly_file, compiled_file, args.object, args.libraries)
 
     # Clean up temporary files
     # (if the previous stages errored out, leave the files alone for debugging)
@@ -108,3 +113,15 @@ def assemble_and_link(assembly_file, compiled_file, object, libraries):
     for lib in libraries:
         command.append('-l' + lib)
     subprocess.run(command, check=True)
+
+
+enable_timing = False
+
+
+@contextmanager
+def timed(name):
+    start = time.time()
+    yield
+    delta = time.time() - start
+    if enable_timing:
+        print(f'{name} took {delta:.4f}')
