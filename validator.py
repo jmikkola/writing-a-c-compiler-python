@@ -526,6 +526,12 @@ class Typecheck:
         self.symbols = {}
         self.current_return_type = None
         self._switch_condition_types = {}
+        self._n_temp = 0
+
+    def new_temp_var(self, name):
+        result = f'tmp.{name}.{self._n_temp}'
+        self._n_temp += 1
+        return result
 
     def error(self, msg):
         raise TypeError(msg)
@@ -917,33 +923,61 @@ class Typecheck:
                 if isinstance(left_type, syntax.Func):
                     self.error(f'Cannot assign to a function {name}')
 
-                if op is not None:
-                    if isinstance(left_type, syntax.Pointer):
-                        self.check_pointer_op(op)
+                if op is None:
+                    # Handle an assignment without an operator (e.g. `x = foo()`)
+                    rhs = self.typecheck_expr(rhs)
+                    converted_rhs = self.convert_by_assignment(rhs, left_type)
+                    expr = syntax.Assignment(lhs, converted_rhs, None)
+                    return expr.set_type(left_type)
 
-                    # The current problem is that the type casting needed for a
-                    # binary expression doesn't happen if the binary expression
-                    # is assembled in the next compiler pass.  So, it should
-                    # probably be rewritten here.
-                    #
-                    # Ideal way to rewrite this:
-                    #     var <op>= expr  --> var = var <op> expr
-                    #     *var <op>= expr --> *var = *var <op> expr
-                    # and
-                    #     *lexpr <op>= expr
-                    #     -->
-                    #     temp = lexpr
-                    #     *temp = *temp <op> expr
-                    #
-                    # The problem is that this is hard to express when this
-                    # assignment is an inner expression, e.g. `foo(*bar() += 10)`,
-                    # because the return type of this is another expression.
-                    # Would it help to add a sequence expression type?
+                # The rest of this handles assignments with operators,
+                # e.g. `x += y`.
 
-                rhs = self.typecheck_expr(rhs)
-                converted_rhs = self.convert_by_assignment(rhs, left_type)
-                expr = syntax.Assignment(lhs, converted_rhs, op)
-                return expr.set_type(left_type)
+                if isinstance(left_type, syntax.Pointer):
+                    # in e.g. `x |= foo()`, the expression is invalid if `x` is
+                    # some kind of pointer
+                    self.check_pointer_op(op)
+
+                match lhs:
+                    case syntax.Variable() | syntax.Dereference(syntax.Variable()):
+                        # Rewrite simple expressions in a way that duplicates
+                        # the lhs. Only do this when this doesn't create extra
+                        # work (and has no risk of duplicating side effects).
+                        new_rhs = syntax.Binary(op, lhs, rhs)
+                        typed_rhs = self.typecheck_expr(new_rhs)
+                        converted_rhs = self.convert_by_assignment(typed_rhs, left_type)
+                        expr = syntax.Assignment(lhs, converted_rhs, None)
+                        return expr.set_type(left_type)
+                    case syntax.Dereference(inner):
+                        # When the lhs is more complicated (e.g. `**pptr`,
+                        # `*foo()`, etc), evaluate it up to the point that we
+                        # know the address the pointer points to as a separate
+                        # expression.
+                        # This converts
+                        #   *<expr1> <op>= <expr2>
+                        # into
+                        #   tmp.ptr.0 = <expr1>
+                        #   *tmp.ptr.0 = *tpm.ptr.0 <op> <expr2>
+                        ptr_value_name = self.new_temp_var('ptr')
+                        ptr_var = syntax.Variable(ptr_value_name)
+
+                        inner = self.typecheck_expr(inner)
+                        self.symbols[ptr_value_name] = symbol.Symbol(inner.expr_type, symbol.LocalAttr())
+
+                        # get_ptr is the `tmp.ptr.0 = <expr1>` part
+                        get_ptr = syntax.Assignment(ptr_var, inner, None)
+                        get_ptr = self.typecheck_expr(get_ptr)
+
+                        # assign is the `*tmp.ptr.0 = *tmp.ptr.0 <op> <expr2>` part
+                        dereference = syntax.Dereference(ptr_var)
+                        new_rhs = syntax.Binary(op, dereference, rhs)
+                        assign = syntax.Assignment(dereference, new_rhs, None)
+                        assign = self.typecheck_expr(assign)
+
+                        expr = syntax.Sequence(get_ptr, assign)
+                        return expr.set_type(left_type)
+                    case _:
+                        self.error(f'invalid left hand side for assignment: {lhs}')
 
             case syntax.Conditional(condition, t, e):
                 condition = self.typecheck_expr(condition)

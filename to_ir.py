@@ -403,10 +403,13 @@ class ToTacky:
             case syntax.Binary():
                 return self.convert_binary(expr)
 
-            case syntax.Conditional(_, _, _):
+            case syntax.Sequence():
+                return self.convert_sequence(expr)
+
+            case syntax.Conditional():
                 return self.convert_conditional(expr)
 
-            case syntax.Call(_, _):
+            case syntax.Call():
                 return self.convert_call(expr)
 
             case syntax.Dereference(inner):
@@ -561,6 +564,13 @@ class ToTacky:
             instructions.append(tacky.ZeroExtend(val, dst))
 
         return (instructions, PlainOperand(dst))
+
+    def convert_sequence(self, expr: syntax.Sequence):
+        # Evaluate the first experssion and throw away the result
+        instructions_first, _ = self.convert_expression(expr.first)
+        # Evaluate the second expression and keep the value
+        instructions_second, val = self.emit_tacky_and_convert(expr.second)
+        return (instructions_first + instructions_second, val)
 
     def convert_conditional(self, expr: syntax.Conditional):
         false_label = self.new_label('cond_false')

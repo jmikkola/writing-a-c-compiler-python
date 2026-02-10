@@ -416,6 +416,13 @@ class AddrOf(Expression, namedtuple('AddrOf', ['inner'])):
         return f'AddrOf({inner})'
 
 
+class Sequence(Expression, namedtuple('Sequence', ['first', 'second'])):
+    def __str__(self):
+        first = self.first.pretty_print()
+        second = self.second.pretty_print()
+        return f'Sequence({first}, {second})'
+
+
 ##
 ## Unary ops
 ##
