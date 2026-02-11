@@ -107,6 +107,15 @@ class Parser:
         if self.peek('('):
             param_list = self.parse_param_list()
             return syntax.FunDeclarator(param_list, inner)
+        elif self.peek('['):
+            while self.peek('['):
+                self.expect('[')
+                size = self.expect('constant').text
+                self.expect(']')
+                if not size.isdigit():
+                    self.fail(f'invalid constant for an array size: {size}')
+                inner = syntax.ArrayDeclarator(inner, int(size))
+            return inner
         else:
             return inner
 
@@ -163,26 +172,51 @@ class Parser:
                         return (identifier, derived_type, param_names)
                     case _:
                         self.fail('types derived from a function type are not supported')
+            case syntax.ArrayDeclarator(element, size):
+                derived_type = syntax.Array(base_type, size)
+                return process_declarator(element, derived_type)
 
-
-    def parse_abstract_declarator(self) -> syntax.AbstractDeclarator:
+    def parse_optional_abstract_declarator(self):
         if self.peek('*') or self.peek('('):
-            return self.parse_actual_abstract_declarator()
+            return self.parse_abstract_declarator()
         else:
             return syntax.AbstractBase()
 
-    def parse_actual_abstract_declarator(self) -> syntax.AbstractDeclarator:
+    def parse_abstract_declarator(self) -> syntax.AbstractDeclarator:
+        '''
+        <abstract-declarator> := "*" [ <abstract-declarator> ]
+                               | <direct-abstract-declarator>
+        '''
         if self.peek('*'):
             self.consume()
-            # This '*' might have been the end of the abstract declarator, in
-            # which case the recursive call will return AbstractBase
-            inner = self.parse_abstract_declarator()
+            inner = self.parse_optional_abstract_declarator()
             return syntax.AbstractPointer(inner)
         else:
+            return self.parse_direct_declarator()
+
+    def parse_direct_abstract_declarator(self) -> syntax.AbstractDeclarator:
+        '''
+        <direct-abstract-declarator> := "(" <abstract-declarator> ")" { "[" <const> "]" }
+                                      | { "[" <const> "]" } +
+        '''
+        if self.peek('('):
             self.expect('(')
-            declarator = self.parse_actual_abstract_declarator()
+            decl = self.parse_abstract_declarator()
             self.expect(')')
-            return declarator
+        else:
+            decl = self.parse_abstract_declarator(syntax.AbstractBase())
+
+        while self.peek('['):
+            decl = self.parse_array_abstract_declarator(decl)
+        return decl
+
+    def parse_array_abstract_declarator(self, existing: syntax.AbstractDeclarator):
+        self.expect('[')
+        value = self.expect('constant').text
+        self.expect(']')
+        if not value.isdigit():
+            self.fail(f'array dimensions must be integers, got {value}')
+        return syntax.AbstractArray(existing, int(value))
 
     def process_abstract_declarator(
             self,
@@ -195,6 +229,9 @@ class Parser:
             case syntax.AbstractPointer(inner):
                 derived_type = syntax.Pointer(base_type)
                 return self.process_abstract_declarator(derived_type, inner)
+            case syntax.AbstractArray(element, size):
+                derived_type = syntax.Array(base_type, size)
+                return self.process_abstract_declarator(derived_type, element)
             case _:
                 raise Exception(f'unhandled abstract declarator {declarator}')
 
@@ -589,7 +626,7 @@ class Parser:
     def parse_cast(self) -> syntax.Expression:
         self.expect('(')
         target_type = self.parse_type_specifier()
-        declarator = self.parse_abstract_declarator()
+        declarator = self.parse_optional_abstract_declarator()
         derived_type = self.process_abstract_declarator(target_type, declarator)
         self.expect(')')
         expr = self.parse_factor()

@@ -88,6 +88,11 @@ class Pointer(Type, namedtuple('Pointer', ['referenced'])):
         return f'Pointer({referenced})'
 
 
+class Array(Type, namedtuple('Array', ['element', 'size'])):
+    def __str__(self):
+        return f'Array({self.element}, {self.size})'
+
+
 ##
 ## Type declarator
 ##
@@ -112,7 +117,13 @@ class FunDeclarator:
     decl: Declarator
 
 
-Declarator = Union[Ident, PointerDeclarator, FunDeclarator]
+@dataclass
+class ArrayDeclarator:
+    element: Declarator
+    size: int
+
+
+Declarator = Union[Ident, PointerDeclarator, FunDeclarator, ArrayDeclarator]
 
 
 @dataclass
@@ -129,11 +140,17 @@ class AbstractPointer:
 
 
 @dataclass
+class AbstractArray:
+    declarator: AbstractDeclarator
+    size: int
+
+
+@dataclass
 class AbstractBase:
     pass
 
 
-AbstractDeclarator = Union[AbstractPointer, AbstractBase]
+AbstractDeclarator = Union[AbstractPointer, AbstractBase, AbstractArray]
 
 
 ##
@@ -421,6 +438,38 @@ class Sequence(Expression, namedtuple('Sequence', ['first', 'second'])):
         first = self.first.pretty_print()
         second = self.second.pretty_print()
         return f'Sequence({first}, {second})'
+
+
+class Subscript(Expression, namedtuple('Subscript', ['left', 'right'])):
+    def __str__(self):
+        left = self.left.pretty_print()
+        right = self.right.pretty_print()
+        return f'Subscript({left}, {right})'
+
+
+##
+## Array initializers
+##
+
+class Initializer:
+    def pretty_print(self):
+        return str(self)
+
+    def set_type(self, expr_type):
+        assert(expr_type is not None)
+        self.expr_type = expr_type
+        return self
+
+    def pretty_print(self):
+        return f'<{self.expr_type}>{self}'
+
+
+class SingleInit(Initializer, namedtuple('SingleInit', ['expr'])):
+    pass
+
+
+class CompoundInit(Initializer, namedtuple('CompoundInit', ['initializers'])):
+    pass
 
 
 ##
