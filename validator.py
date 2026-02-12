@@ -658,7 +658,7 @@ class Typecheck:
         else:
             self.symbols[v.name] = symbol.Symbol(v.var_type, symbol.LocalAttr())
             if v.init is not None:
-                init = self.typecheck_expr(v.init)
+                init = self.typecheck_and_convert(v.init)
                 init = self.convert_by_assignment(init, v.var_type)
                 return syntax.VarDeclaration(v.name, init, v.var_type, v.storage_class)
         return v
@@ -744,35 +744,35 @@ class Typecheck:
             case syntax.FuncDeclaration():
                 return self.typecheck_func_decl(block_item, in_block=True)
             case syntax.Return(expr):
-                expr = self.typecheck_expr(expr)
+                expr = self.typecheck_and_convert(expr)
                 expr = self.convert_by_assignment(expr, self.current_return_type)
                 return syntax.Return(expr)
             case syntax.ExprStmt(expr):
-                expr = self.typecheck_expr(expr)
+                expr = self.typecheck_and_convert(expr)
                 return syntax.ExprStmt(expr)
             case syntax.Goto(_) | \
                  syntax.NullStatement():
                 return block_item
             case syntax.IfStatement(test, t, e):
-                test = self.typecheck_expr(test)
+                test = self.typecheck_and_convert(test)
                 t = self.typecheck_statement(t)
                 if e:
                     e = self.typecheck_statement(e)
                 return syntax.IfStatement(test, t, e)
             case syntax.While(test, body, loop_label):
-                test = self.typecheck_expr(test)
+                test = self.typecheck_and_convert(test)
                 body = self.typecheck_statement(body)
                 return syntax.While(test, body, loop_label)
             case syntax.DoWhile(body, test, loop_label):
-                test = self.typecheck_expr(test)
+                test = self.typecheck_and_convert(test)
                 body = self.typecheck_statement(body)
                 return syntax.DoWhile(body, test, loop_label)
             case syntax.For(init, condition, post, body, loop_label):
                 init = self.typecheck_for_init(init)
                 if condition:
-                    condition = self.typecheck_expr(condition)
+                    condition = self.typecheck_and_convert(condition)
                 if post:
-                    post = self.typecheck_expr(post)
+                    post = self.typecheck_and_convert(post)
                 body = self.typecheck_statement(body)
                 return syntax.For(init, condition, post, body, loop_label)
             case syntax.Continue(_):
@@ -786,7 +786,7 @@ class Typecheck:
                 block = self.typecheck_block(block)
                 return syntax.Compound(block)
             case syntax.Switch(condition, body, switch_label, case_values):
-                condition = self.typecheck_expr(condition)
+                condition = self.typecheck_and_convert(condition)
                 condition_type = condition.expr_type
                 self._switch_condition_types[switch_label] = condition_type
                 body = self.typecheck_statement(body)
@@ -848,6 +848,17 @@ class Typecheck:
             case _:
                 raise Exception(f'unhandled type for constant {target_type}')
 
+    def typecheck_and_convert(self, expr: syntax.Expression):
+        typed = self.typecheck_expr(expr)
+        assert(typed.expr_type is not None)
+        match typed.expr_type:
+            case syntax.Array(elem_type, _size):
+                # Insert an implicit dereference when the expression's type is array
+                addr_expr = syntax.AddrOf(typed)
+                return addr_expr.set_type(syntax.Pointer(element_type))
+            case _:
+                return typed
+
     def typecheck_expr(self, expr: syntax.Expression):
         match expr:
             case syntax.Constant(const):
@@ -883,7 +894,7 @@ class Typecheck:
 
                 converted_arguments = []
                 for (arg, param_type) in zip(arguments, symbol_type.params):
-                    arg = self.typecheck_expr(arg)
+                    arg = self.typecheck_and_convert(arg)
                     converted_arg = self.convert_by_assignment(arg, param_type)
                     converted_arguments.append(converted_arg)
 
@@ -891,7 +902,7 @@ class Typecheck:
                 return expr.set_type(symbol_type.ret)
 
             case syntax.Unary(op, e):
-                e = self.typecheck_expr(e)
+                e = self.typecheck_and_convert(e)
                 if e.expr_type == syntax.Double():
                     if op == syntax.UnaryInvert():
                         self.error(f'Cannot apply unary op {op} to a double')
@@ -905,7 +916,7 @@ class Typecheck:
                     return expr.set_type(e.expr_type)
 
             case syntax.Postfix(e, op):
-                e = self.typecheck_expr(e)
+                e = self.typecheck_and_convert(e)
                 expr = syntax.Postfix(e, op)
                 return expr.set_type(e.expr_type)
 
@@ -916,7 +927,7 @@ class Typecheck:
                 if not self.is_lvalue(lhs):
                     self.error(f'invalid target for assignment: {lhs}')
 
-                lhs = self.typecheck_expr(lhs)
+                lhs = self.typecheck_and_convert(lhs)
                 left_type = lhs.expr_type
                 assert(left_type is not None)
 
@@ -925,7 +936,7 @@ class Typecheck:
 
                 if op is None:
                     # Handle an assignment without an operator (e.g. `x = foo()`)
-                    rhs = self.typecheck_expr(rhs)
+                    rhs = self.typecheck_and_convert(rhs)
                     converted_rhs = self.convert_by_assignment(rhs, left_type)
                     expr = syntax.Assignment(lhs, converted_rhs, None)
                     return expr.set_type(left_type)
@@ -944,7 +955,7 @@ class Typecheck:
                         # the lhs. Only do this when this doesn't create extra
                         # work (and has no risk of duplicating side effects).
                         new_rhs = syntax.Binary(op, lhs, rhs)
-                        typed_rhs = self.typecheck_expr(new_rhs)
+                        typed_rhs = self.typecheck_and_convert(new_rhs)
                         converted_rhs = self.convert_by_assignment(typed_rhs, left_type)
                         expr = syntax.Assignment(lhs, converted_rhs, None)
                         return expr.set_type(left_type)
@@ -961,18 +972,18 @@ class Typecheck:
                         ptr_value_name = self.new_temp_var('ptr')
                         ptr_var = syntax.Variable(ptr_value_name)
 
-                        inner = self.typecheck_expr(inner)
+                        inner = self.typecheck_and_convert(inner)
                         self.symbols[ptr_value_name] = symbol.Symbol(inner.expr_type, symbol.LocalAttr())
 
                         # get_ptr is the `tmp.ptr.0 = <expr1>` part
                         get_ptr = syntax.Assignment(ptr_var, inner, None)
-                        get_ptr = self.typecheck_expr(get_ptr)
+                        get_ptr = self.typecheck_and_convert(get_ptr)
 
                         # assign is the `*tmp.ptr.0 = *tmp.ptr.0 <op> <expr2>` part
                         dereference = syntax.Dereference(ptr_var)
                         new_rhs = syntax.Binary(op, dereference, rhs)
                         assign = syntax.Assignment(dereference, new_rhs, None)
-                        assign = self.typecheck_expr(assign)
+                        assign = self.typecheck_and_convert(assign)
 
                         expr = syntax.Sequence(get_ptr, assign)
                         return expr.set_type(left_type)
@@ -980,9 +991,9 @@ class Typecheck:
                         self.error(f'invalid left hand side for assignment: {lhs}')
 
             case syntax.Conditional(condition, t, e):
-                condition = self.typecheck_expr(condition)
-                t = self.typecheck_expr(t)
-                e = self.typecheck_expr(e)
+                condition = self.typecheck_and_convert(condition)
+                t = self.typecheck_and_convert(t)
+                e = self.typecheck_and_convert(e)
 
                 t_type = t.expr_type
                 e_type = e.expr_type
@@ -997,7 +1008,7 @@ class Typecheck:
                 return expr.set_type(common_type)
 
             case syntax.Cast(target_type, e):
-                e = self.typecheck_expr(e)
+                e = self.typecheck_and_convert(e)
                 match (e.expr_type, target_type):
                     case (syntax.Double(), syntax.Pointer()):
                         self.fail('Cannot cast doubles to pointers')
@@ -1007,7 +1018,7 @@ class Typecheck:
                 return expr.set_type(target_type)
 
             case syntax.Dereference(e):
-                e = self.typecheck_expr(e)
+                e = self.typecheck_and_convert(e)
                 match e.expr_type:
                     case syntax.Pointer(referenced_type):
                         expr = syntax.Dereference(e)
@@ -1018,6 +1029,9 @@ class Typecheck:
             case syntax.AddrOf(e):
                 if not self.is_lvalue(e):
                     self.fail(f'Cannot take the address of a non-lvalue: {e}')
+                # This intentionally doesn't call typecheck_and_convert because
+                # this is the one case where array typed expressions aren't
+                # implicitly converted to a pointer.
                 e = self.typecheck_expr(e)
                 expr = syntax.AddrOf(e)
                 pointer_type = syntax.Pointer(e.expr_type)
@@ -1027,8 +1041,8 @@ class Typecheck:
                 raise Exception(f'Unhandled type of expression {expr}')
 
     def typecheck_binary(self, expression: syntax.Binary) -> syntax.Binary:
-        l = self.typecheck_expr(expression.left)
-        r = self.typecheck_expr(expression.right)
+        l = self.typecheck_and_convert(expression.left)
+        r = self.typecheck_and_convert(expression.right)
         op = expression.operator
 
         match op:
@@ -1188,7 +1202,7 @@ class Typecheck:
                 return syntax.InitDecl(stmt)
             case syntax.InitExp(expr):
                 if expr:
-                    expr = self.typecheck_expr(expr)
+                    expr = self.typecheck_and_convert(expr)
                 return syntax.InitExp(expr)
             case None:
                 return None
