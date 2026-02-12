@@ -213,14 +213,6 @@ class IdentifierResolution:
             case _:
                 raise Exception(f'invalid type for ForInit {init}')
 
-    def is_lvalue(self, expr: syntax.Expression) -> bool:
-        match expr:
-            case syntax.Variable():
-                return True
-            case syntax.Dereference():
-                return True
-            case _:
-                return False
 
     def resolve_expr(self, expr: syntax.Expression, identifier_map: dict):
         match expr:
@@ -231,12 +223,12 @@ class IdentifierResolution:
                     self.error(f'undefined variable {name}')
                 return syntax.Variable(identifier_map[name].new_name)
             case syntax.Unary(op, expr):
-                if self.is_modifying_operator(op) and not self.is_lvalue(expr):
+                if self.is_modifying_operator(op) and not is_lvalue(expr):
                     self.error(f'invalid to apply {op} to {expr}')
                 expr = self.resolve_expr(expr, identifier_map)
                 return syntax.Unary(op, expr)
             case syntax.Postfix(expr, op):
-                if self.is_modifying_operator(op) and not self.is_lvalue(expr):
+                if self.is_modifying_operator(op) and not is_lvalue(expr):
                     self.error(f'invalid to apply {op} to {expr}')
                 expr = self.resolve_expr(expr, identifier_map)
                 return syntax.Postfix(expr, op)
@@ -924,10 +916,10 @@ class Typecheck:
                 return self.typecheck_binary(expr)
 
             case syntax.Assignment(lhs, rhs, op):
-                if not self.is_lvalue(lhs):
+                lhs = self.typecheck_and_convert(lhs)
+                if not is_lvalue(lhs):
                     self.error(f'invalid target for assignment: {lhs}')
 
-                lhs = self.typecheck_and_convert(lhs)
                 left_type = lhs.expr_type
                 assert(left_type is not None)
 
@@ -1027,7 +1019,7 @@ class Typecheck:
                         self.fail(f'Cannot dereference non-pointer: {e.expr_type}')
 
             case syntax.AddrOf(e):
-                if not self.is_lvalue(e):
+                if not is_lvalue(e):
                     self.fail(f'Cannot take the address of a non-lvalue: {e}')
                 # This intentionally doesn't call typecheck_and_convert because
                 # this is the one case where array typed expressions aren't
@@ -1125,15 +1117,6 @@ class Typecheck:
         expr = syntax.Binary(op, l_converted, r_converted)
         return expr.set_type(syntax.Int())
 
-    def is_lvalue(self, expression: syntax.Expression) -> bool:
-        match expression:
-            case syntax.Variable():
-                return True
-            case syntax.Dereference(inner):
-                return True
-            case _:
-                return False
-
     def convert_to(self, expression, target_type):
         assert(expression.expr_type is not None)
         if expression.expr_type == target_type:
@@ -1208,3 +1191,15 @@ class Typecheck:
                 return None
             case _:
                 raise Exception(f'invalid type for ForInit {init}')
+
+
+def is_lvalue(self, expr: syntax.Expression) -> bool:
+    match expr:
+        case syntax.Variable():
+            return True
+        case syntax.Dereference():
+            return True
+        case syntax.Subscript():
+            return True
+        case _:
+            return False
