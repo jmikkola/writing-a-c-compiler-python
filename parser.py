@@ -110,11 +110,9 @@ class Parser:
         elif self.peek('['):
             while self.peek('['):
                 self.expect('[')
-                size = self.expect('constant').text
+                size = self.parse_integer_constant()
                 self.expect(']')
-                if not size.isdigit():
-                    self.fail(f'invalid constant for an array size: {size}')
-                inner = syntax.ArrayDeclarator(inner, int(size))
+                inner = syntax.ArrayDeclarator(inner, size)
             return inner
         else:
             return inner
@@ -174,10 +172,10 @@ class Parser:
                         self.fail('types derived from a function type are not supported')
             case syntax.ArrayDeclarator(element, size):
                 derived_type = syntax.Array(base_type, size)
-                return process_declarator(element, derived_type)
+                return self.process_declarator(element, derived_type)
 
     def parse_optional_abstract_declarator(self):
-        if self.peek('*') or self.peek('('):
+        if self.peek('*') or self.peek('(') or self.peek('['):
             return self.parse_abstract_declarator()
         else:
             return syntax.AbstractBase()
@@ -192,7 +190,7 @@ class Parser:
             inner = self.parse_optional_abstract_declarator()
             return syntax.AbstractPointer(inner)
         else:
-            return self.parse_direct_declarator()
+            return self.parse_direct_abstract_declarator()
 
     def parse_direct_abstract_declarator(self) -> syntax.AbstractDeclarator:
         '''
@@ -204,7 +202,7 @@ class Parser:
             decl = self.parse_abstract_declarator()
             self.expect(')')
         else:
-            decl = self.parse_abstract_declarator(syntax.AbstractBase())
+            decl = self.parse_array_abstract_declarator(syntax.AbstractBase())
 
         while self.peek('['):
             decl = self.parse_array_abstract_declarator(decl)
@@ -212,11 +210,9 @@ class Parser:
 
     def parse_array_abstract_declarator(self, existing: syntax.AbstractDeclarator):
         self.expect('[')
-        value = self.expect('constant').text
+        size = self.parse_integer_constant()
         self.expect(']')
-        if not value.isdigit():
-            self.fail(f'array dimensions must be integers, got {value}')
-        return syntax.AbstractArray(existing, int(value))
+        return syntax.AbstractArray(existing, size)
 
     def process_abstract_declarator(
             self,
@@ -266,7 +262,7 @@ class Parser:
         init = None
         if self.peek('='):
             self.expect('=')
-            init = self.parse_expression()
+            init = self.parse_initializer()
         self.expect(';')
         return syntax.VarDeclaration(name, init, decl_type, storage_class)
 
@@ -594,13 +590,18 @@ class Parser:
     def parse_factor(self) -> syntax.Expression:
         ''' parse a factor (anything without a binary expression) '''
         expr = self.parse_factor_without_postfix()
-        while self.peek('++') or self.peek('--'):
+        while self.peek('++') or self.peek('--') or self.peek('['):
             if self.peek('++'):
                 self.expect('++')
                 expr = syntax.Postfix(expr, syntax.UnaryIncrement())
-            else:
+            elif self.peek('--'):
                 self.expect('--')
                 expr = syntax.Postfix(expr, syntax.UnaryDecrement())
+            else:
+                self.expect('[')
+                subscript = self.parse_expression()
+                self.expect(']')
+                expr = syntax.Subscript(expr, subscript)
         return expr
 
     def parse_factor_without_postfix(self):
@@ -685,6 +686,18 @@ class Parser:
             # based on sys.float_info, it seems like python uses 64-bit floats
             return syntax.Constant(syntax.ConstDouble(float(text)))
 
+        return self.parse_integer_constant_from_token(token)
+
+    def parse_integer_constant(self) -> syntax.Constant:
+        token = self.expect('constant')
+        text = token.text
+        if '.' in text or 'e' in text or 'E' in text:
+            self.fail(f'invalid integer constant: {text}')
+        return self.parse_integer_constant_from_token(token)
+
+    def parse_integer_constant_from_token(self, token) -> syntax.Constant:
+        text = token.text
+
         digits = DIGITS.match(text).group()
         value = int(digits)
 
@@ -716,6 +729,26 @@ class Parser:
                 return syntax.Constant(syntax.ConstLong(value))
             else:
                 return syntax.Constant(syntax.ConstInt(value))
+
+    def parse_initializer(self) -> syntax.Initializer:
+        '''
+        <initializer> ::= <exp>
+                        | "{" <initializer> { "," <initializer> } [","] "}"
+        '''
+        if self.peek("{"):
+            initializers = []
+            self.expect("{")
+            initializers.append(self.parse_initializer())
+            while not self.peek("}"):
+                self.expect(",")
+                if self.peek("}"):
+                    break
+                initializers.append(self.parse_initializer())
+            self.expect("}")
+            return syntax.CompoundInit(initializers)
+        else:
+            expr = self.parse_expression()
+            return syntax.SingleInit(expr)
 
     def peek(self, kind=None, value=None, offset=0):
         return self.token_iter.peek(kind, value, offset)
