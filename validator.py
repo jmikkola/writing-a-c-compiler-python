@@ -1004,6 +1004,8 @@ class Typecheck:
                 return expr.set_type(common_type)
 
             case syntax.Cast(target_type, e):
+                if self.is_array(target_type):
+                    self.fail('Cannot cast to an array')
                 e = self.typecheck_and_convert(e)
                 match (e.expr_type, target_type):
                     case (syntax.Double(), syntax.Pointer()):
@@ -1213,6 +1215,13 @@ class Typecheck:
             case syntax.Int() | syntax.UInt():
                 return True
             case syntax.Long() | syntax.ULong():
+                return True
+            case _:
+                return False
+
+    def is_array(self, t):
+        match t:
+            case syntax.Array():
                 return True
             case _:
                 return False
