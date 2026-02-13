@@ -260,6 +260,10 @@ class IdentifierResolution:
             case syntax.AddrOf(expr):
                 expr = self.resolve_expr(expr, identifier_map)
                 return syntax.AddrOf(expr)
+            case syntax.Subscript(left, right):
+                left = self.resolve_expr(left, identifier_map)
+                right = self.resolve_expr(right, identifier_map)
+                return syntax.Subscript(left, right)
             case _:
                 raise Exception(f'unhandled type of expression {expr}')
 
@@ -1029,6 +1033,22 @@ class Typecheck:
                 pointer_type = syntax.Pointer(e.expr_type)
                 return expr.set_type(pointer_type)
 
+            case syntax.Subscript(left, right):
+                left = self.typecheck_and_convert(left)
+                right = self.typecheck_and_convert(right)
+                tl = left.expr_type
+                tr = right.expr_type
+                if self.is_pointer(tl) and self.is_integer(tr):
+                    ptr_type = tl
+                    right = self.convert_to(right, syntax.Long())
+                elif self.is_integer(tl) and self.is_pointer(tr):
+                    ptr_type = tr
+                    left = self.convert_to(left, syntax.Long())
+                else:
+                    self.fail('Subscript must have integer and pointer operatnd')
+                expr = sytnax.Subscript(left, right)
+                return expr.set_type(ptr_type.referenced)
+
             case _:
                 raise Exception(f'Unhandled type of expression {expr}')
 
@@ -1042,6 +1062,10 @@ class Typecheck:
                 return self.typecheck_binary_equality(op, l, r)
             case syntax.NotEquals():
                 return self.typecheck_binary_equality(op, l, r)
+            case syntax.BinaryAdd():
+                return self.typecheck_binary_add(l, r)
+            case syntax.BinarySubtract():
+                return self.typecheck_binary_subtract(l, r)
 
         common_type = self.get_common_type(l.expr_type, r.expr_type)
 
@@ -1088,6 +1112,43 @@ class Typecheck:
             return expr.set_type(syntax.Int())
 
         return expr.set_type(common_type)
+
+    def typecheck_binary_add(self, l, r):
+        op = syntax.BinaryAdd()
+        if self.is_arithmetic(l.expr_type) and self.is_arithmetic(r.expr_type):
+            common_type = self.get_common_type(l.expr_type, r.expr_type)
+            converted_l = self.convert_to(l, common_type)
+            converted_r = self.convert_to(r, common_type)
+            expr = syntax.Binary(op, converted_l, converted_r)
+            return expr.set_type(common_type)
+        elif self.is_pointer(l.expr_type) and self.is_integer(r.expr_type):
+            converted_r = self.convert_to(r, syntax.Long())
+            expr = syntax.Binary(op, l, converted_r)
+            return expr.set_type(l.expr_type)
+        elif self.is_integer(l.expr_type) and self.is_pointer(r.expr_type):
+            converted_l = self.convert_to(l, syntax.Long())
+            expr = syntax.Binary(op, converted_l, r)
+            return expr.set_type(r.expr_type)
+        else:
+            self.fail(f'Invalid operands for addition: {l} and {r}')
+
+    def typecheck_binary_subtract(self, l, r):
+        op = syntax.BinarySubtract()
+        if self.is_arithmetic(l.expr_type) and self.is_arithmetic(r.expr_type):
+            common_type = self.get_common_type(l.expr_type, r.expr_type)
+            converted_l = self.convert_to(l, common_type)
+            converted_r = self.convert_to(r, common_type)
+            expr = syntax.Binary(op, converted_l, converted_r)
+            return expr.set_type(common_type)
+        elif self.is_pointer(l.expr_type) and self.is_integer(r.expr_type):
+            converted_r = self.convert_to(r, syntax.Long())
+            expr = syntax.Binary(op, l, converted_r)
+            return expr.set_type(l.expr_type)
+        elif self.is_pointer(l.expr_type) and l.expr_type == r.expr_type:
+            expr = syntax.Binary(op, l, r)
+            return expr.set_type(syntax.Long())
+        else:
+            self.fail(f'Invalid operands for subtraction: {l} and {r}')
 
     def check_pointer_op(self, op):
         non_ponter_ops = [
@@ -1143,6 +1204,22 @@ class Typecheck:
             case syntax.Long() | syntax.ULong():
                 return True
             case syntax.Double():
+                return True
+            case _:
+                return False
+
+    def is_integer(self, t):
+        match t:
+            case syntax.Int() | syntax.UInt():
+                return True
+            case syntax.Long() | syntax.ULong():
+                return True
+            case _:
+                return False
+
+    def is_pointer(self, t):
+        match t:
+            case syntax.Pointer():
                 return True
             case _:
                 return False
