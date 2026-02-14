@@ -570,6 +570,21 @@ class Typecheck:
 
     def typecheck_func_decl(self, f: syntax.FuncDeclaration, in_block=False):
         func_type = f.fun_type
+        if self.is_array(func_type.ret):
+            self.error('functions cannot return arrays')
+
+        # Array type arguments are implicitly converted to pointers
+        adjusted_params = []
+        for t in func_type.params:
+            match t:
+                case syntax.Array(elem_t, size):
+                    adjusted_type = syntax.Pointer(elem_t)
+                    adjusted_params.append(adjusted_type)
+                case _:
+                    adjusted_params.append(t)
+
+        func_type = syntax.Func(adjusted_params, func_type.ret)
+
         self.current_return_type = func_type.ret
         has_body = f.body is not None
         already_defined = False
