@@ -880,7 +880,7 @@ class Typecheck:
             case syntax.Array(elem_type, _size):
                 # Insert an implicit dereference when the expression's type is array
                 addr_expr = syntax.AddrOf(typed)
-                return addr_expr.set_type(syntax.Pointer(element_type))
+                return addr_expr.set_type(syntax.Pointer(elem_type))
             case _:
                 return typed
 
@@ -1077,7 +1077,7 @@ class Typecheck:
                     left = self.convert_to(left, syntax.Long())
                 else:
                     self.fail('Subscript must have integer and pointer operatnd')
-                expr = sytnax.Subscript(left, right)
+                expr = syntax.Subscript(left, right)
                 return expr.set_type(ptr_type.referenced)
 
             case _:
