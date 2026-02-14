@@ -1069,6 +1069,8 @@ class Typecheck:
 
                         expr = syntax.Sequence(get_ptr, assign)
                         return expr.set_type(left_type)
+                    case syntax.Subscript(left, right):
+                        raise Exception(f'TODO: handle subscripts as an assignment target')
                     case _:
                         self.error(f'invalid left hand side for assignment: {lhs}')
 
