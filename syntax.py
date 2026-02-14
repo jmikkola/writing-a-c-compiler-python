@@ -452,6 +452,9 @@ class Subscript(Expression, namedtuple('Subscript', ['left', 'right'])):
 ##
 
 class Initializer:
+    def __init__(self, *args, **kwargs):
+        self.expr_type = None
+
     def pretty_print(self):
         return str(self)
 

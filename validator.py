@@ -585,8 +585,9 @@ class Typecheck:
 
         func_type = syntax.Func(adjusted_params, func_type.ret)
 
-        self.current_return_type = func_type.ret
         has_body = f.body is not None
+        if has_body:
+            self.current_return_type = func_type.ret
         already_defined = False
         is_global = f.storage_class != syntax.Static()
 
@@ -625,12 +626,9 @@ class Typecheck:
 
     def typecheck_var_decl_file_scope(self, v: syntax.VarDeclaration):
         initial_value = None
-        init = None
-        if v.init is not None:
-            init = self.typecheck_var_init(v.var_type, v.init)
-        match init:
+        match v.init:
             case syntax.SingleInit() | syntax.CompoundInit():
-                initial_value = self.make_initial_value(v.var_type, init)
+                initial_value = self.make_initial_value(v.var_type, v.init)
             case None:
                 if v.storage_class == syntax.Extern():
                     initial_value = symbol.NoInitializer()
@@ -679,10 +677,7 @@ class Typecheck:
                 self.symbols[v.name] = symbol.Symbol(v.var_type, attrs)
 
         elif v.storage_class == syntax.Static():
-            init = None
-            if v.init is not None:
-                init = self.typecheck_var_init(v.var_type, v.init)
-            initial_value = self.make_initial_value(v.var_type, init)
+            initial_value = self.make_initial_value(v.var_type, v.init)
             attrs = symbol.StaticAttr(initial_value, False)
             self.symbols[v.name] = symbol.Symbol(v.var_type, attrs)
 
@@ -744,30 +739,34 @@ class Typecheck:
         match init:
             case syntax.SingleInit(syntax.Constant(const)):
                 if self.is_array(target_type):
-                    self.fail(f'cannot use a single initializers for an array')
+                    self.error(f'cannot use a single initializers for an array')
                 return [self.to_static_init(const.value, target_type)]
 
             case syntax.SingleInit(expr):
-                self.fail(f'non-constant initializer for a static variable: {expr}')
+                self.error(f'non-constant initializer for a static variable: {expr}')
 
             case syntax.CompoundInit(initializers):
                 if not self.is_array(target_type):
-                    self.fail(f'cannot use a compound initializers for scalars')
+                    self.error(f'cannot use a compound initializers for scalars')
 
                 elem_t = target_type.element
                 size = target_type.size
 
                 if len(initializers) > size:
-                    self.fail(f'too many values in initializer for {target_type}')
-                static_values = [
-                    self.make_static_values(elem_t, initializer)
-                    for initializer in initializers
-                ]
+                    self.error(f'too many values in initializer for {target_type}')
+                static_values = []
+                for initializer in initializers:
+                    static_values.extend(self.make_static_values(elem_t, initializer))
                 if len(static_values) < size:
                     n_values_to_pad = size - len(static_values)
                     padding_size = typeconversion.type_size(elem_t)
                     static_values.append(symbol.ZeroInit(n_values_to_pad * padding_size))
                 return static_values
+
+            case None:
+                bytes = typeconversion.type_size(target_type)
+                return [symbol.ZeroInit(bytes)]
+
             case _:
                 raise Exception(f'unhandled type of initializer {init}')
 
@@ -791,7 +790,7 @@ class Typecheck:
                 return symbol.DoubleInit(value)
             case syntax.Pointer():
                 if value != 0:
-                    self.fail(f'cannot initialize a pointer to a non-zero constant: {value}')
+                    self.error(f'cannot initialize a pointer to a non-zero constant: {value}')
                 return symbol.ULongInit(0)
             case _:
                 raise Exception(f'unhandled type for static constant {var_type}')
@@ -1092,13 +1091,13 @@ class Typecheck:
 
             case syntax.Cast(target_type, e):
                 if self.is_array(target_type):
-                    self.fail('Cannot cast to an array')
+                    self.error('Cannot cast to an array')
                 e = self.typecheck_and_convert(e)
                 match (e.expr_type, target_type):
                     case (syntax.Double(), syntax.Pointer()):
-                        self.fail('Cannot cast doubles to pointers')
+                        self.error('Cannot cast doubles to pointers')
                     case (syntax.Pointer(), syntax.Double()):
-                        self.fail('Cannot cast pointers to doubles')
+                        self.error('Cannot cast pointers to doubles')
                 expr = syntax.Cast(target_type, e)
                 return expr.set_type(target_type)
 
@@ -1109,11 +1108,11 @@ class Typecheck:
                         expr = syntax.Dereference(e)
                         return expr.set_type(referenced_type)
                     case _:
-                        self.fail(f'Cannot dereference non-pointer: {e.expr_type}')
+                        self.error(f'Cannot dereference non-pointer: {e.expr_type}')
 
             case syntax.AddrOf(e):
                 if not is_lvalue(e):
-                    self.fail(f'Cannot take the address of a non-lvalue: {e}')
+                    self.error(f'Cannot take the address of a non-lvalue: {e}')
                 # This intentionally doesn't call typecheck_and_convert because
                 # this is the one case where array typed expressions aren't
                 # implicitly converted to a pointer.
@@ -1134,7 +1133,7 @@ class Typecheck:
                     ptr_type = tr
                     left = self.convert_to(left, syntax.Long())
                 else:
-                    self.fail('Subscript must have integer and pointer operatnd')
+                    self.error('Subscript must have integer and pointer operatnd')
                 expr = syntax.Subscript(left, right)
                 return expr.set_type(ptr_type.referenced)
 
@@ -1219,7 +1218,7 @@ class Typecheck:
             expr = syntax.Binary(op, converted_l, r)
             return expr.set_type(r.expr_type)
         else:
-            self.fail(f'Invalid operands for addition: {l} and {r}')
+            self.error(f'Invalid operands for addition: {l} and {r}')
 
     def typecheck_binary_subtract(self, l, r):
         op = syntax.BinarySubtract()
@@ -1237,7 +1236,7 @@ class Typecheck:
             expr = syntax.Binary(op, l, r)
             return expr.set_type(syntax.Long())
         else:
-            self.fail(f'Invalid operands for subtraction: {l} and {r}')
+            self.error(f'Invalid operands for subtraction: {l} and {r}')
 
     def check_pointer_op(self, op):
         non_ponter_ops = [
@@ -1284,7 +1283,7 @@ class Typecheck:
             return self.convert_to(expression, target_type)
         if self.is_null_pointer_constant(expression) and isinstance(target_type, syntax.Pointer):
             return self.convert_to(expression, target_type)
-        self.fail(f'cannot convert type for assignment {expression} {target_type}')
+        self.error(f'cannot convert type for assignment {expression} {target_type}')
 
     def is_arithmetic(self, t):
         match t:
@@ -1346,7 +1345,7 @@ class Typecheck:
         elif self.is_null_pointer_constant(e2):
             return t1
         else:
-            self.fail(f'expressions have incompatible pointer types: {e1} and {e2}')
+            self.error(f'expressions have incompatible pointer types: {e1} and {e2}')
 
     def typecheck_for_init(self, init: syntax.ForInit):
         match init:
