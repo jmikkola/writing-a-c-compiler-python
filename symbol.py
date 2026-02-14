@@ -30,7 +30,7 @@ class Tentative(InitialValue, namedtuple('Tentative', [])):
     pass
 
 
-class Initial(InitialValue, namedtuple('Initial', ['static_value'])):
+class Initial(InitialValue, namedtuple('Initial', ['static_values'])):
     pass
 
 
@@ -59,4 +59,8 @@ class ULongInit(StaticInit, namedtuple('ULongInit', ['value'])):
 
 
 class DoubleInit(StaticInit, namedtuple('DoubleInit', ['value'])):
+    pass
+
+
+class ZeroInit(StaticInit, namedtuple('ZeroInit', ['bytes'])):
     pass

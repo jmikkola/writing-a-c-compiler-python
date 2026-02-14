@@ -2,13 +2,21 @@ import syntax
 
 
 def type_size(t):
-    if t == syntax.Long() or t == syntax.ULong() or t == syntax.Double():
-        return 8
-    if isinstance(t, syntax.Pointer):
-        return 8
-    if t == syntax.Int() or t == syntax.UInt():
-        return 4
-    raise Exception(f'Unhandled type to get size of {repr(t)}')
+    match t:
+        case syntax.Int() | syntax.UInt():
+            return 4
+        case syntax.Long() | syntax.ULong():
+            return 8
+        case syntax.Double():
+            return 8
+        case syntax.Pointer():
+            return 8
+        case syntax.Array(elem_t, size):
+            return size * type_size(elem_t)
+        case syntax.Func():
+            raise Exception('cannot determine size of a function type')
+        case _:
+            raise Exception(f'Unhandled type to get size of {repr(t)}')
 
 
 def is_signed(t):

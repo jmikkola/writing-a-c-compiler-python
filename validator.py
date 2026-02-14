@@ -629,8 +629,8 @@ class Typecheck:
         if v.init is not None:
             init = self.typecheck_var_init(v.var_type, v.init)
         match init:
-            case syntax.Constant(_):
-                initial_value = self.make_static_init(v.name, init, v.var_type)
+            case syntax.SingleInit() | syntax.CompoundInit():
+                initial_value = self.make_initial_value(v.var_type, init)
             case None:
                 if v.storage_class == syntax.Extern():
                     initial_value = symbol.NoInitializer()
@@ -682,7 +682,7 @@ class Typecheck:
             init = None
             if v.init is not None:
                 init = self.typecheck_var_init(v.var_type, v.init)
-            initial_value = self.make_static_init(v.name, init, v.var_type)
+            initial_value = self.make_initial_value(v.var_type, init)
             attrs = symbol.StaticAttr(initial_value, False)
             self.symbols[v.name] = symbol.Symbol(v.var_type, attrs)
 
@@ -735,30 +735,41 @@ class Typecheck:
         constant.set_type(target_type)
         return syntax.SingleInit(constant).set_type(target_type)
 
-    def make_static_init(self, name, init, var_type):
+    def make_initial_value(self, target_type: syntax.Type, init: syntax.CompoundInit):
+        static_values = self.make_static_values(target_type, init)
+        return symbol.Initial(static_values)
+
+    def make_static_values(self, target_type: syntax.Type, init: syntax.Initializer):
+        ''' recurse down into any compound initializers and flatten the values '''
         match init:
-            case None:
-                init_value = self.to_static_init(0, var_type)
-                return symbol.Initial(init_value)
-            case syntax.Constant(syntax.ConstLong(value)):
-                init_value = self.to_static_init(value, var_type)
-                return symbol.Initial(init_value)
-            case syntax.Constant(syntax.ConstInt(value)):
-                init_value = self.to_static_init(value, var_type)
-                return symbol.Initial(init_value)
-            case syntax.Constant(syntax.ConstULong(value)):
-                init_value = self.to_static_init(value, var_type)
-                return symbol.Initial(init_value)
-            case syntax.Constant(syntax.ConstUInt(value)):
-                init_value = self.to_static_init(value, var_type)
-                return symbol.Initial(init_value)
-            case syntax.Constant(syntax.ConstDouble(value)):
-                init_value = self.to_static_init(value, var_type)
-                return symbol.Initial(init_value)
-            case syntax.Constant(x):
-                raise Exception(f'unhandled type of constant {x}')
+            case syntax.SingleInit(syntax.Constant(const)):
+                if self.is_array(target_type):
+                    self.fail(f'cannot use a single initializers for an array')
+                return [self.to_static_init(const.value, target_type)]
+
+            case syntax.SingleInit(expr):
+                self.fail(f'non-constant initializer for a static variable: {expr}')
+
+            case syntax.CompoundInit(initializers):
+                if not self.is_array(target_type):
+                    self.fail(f'cannot use a compound initializers for scalars')
+
+                elem_t = target_type.element
+                size = target_type.size
+
+                if len(initializers) > size:
+                    self.fail(f'too many values in initializer for {target_type}')
+                static_values = [
+                    self.make_static_values(elem_t, initializer)
+                    for initializer in initializers
+                ]
+                if len(static_values) < size:
+                    n_values_to_pad = size - len(static_values)
+                    padding_size = typeconversion.type_size(elem_t)
+                    static_values.append(symbol.ZeroInit(n_values_to_pad * padding_size))
+                return static_values
             case _:
-                self.error(f'non-constant initializer for {name}')
+                raise Exception(f'unhandled type of initializer {init}')
 
     def to_static_init(self, value, var_type):
         match var_type:
