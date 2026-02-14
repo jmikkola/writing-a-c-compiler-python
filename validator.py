@@ -197,9 +197,23 @@ class IdentifierResolution:
 
             init = var.init
             if init:
-                init = self.resolve_expr(init, identifier_map)
+                init = self.resolve_init(init, identifier_map)
 
             return syntax.VarDeclaration(unique_name, init, var.var_type, var.storage_class)
+
+    def resolve_init(self, init: syntax.Initializer, identifier_map):
+        match init:
+            case syntax.SingleInit(expr):
+                expr = self.resolve_expr(expr, identifier_map)
+                return syntax.SingleInit(expr)
+            case syntax.CompoundInit(initializers):
+                initializers = [
+                    self.resolve_init(i, identifier_map)
+                    for i in initializers
+                ]
+                return syntax.CompoundInit(initializers)
+            case _:
+                raise Exception(f'unhandled type of initializer {init}')
 
     def resolve_for_init(self, init: syntax.ForInit, identifier_map: dict):
         match init:
