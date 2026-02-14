@@ -110,7 +110,7 @@ class Parser:
         elif self.peek('['):
             while self.peek('['):
                 self.expect('[')
-                size = self.parse_integer_constant()
+                size = self.parse_integer()
                 self.expect(']')
                 inner = syntax.ArrayDeclarator(inner, size)
             return inner
@@ -210,7 +210,7 @@ class Parser:
 
     def parse_array_abstract_declarator(self, existing: syntax.AbstractDeclarator):
         self.expect('[')
-        size = self.parse_integer_constant()
+        size = self.parse_integer()
         self.expect(']')
         return syntax.AbstractArray(existing, size)
 
@@ -688,12 +688,13 @@ class Parser:
 
         return self.parse_integer_constant_from_token(token)
 
-    def parse_integer_constant(self) -> syntax.Constant:
+    def parse_integer(self) -> int:
         token = self.expect('constant')
         text = token.text
         if '.' in text or 'e' in text or 'E' in text:
             self.fail(f'invalid integer constant: {text}')
-        return self.parse_integer_constant_from_token(token)
+        digits = DIGITS.match(text).group()
+        return int(digits)
 
     def parse_integer_constant_from_token(self, token) -> syntax.Constant:
         text = token.text

@@ -625,9 +625,12 @@ class Typecheck:
 
     def typecheck_var_decl_file_scope(self, v: syntax.VarDeclaration):
         initial_value = None
-        match v.init:
+        init = None
+        if v.init is not None:
+            init = self.typecheck_var_init(v.var_type, v.init)
+        match init:
             case syntax.Constant(_):
-                initial_value = self.make_static_init(v.name, v.init, v.var_type)
+                initial_value = self.make_static_init(v.name, init, v.var_type)
             case None:
                 if v.storage_class == syntax.Extern():
                     initial_value = symbol.NoInitializer()
@@ -676,17 +679,61 @@ class Typecheck:
                 self.symbols[v.name] = symbol.Symbol(v.var_type, attrs)
 
         elif v.storage_class == syntax.Static():
-            initial_value = self.make_static_init(v.name, v.init, v.var_type)
+            init = None
+            if v.init is not None:
+                init = self.typecheck_var_init(v.var_type, v.init)
+            initial_value = self.make_static_init(v.name, init, v.var_type)
             attrs = symbol.StaticAttr(initial_value, False)
             self.symbols[v.name] = symbol.Symbol(v.var_type, attrs)
 
         else:
             self.symbols[v.name] = symbol.Symbol(v.var_type, symbol.LocalAttr())
+            init = None
             if v.init is not None:
-                init = self.typecheck_and_convert(v.init)
-                init = self.convert_by_assignment(init, v.var_type)
+                init = self.typecheck_var_init(v.var_type, v.init)
                 return syntax.VarDeclaration(v.name, init, v.var_type, v.storage_class)
         return v
+
+    def typecheck_var_init(self, target_type: syntax.Type, init: syntax.Initializer):
+        match (target_type, init):
+            case (_, syntax.SingleInit(e)):
+                typechecked_expr = self.typecheck_and_convert(e)
+                cast_expr = self.convert_by_assignment(typechecked_expr, target_type)
+                return syntax.SingleInit(cast_expr).set_type(target_type)
+            case (syntax.Array(elem_t, size), syntax.CompoundInit(inits)):
+                if len(inits) > size:
+                    self.error('wrong number of valies in initializer')
+                typechecked_list = [
+                    self.typecheck_var_init(elem_t, init)
+                    for init in inits
+                ]
+                while len(typechecked_list) < size:
+                    typechecked_list.append(self.zero_initializer(elem_t))
+                return syntax.CompoundInit(typechecked_list).set_type(target_type)
+            case _:
+                self.error('cannot initialize a scalar object with a compound initializer')
+
+    def zero_initializer(self, target_type):
+        match target_type:
+            case syntax.Array(elem_t, size):
+                inner = self.zero_initializer(elem_t)
+                values = [inner] * size
+                return syntax.CompoundInit(values).set_type(target_type)
+            case syntax.Int():
+                value = syntax.ConstInt(0)
+            case syntax.UInt():
+                value = syntax.ConstUInt(0)
+            case syntax.Long():
+                value = syntax.ConstLong(0)
+            case syntax.ULong():
+                value = syntax.ConstULong(0)
+            case syntax.Double():
+                value = syntax.ConstDouble(0.0)
+            case _:
+                raise Exception(f'unhandled initializer type {target_type}')
+        constant = syntax.Constant(value)
+        constant.set_type(target_type)
+        return syntax.SingleInit(constant).set_type(target_type)
 
     def make_static_init(self, name, init, var_type):
         match init:
@@ -1308,7 +1355,7 @@ class Typecheck:
                 raise Exception(f'invalid type for ForInit {init}')
 
 
-def is_lvalue(self, expr: syntax.Expression) -> bool:
+def is_lvalue(expr: syntax.Expression) -> bool:
     match expr:
         case syntax.Variable():
             return True
