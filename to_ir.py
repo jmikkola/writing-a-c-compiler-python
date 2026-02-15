@@ -449,8 +449,8 @@ class ToTacky:
                         return (instructions, PlainOperand(ptr))
 
             case syntax.Subscript(left, right):
-                left_instructions, left_result = self.convert_expression(left)
-                right_instructions, right_result = self.convert_expression(right)
+                left_instructions, left_result = self.emit_tacky_and_convert(left)
+                right_instructions, right_result = self.emit_tacky_and_convert(right)
                 instructions = left_instructions + right_instructions
                 result = self.make_tacky_variable(expr.expr_type)
                 if is_pointer(left.expr_type):
