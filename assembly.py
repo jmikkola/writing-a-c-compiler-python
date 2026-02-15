@@ -1,23 +1,42 @@
 from collections import namedtuple
-from enum import Enum
+from dataclasses import dataclass
+from typing import TypeAlias
 
 
-class AssemblyType(Enum):
-    Byte = 1
-    Longword = 4
-    Quadword = 8
-    Double = 9
+@dataclass(frozen=True)
+class Byte:
+    def bytes(self):
+        return 1
+
+
+@dataclass
+class Longword:
+    def bytes(self):
+        return 4
+
+
+@dataclass
+class Quadword:
+    def bytes(self):
+        return 8
+
+
+@dataclass
+class Double:
+    def bytes(self):
+        return 8
+
+
+@dataclass
+class ByteArray:
+    size: int
+    alignment: int
 
     def bytes(self):
-        if self == self.Byte:
-            return 1
-        if self == self.Longword:
-            return 4
-        if self == self.Quadword:
-            return 8
-        if self == self.Double:
-            return 8
-        assert(False)
+        return self.size
+
+
+AssemblyType: TypeAlias = Byte | Longword | Quadword | Double | ByteArray
 
 
 class AsmSymbol:

@@ -18,9 +18,9 @@ xmm1 = assembly.Register('XMM1')
 xmm14 = assembly.Register('XMM14')
 xmm15 = assembly.Register('XMM15')
 
-longword = assembly.AssemblyType.Longword
-quadword = assembly.AssemblyType.Quadword
-double = assembly.AssemblyType.Double
+longword = assembly.Longword()
+quadword = assembly.Quadword()
+double = assembly.Double()
 
 
 def gen(tacky: tacky.Program, symbols: dict, label_gen: labels.Labels) ->\

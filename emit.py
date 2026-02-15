@@ -5,10 +5,10 @@ import symbol
 
 
 INDENT = '    '
-byte = assembly.AssemblyType.Byte
-longword = assembly.AssemblyType.Longword
-quadword = assembly.AssemblyType.Quadword
-double = assembly.AssemblyType.Double
+byte = assembly.Byte()
+longword = assembly.Longword()
+quadword = assembly.Quadword()
+double = assembly.Double()
 
 
 class Register(namedtuple('Register', ['byte', 'dword', 'qword'])):
