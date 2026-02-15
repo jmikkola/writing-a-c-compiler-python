@@ -426,6 +426,21 @@ class ToTacky:
                     case DereferencedPointer(ptr):
                         return (instructions, PlainOperand(ptr))
 
+            case syntax.Subscript(left, right):
+                left_instructions, left_result = self.convert_expression(left)
+                right_instructions, right_result = self.convert_expression(right)
+                instructions = left_instructions + right_instructions
+                result = self.make_tacky_variable(expr.expr_type)
+                if is_pointer(left.expr_type):
+                    scale = typeconversion.type_size(left.expr_type.referenced)
+                    instruction = tacky.AddPtr(left_result, right_result, scale, result)
+                else:
+                    assert(is_pointer(right.expr_type))
+                    scale = typeconversion.type_size(right.expr_type.referenced)
+                    instruction = tacky.AddPtr(right_result, left_result, scale, result)
+                instructions.append(instruction)
+                return (instructions, DereferencedPointer(result))
+
             case _:
                 raise Exception(f'unhandled expression type, {expr}')
 
