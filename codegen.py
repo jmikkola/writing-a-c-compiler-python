@@ -85,14 +85,14 @@ class Codegen:
 
     def gen_static_var(self, var: tacky.StaticVariable) -> assembly.StaticVariable:
         alignment = typeconversion.alignment_of(var.var_type)
-        init = var.init
-        if var.var_type == syntax.Double() and var.init == 0:
-            init = symbol.DoubleInit(0.0)
+        inits = var.inits
+        if var.var_type == syntax.Double() and inits[0] == 0:
+            inits = [symbol.DoubleInit(0.0)]
         return assembly.StaticVariable(
             name=var.name,
             is_global=var.is_global,
             alignment=alignment,
-            init=init,
+            inits=inits,
         )
 
     def gen_function(self, function: tacky.Function) -> assembly.Function:
