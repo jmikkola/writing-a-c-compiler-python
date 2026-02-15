@@ -555,10 +555,10 @@ class ToTacky:
                 right_type = expr.right.expr_type
                 if is_pointer(left_type) and is_integer(right_type):
                     scale = typeconversion.type_size(left_type.referenced)
-                    instruction = tacky.AddPtr(val_left, val_right, scale)
+                    instruction = tacky.AddPtr(val_left, val_right, scale, result_var)
                 elif is_pointer(left_type) and is_pointer(right_type):
                     scale = typeconversion.type_size(right_type.referenced)
-                    instruction = tacky.AddPtr(val_right, val_left, scale)
+                    instruction = tacky.AddPtr(val_right, val_left, scale, result_var)
                 else:
                     instruction = tacky.Binary(op, val_left, val_right, result_var)
                 instructions = instructions_left + instructions_right
@@ -568,6 +568,7 @@ class ToTacky:
             case syntax.BinarySubtract():
                 instructions_left, val_left = self.emit_tacky_and_convert(expr.left)
                 instructions_right, val_right = self.emit_tacky_and_convert(expr.right)
+                instructions = instructions_left + instructions_right
                 op = self.convert_binary_op(expr.operator)
                 result_var = self.make_tacky_variable(expr.expr_type)
 
@@ -579,7 +580,7 @@ class ToTacky:
                     instructions.append(negate)
 
                     scale = typeconversion.type_size(left_type.referenced)
-                    add_ptr = tacky.AddPtr(val_left, negated_result_var, scale)
+                    add_ptr = tacky.AddPtr(val_left, negated_result_var, scale, result_var)
                     instructions.append(add_ptr)
                 elif is_pointer(left_type) and is_pointer(right_type):
                     scale = typeconversion.type_size(right_type.referenced)
@@ -589,8 +590,8 @@ class ToTacky:
                     div = tacky.Binary(
                         tacky.BinaryDivide(),
                         unscaled_result_var,
-                        tacky.Constant(scale),
-                        reuslt_var
+                        tacky.Constant(tacky.ConstInt(scale)),
+                        result_var
                     )
                     instructions.append(div)
 
