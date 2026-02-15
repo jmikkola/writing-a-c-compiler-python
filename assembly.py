@@ -57,7 +57,7 @@ class Program(namedtuple('Program', ['top_level'])):
         return '\n\n'.join(d.pretty_print() for d in self.top_level)
 
 
-class StaticVariable(namedtuple('StaticVariable', ['name', 'is_global', 'alignment', 'init'])):
+class StaticVariable(namedtuple('StaticVariable', ['name', 'is_global', 'alignment', 'inits'])):
     def pretty_print(self):
         return str(self)
 
