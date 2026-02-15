@@ -508,6 +508,61 @@ class ToTacky:
                 ]
                 return (instructions, PlainOperand(result_var))
 
+            case syntax.BinaryAdd():
+                instructions_left, val_left = self.emit_tacky_and_convert(expr.left)
+                instructions_right, val_right = self.emit_tacky_and_convert(expr.right)
+                op = self.convert_binary_op(expr.operator)
+                result_var = self.make_tacky_variable(expr.expr_type)
+
+                left_type = expr.left.expr_type
+                right_type = expr.right.expr_type
+                if is_pointer(left_type) and is_integer(right_type):
+                    scale = typeconversion.type_size(left_type.referenced)
+                    instruction = tacky.AddPtr(val_left, val_right, scale)
+                elif is_pointer(left_type) and is_pointer(right_type):
+                    scale = typeconversion.type_size(right_type.referenced)
+                    instruction = tacky.AddPtr(val_right, val_left, scale)
+                else:
+                    instruction = tacky.Binary(op, val_left, val_right, result_var)
+                instructions = instructions_left + instructions_right
+                instructions.append(instruction)
+                return (instructions, PlainOperand(result_var))
+
+            case syntax.BinarySubtract():
+                instructions_left, val_left = self.emit_tacky_and_convert(expr.left)
+                instructions_right, val_right = self.emit_tacky_and_convert(expr.right)
+                op = self.convert_binary_op(expr.operator)
+                result_var = self.make_tacky_variable(expr.expr_type)
+
+                left_type = expr.left.expr_type
+                right_type = expr.right.expr_type
+                if is_pointer(left_type) and is_integer(right_type):
+                    negated_result_var = self.make_tacky_variable(right_type)
+                    negate = tacky.Unary(tacky.UnaryNegate(), val_right, negated_result_var)
+                    instructions.append(negate)
+
+                    scale = typeconversion.type_size(left_type.referenced)
+                    add_ptr = tacky.AddPtr(val_left, negated_result_var, scale)
+                    instructions.append(add_ptr)
+                elif is_pointer(left_type) and is_pointer(right_type):
+                    scale = typeconversion.type_size(right_type.referenced)
+                    unscaled_result_var = self.make_tacky_variable(expr.expr_type)
+                    sub = tacky.Binary(op, val_left, val_right, unscaled_result_var)
+                    instructions.append(sub)
+                    div = tacky.Binary(
+                        tacky.BinaryDivide(),
+                        unscaled_result_var,
+                        tacky.Constant(scale),
+                        reuslt_var
+                    )
+                    instructions.append(div)
+
+                else:
+                    binary = tacky.Binary(operator=op, left=val_left, right=val_right, dst=result_var)
+                    instructions.append(binary)
+
+                return (instructions, PlainOperand(result_var))
+
             case _:
                 instructions_left, val_left = self.emit_tacky_and_convert(expr.left)
                 instructions_right, val_right = self.emit_tacky_and_convert(expr.right)
@@ -664,6 +719,23 @@ class ToTacky:
             case _:
                 raise Exception(f'not a modifying operator {op}')
 
+
+def is_pointer(t: syntax.Type):
+    match t:
+        case syntax.Pointer():
+            return True
+        case _:
+            return False
+
+
+def is_integer(t: syntax.Type):
+    match t:
+        case syntax.Int() | syntax.UInt():
+            return True
+        case syntax.Long() | syntax.ULong():
+            return True
+        case _:
+            return False
 
 @dataclass
 class PlainOperand:

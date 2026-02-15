@@ -9,7 +9,7 @@ class Program(namedtuple('Program', ['top_level'])):
         )
 
 
-class StaticVariable(namedtuple('StaticVariable', ['name', 'is_global', 'var_type', 'init'])):
+class StaticVariable(namedtuple('StaticVariable', ['name', 'is_global', 'var_type', 'inits'])):
     def pretty_print(self):
         return str(self)
 
@@ -87,6 +87,14 @@ class Load(Instruction, namedtuple('Load', ['src_ptr', 'dst'])):
 
 
 class Store(Instruction, namedtuple('Store', ['src', 'dst_ptr'])):
+    pass
+
+
+class AddPtr(Instruction, namedtuple('AddPtr', ['ptr', 'index', 'scale', 'dst'])):
+    pass
+
+
+class CopyToOffset(Instruction, namedtuple('CopyToOffset', ['src', 'dst', 'offset'])):
     pass
 
 
