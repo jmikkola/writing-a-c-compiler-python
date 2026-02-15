@@ -524,7 +524,7 @@ class Codegen:
                     return [
                         assembly.Mov(quadword, asm_ptr, rax),
                         assembly.Mov(quadword, asm_idx, rdx),
-                        assembly.Binary(assembly.Add(), quadword, asm_scale, rdx),
+                        assembly.Binary(assembly.Mult(), quadword, asm_scale, rdx),
                         assembly.Lea(assembly.Indexed('AX', 'DX', 1), asm_dst),
                     ]
             case tacky.Jump(target):
