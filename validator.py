@@ -1156,11 +1156,10 @@ class Typecheck:
                 return self.typecheck_binary_add(l, r)
             case syntax.BinarySubtract():
                 return self.typecheck_binary_subtract(l, r)
+            case syntax.Less() | syntax.LessEqual() | syntax.Greater() | syntax.GreaterEqual():
+                return self.typecheck_binary_comparison(op, l, r)
 
-        if self.is_pointer(l.expr_type) or self.is_pointer(r.expr_type):
-            common_type = self.get_common_pointer_type(l, r)
-        else:
-            common_type = self.get_common_type(l.expr_type, r.expr_type)
+        common_type = self.get_common_type(l.expr_type, r.expr_type)
 
         if common_type == syntax.Double():
             non_double_ops = [
@@ -1190,21 +1189,23 @@ class Typecheck:
         converted_l = self.convert_to(l, common_type)
         converted_r = self.convert_to(r, common_type)
         expr = syntax.Binary(op, converted_l, converted_r)
-
-        comparison_operators = [
-            syntax.Less(),
-            syntax.LessEqual(),
-            syntax.Greater(),
-            syntax.GreaterEqual(),
-        ]
-
-        if op in comparison_operators:
-            if self.is_pointer(l.expr_type) != self.is_pointer(r.expr_type):
-                self.error(f'cannot compare pointers and non-pointers')
-            # E.g. `>=` of two longs returns an int
-            return expr.set_type(syntax.Int())
-
         return expr.set_type(common_type)
+
+    def typecheck_binary_comparison(self, op, l, r):
+        if self.is_pointer(l.expr_type) or self.is_pointer(r.expr_type):
+            common_type = self.get_common_pointer_type(l, r)
+        else:
+            common_type = self.get_common_type(l.expr_type, r.expr_type)
+
+        if self.is_pointer(l.expr_type) != self.is_pointer(r.expr_type):
+            self.error(f'cannot compare pointers and non-pointers')
+
+        converted_l = self.convert_to(l, common_type)
+        converted_r = self.convert_to(r, common_type)
+        expr = syntax.Binary(op, converted_l, converted_r)
+
+        # E.g. `>=` of two longs returns an int
+        return expr.set_type(syntax.Int())
 
     def typecheck_binary_add(self, l, r):
         op = syntax.BinaryAdd()
