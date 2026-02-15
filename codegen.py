@@ -84,7 +84,7 @@ class Codegen:
                 assert(False)
 
     def gen_static_var(self, var: tacky.StaticVariable) -> assembly.StaticVariable:
-        alignment = self.alignment_of(var.var_type)
+        alignment = typeconversion.alignment_of(var.var_type)
         init = var.init
         if var.var_type == syntax.Double() and var.init == 0:
             init = symbol.DoubleInit(0.0)
@@ -94,15 +94,6 @@ class Codegen:
             alignment=alignment,
             init=init,
         )
-
-    def alignment_of(self, var_type):
-        match var_type:
-            case syntax.Int() | syntax.UInt():
-                return 4
-            case syntax.Long() | syntax.ULong() | syntax.Double() | syntax.Pointer():
-                return 8
-            case _:
-                raise Exception(f'Unexpected type to find alignment of {var_type}')
 
     def gen_function(self, function: tacky.Function) -> assembly.Function:
         # Generate the basic assembly
