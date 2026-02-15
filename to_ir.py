@@ -81,7 +81,7 @@ class ToTacky:
                 case symbol.StaticAttr(init, is_global):
                     match init:
                         case symbol.Tentative():
-                            top_level.append(tacky.StaticVariable(name, is_global, var_type, 0))
+                            top_level.append(tacky.StaticVariable(name, is_global, var_type, [0]))
                         case symbol.Initial(values):
                             top_level.append(tacky.StaticVariable(name, is_global, var_type, values))
                         case symbol.NoInitializer():
