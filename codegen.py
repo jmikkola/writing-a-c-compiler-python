@@ -481,6 +481,17 @@ class Codegen:
                 return [
                     assembly.Mov(a_type, self.convert_operand(src), self.convert_operand(dst)),
                 ]
+            case tacky.CopyToOffset(src, dst, offset):
+                a_type = self.a_type_of(src)
+                asm_src = self.convert_operand(src)
+                match dst:
+                    case tacky.Identifier(name):
+                        asm_dst = assembly.PseudoMem(name, offset)
+                    case _:
+                        raise Exception(f'invalid operand for CopyToOffset: {dst}')
+                return [
+                    assembly.Mov(a_type, asm_src, asm_dst),
+                ]
             case tacky.GetAddress(src, dst):
                 return [
                     assembly.Lea(self.convert_operand(src), self.convert_operand(dst)),
@@ -497,6 +508,34 @@ class Codegen:
                     assembly.Mov(quadword, self.convert_operand(dst_ptr), rax),
                     assembly.Mov(a_type, self.convert_operand(src), assembly.Memory('AX', 0)),
                 ]
+            case tacky.AddPtr(ptr, tacky.Constant(const), scale, dst):
+                asm_ptr = self.convert_operand(ptr)
+                asm_dst = self.convert_operand(dst)
+                index = const.value
+                assert(isinstance(index, int))
+                offset = index * scale
+                return [
+                    assembly.Mov(quadword, asm_ptr, rax),
+                    assembly.Lea(assembly.Memory(rax, offset), asm_dst),
+                ]
+            case tacky.AddPtr(ptr, index, scale, dst):
+                asm_ptr = self.convert_operand(ptr)
+                asm_idx = self.convert_operand(index)
+                asm_dst = self.convert_operand(dst)
+                if scale in [1, 2, 4, 8]:
+                    return [
+                        assembly.Mov(quadword, asm_ptr, rax),
+                        assembly.Mov(quadword, asm_idx, rdx),
+                        assembly.Lea(assembly.Indexed(rax, rdx, scale), asm_dst),
+                    ]
+                else:
+                    asm_scale = assembly.Immediate(scale)
+                    return [
+                        assembly.Mov(quadword, asm_ptr, rax),
+                        assembly.Mov(quadword, asm_idx, rdx),
+                        assembly.Binary(assembly.Add(), quadword, asm_scale, rdx),
+                        assembly.Lea(assembly.Indexed(rax, rdx, 1), asm_dst),
+                    ]
             case tacky.Jump(target):
                 return [assembly.Jmp(target)]
             case tacky.JumpIfZero(cond, target):
@@ -975,6 +1014,7 @@ class Codegen:
                 raise Exception(f'invalid op to convert to assembly binary op {op}')
 
     def convert_operand(self, value: tacky.Value) -> assembly.Operand:
+        value_type = self.value_type(value)
         match value:
             case tacky.Constant(tacky.ConstDouble(value)):
                 label = self.add_double(value)
@@ -982,7 +1022,11 @@ class Codegen:
             case tacky.Constant(const):
                 return assembly.Immediate(const.value)
             case tacky.Identifier(name):
-                return assembly.Pseudo(name)
+                match value_type:
+                    case syntax.Array():
+                        return assembly.PseudoMem(name, 0)
+                    case _:
+                        return assembly.Pseudo(name)
             case _:
                 raise Exception(f'unhandled operand type {value}')
 

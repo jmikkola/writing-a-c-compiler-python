@@ -91,6 +91,12 @@ class Store(Instruction, namedtuple('Store', ['src', 'dst_ptr'])):
 
 
 class AddPtr(Instruction, namedtuple('AddPtr', ['ptr', 'index', 'scale', 'dst'])):
+    '''
+    ptr: value
+    index: value
+    scale: int
+    dst: value
+    '''
     pass
 
 
