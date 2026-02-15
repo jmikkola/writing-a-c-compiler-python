@@ -82,8 +82,8 @@ class ToTacky:
                     match init:
                         case symbol.Tentative():
                             top_level.append(tacky.StaticVariable(name, is_global, var_type, 0))
-                        case symbol.Initial(value):
-                            top_level.append(tacky.StaticVariable(name, is_global, var_type, value))
+                        case symbol.Initial(values):
+                            top_level.append(tacky.StaticVariable(name, is_global, var_type, values))
                         case symbol.NoInitializer():
                             pass
                         case _:
@@ -166,9 +166,31 @@ class ToTacky:
         # Static variables aren't initialized inside the function
         if isinstance(sym.attrs, symbol.StaticAttr):
             return []
-        instructions, result = self.emit_tacky_and_convert(init)
-        instructions.append(tacky.Copy(result, tacky.Identifier(name)))
-        return instructions
+        return self.emit_initializer(name, init)
+
+    def emit_initializer(self, name: str, init: syntax.Initializer, offset=None):
+        match init:
+            case syntax.SingleInit(expr):
+                instructions, result = self.emit_tacky_and_convert(expr)
+                if offset is not None:
+                    copy = tacky.CopyToOffset(result, tacky.Identifier(name), offset)
+                else:
+                    copy = tacky.Copy(result, tacky.Identifier(name))
+                instructions.append(copy)
+                return instructions
+
+            case syntax.CompoundInit(initializers):
+                if offset is None:
+                    offset = 0
+                scale = typeconversion.type_size(init.expr_type.element)
+                instructions = []
+                for initializer in initializers:
+                    instructions.extend(self.emit_initializer(name, initializer, offset))
+                    offset += scale
+                return instructions
+
+            case _:
+                raise Exception(f'unhandled type of initializer: {init}')
 
     def convert_do_while(self, stmt: syntax.DoWhile) -> list:
         loop_start = self.new_label('do_while_start')
