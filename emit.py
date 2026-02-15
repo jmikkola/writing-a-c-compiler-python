@@ -59,11 +59,15 @@ class Emit:
 
     def emit_static_constant(self, var: assembly.StaticConstant):
         alignment = var.alignment
-        init = var.init
-        value = init.value
         self.indented('.section .rodata')
         self.indented(f'.align {alignment}')
         self.line('L' + var.name + ':')
+        init = var.init
+        if isinstance(init, symbol.ZeroInit):
+            self.indented(f'.zero {init.bytes}')
+            return
+
+        value = init.value
         if alignment == 4:
             self.indented(f'.long {value}')
         elif isinstance(init, symbol.DoubleInit):
@@ -75,23 +79,25 @@ class Emit:
         alignment = var.alignment
         if var.is_global:
             self.indented('.globl ' + var.name)
-        init = var.init
-        if init == 0:
+        inits = var.inits
+        if inits == [0]:
             self.indented('.bss')
             self.indented(f'.align {alignment}')
             self.line(var.name + ':')
             self.indented(f'.zero {alignment}')
         else:
-            value = init.value
             self.indented('.data')
             self.indented(f'.align {alignment}')
             self.line(var.name + ':')
-            if alignment == 4:
-                self.indented(f'.long {value}')
-            elif isinstance(init, symbol.DoubleInit):
-                self.indented(f'.double {value:.18e}')
-            else:
-                self.indented(f'.quad {value}')
+            for init in inits:
+                if isinstance(init, symbol.ZeroInit):
+                    self.indented(f'.zero {init.bytes}')
+                elif alignment == 4:
+                    self.indented(f'.long {init.value}')
+                elif isinstance(init, symbol.DoubleInit):
+                    self.indented(f'.double {init.value:.18e}')
+                else:
+                    self.indented(f'.quad {init.value}')
 
     def emit_function(self, function: assembly.Function):
         if function.is_global:
@@ -218,6 +224,8 @@ class Emit:
             return 'sd'
         if assembly_type == longword:
             return 'l'
+        if isinstance(assembly_type, assembly.ByteArray):
+            return 'q'
         raise Exception(f'unexpected assembly type {assembly_type}')
 
     def add_label_prefix(self, name):
@@ -268,9 +276,12 @@ class Emit:
                     return REGISTERS[reg].byte
                 elif assembly_type == quadword:
                     return REGISTERS[reg].qword
-                else:
-                    assert(assembly_type == longword)
+                elif assembly_type == longword:
                     return REGISTERS[reg].dword
+                elif isinstance(assembly_type, assembly.ByteArray):
+                    return REGISTERS[reg].qword
+                else:
+                    raise Exception(f'unhandled assembly type: {assembly_type}')
             case assembly.Pseudo():
                 raise Exception('bug - there should not be a pseudo register by this phase')
             case assembly.Memory(reg, offset):
@@ -282,6 +293,10 @@ class Emit:
                 if self.asm_symbols[name].is_constant:
                     name = 'L' + name
                 return f'{name}(%rip)'
+            case assembly.Indexed(base_reg, index_reg, scale):
+                base = REGISTERS[base_reg].qword
+                index = REGISTERS[index_reg].qword
+                return f'({base}, {index}, {scale})'
             case _:
                 raise Exception(f'unhandled operand type {operand}')
 

@@ -507,7 +507,7 @@ class Codegen:
                 offset = index * scale
                 return [
                     assembly.Mov(quadword, asm_ptr, rax),
-                    assembly.Lea(assembly.Memory(rax, offset), asm_dst),
+                    assembly.Lea(assembly.Memory('AX', offset), asm_dst),
                 ]
             case tacky.AddPtr(ptr, index, scale, dst):
                 asm_ptr = self.convert_operand(ptr)
@@ -517,7 +517,7 @@ class Codegen:
                     return [
                         assembly.Mov(quadword, asm_ptr, rax),
                         assembly.Mov(quadword, asm_idx, rdx),
-                        assembly.Lea(assembly.Indexed(rax, rdx, scale), asm_dst),
+                        assembly.Lea(assembly.Indexed('AX', 'DX', scale), asm_dst),
                     ]
                 else:
                     asm_scale = assembly.Immediate(scale)
@@ -525,7 +525,7 @@ class Codegen:
                         assembly.Mov(quadword, asm_ptr, rax),
                         assembly.Mov(quadword, asm_idx, rdx),
                         assembly.Binary(assembly.Add(), quadword, asm_scale, rdx),
-                        assembly.Lea(assembly.Indexed(rax, rdx, 1), asm_dst),
+                        assembly.Lea(assembly.Indexed('AX', 'DX', 1), asm_dst),
                     ]
             case tacky.Jump(target):
                 return [assembly.Jmp(target)]
