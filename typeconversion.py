@@ -48,7 +48,7 @@ def alignment_of(var_type: syntax.Type) -> int:
             raise Exception(f'Unexpected type to find alignment of {var_type}')
 
 
-def find_scalar(t: syntax.Type) -> syntax.Type:
+def find_scalar(var_type: syntax.Type) -> syntax.Type:
     ''' e.g. find_scalar(int[2][3][4]) == int '''
     match var_type:
         case syntax.Array(elem_t, _):

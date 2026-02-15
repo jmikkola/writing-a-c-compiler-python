@@ -942,7 +942,7 @@ class Codegen:
             case _:
                 raise Exception(f'unexpected value {value}')
 
-    def sym_type_to_a_type(self, sym_type: syntax.Type):
+    def sym_type_to_a_type(self, sym_type: syntax.Type) -> assembly.AssemblyType:
         match sym_type:
             case syntax.Int() | syntax.UInt():
                 return longword
@@ -950,6 +950,10 @@ class Codegen:
                 return quadword
             case syntax.Double():
                 return double
+            case syntax.Array(elem_t, size):
+                bytes = typeconversion.type_size(elem_t) * size
+                alignment = typeconversion.alignment_of(sym_type)
+                return assembly.ByteArray(bytes, alignment)
             case _:
                 raise Exception(f'unexpected type {sym_type}')
 
