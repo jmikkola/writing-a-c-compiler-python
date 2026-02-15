@@ -226,7 +226,20 @@ class Register(Operand, namedtuple('Register', ['reg'])):
     pass
 
 
+class Indexed(Operand, namedtuple('Indexed', ['base', 'index', 'scale'])):
+    '''
+    base: a register
+    index: a register
+    scale: int (a small power of 2)
+    '''
+    pass
+
+
 class Pseudo(Operand, namedtuple('Pseudo', ['name'])):
+    pass
+
+
+class PseudoMem(Operand, namedtuple('PseudoMem', ['name', 'offset'])):
     pass
 
 
