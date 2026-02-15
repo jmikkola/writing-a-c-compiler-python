@@ -1046,6 +1046,8 @@ def is_mem(operand: assembly.Operand):
             return True
         case assembly.Data():
             return True
+        case assembly.Indexed():
+            return True
         case _:
             return False
 
@@ -1082,27 +1084,49 @@ class StackMap:
         self.size_used = 0
         self.pseudo_registers = {}
 
-    def convert_pseudo_register(self, operand):
-        if not isinstance(operand, assembly.Pseudo):
-            return operand
+    def convert_pseudo_register(self, operand: assembly.Operand):
+        match operand:
+            case assembly.Pseudo(name):
+                if name in self.pseudo_registers:
+                    return assembly.Memory('BP', self.pseudo_registers[name])
 
-        name = operand.name
-        if name in self.pseudo_registers:
-            return assembly.Memory('BP', self.pseudo_registers[name])
+                entry = self.asm_symbols[name]
+                assert(isinstance(entry, assembly.ObjEntry))
 
-        entry = self.asm_symbols[name]
-        assert(isinstance(entry, assembly.ObjEntry))
+                if entry.is_static:
+                    return assembly.Data(name)
 
-        if entry.is_static:
-            return assembly.Data(name)
+                location = self._get_next_location(entry)
+                self.pseudo_registers[name] = location
+                return assembly.Memory('BP', location)
+            case assembly.PseudoMem(name, offset):
+                if name in self.pseudo_registers:
+                    location = self.pseudo_registers[name]
+                    return assembly.Memory('BP', location + offset)
 
-        location = self._get_next_location(entry)
-        self.pseudo_registers[name] = location
-        return assembly.Memory('BP', location)
+                entry = self.asm_symbols[name]
+                assert(isinstance(entry, assembly.ObjEntry))
 
-    def _get_next_location(self, entry):
+                if entry.is_static:
+                    assert(offset == 0)
+                    return assembly.Data(name)
+
+                location = self._get_next_location(entry)
+                self.pseudo_registers[name] = location
+                return assembly.Memory('BP', location + offset)
+            case _:
+                return operand
+
+    def _get_next_location(self, entry: assembly.ObjEntry):
         size = entry.assembly_type.bytes()
+        match entry.assembly_type:
+            case assembly.ByteArray():
+                alignment = entry.assembly_type.alignment
+            case _:
+                alignment = size
+
         self.size_used += size
-        if self.size_used % size != 0:
-            self.size_used += size - (self.size_used % size)
+        # Pad for alignment
+        if self.size_used % alignment != 0:
+            self.size_used += size - (self.size_used % alignment)
         return -1 * self.size_used
