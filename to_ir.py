@@ -556,7 +556,7 @@ class ToTacky:
                 if is_pointer(left_type) and is_integer(right_type):
                     scale = typeconversion.type_size(left_type.referenced)
                     instruction = tacky.AddPtr(val_left, val_right, scale, result_var)
-                elif is_pointer(left_type) and is_pointer(right_type):
+                elif is_integer(left_type) and is_pointer(right_type):
                     scale = typeconversion.type_size(right_type.referenced)
                     instruction = tacky.AddPtr(val_right, val_left, scale, result_var)
                 else:
