@@ -358,12 +358,18 @@ class ToTacky:
 
                         match inner_result:
                             case PlainOperand(val):
+                                match expr.expr_type:
+                                    case syntax.Pointer(inner):
+                                        stride = typeconversion.type_size(inner)
+                                        right = self.make_constant_of_type(stride, syntax.ULong())
+                                    case _:
+                                        right = self.make_constant_of_type(1, expr.expr_type)
                                 # E.g. ++x
                                 instructions += [
                                     tacky.Binary(
                                         operator=op,
                                         left=val,
-                                        right=self.make_constant_of_type(1, expr.expr_type),
+                                        right=right,
                                         dst=val
                                     ),
                                     tacky.Copy(val, result_var)
@@ -398,13 +404,19 @@ class ToTacky:
 
                 match inner_result:
                     case PlainOperand(val):
+                        match expr.expr_type:
+                            case syntax.Pointer(inner):
+                                stride = typeconversion.type_size(inner)
+                                right = self.make_constant_of_type(stride, syntax.ULong())
+                            case _:
+                                right = self.make_constant_of_type(1, expr.expr_type)
                         # e.g. x++
                         instructions += [
                             tacky.Copy(val, output_var),
                             tacky.Binary(
                                 operator=op,
                                 left=output_var,
-                                right=self.make_constant_of_type(1, expr.expr_type),
+                                right=right,
                                 dst=val
                             ),
                         ]
