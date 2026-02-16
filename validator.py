@@ -757,8 +757,8 @@ class Typecheck:
                 static_values = []
                 for initializer in initializers:
                     static_values.extend(self.make_static_values(elem_t, initializer))
-                if len(static_values) < size:
-                    n_values_to_pad = size - len(static_values)
+                if len(initializers) < size:
+                    n_values_to_pad = size - len(initializers)
                     padding_size = typeconversion.type_size(elem_t)
                     static_values.append(symbol.ZeroInit(n_values_to_pad * padding_size))
                 return static_values
