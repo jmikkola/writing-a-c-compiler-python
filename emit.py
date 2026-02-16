@@ -62,18 +62,7 @@ class Emit:
         self.indented('.section .rodata')
         self.indented(f'.align {alignment}')
         self.line('L' + var.name + ':')
-        init = var.init
-        if isinstance(init, symbol.ZeroInit):
-            self.indented(f'.zero {init.bytes}')
-            return
-
-        value = init.value
-        if alignment == 4:
-            self.indented(f'.long {value}')
-        elif isinstance(init, symbol.DoubleInit):
-            self.indented(f'.double {value:.18e}')
-        else:
-            self.indented(f'.quad {value}')
+        self.emit_static_init(var.init)
 
     def emit_static_variable(self, var: assembly.StaticVariable):
         alignment = var.alignment
@@ -90,14 +79,24 @@ class Emit:
             self.indented(f'.align {alignment}')
             self.line(var.name + ':')
             for init in inits:
-                if isinstance(init, symbol.ZeroInit):
-                    self.indented(f'.zero {init.bytes}')
-                elif alignment == 4:
-                    self.indented(f'.long {init.value}')
-                elif isinstance(init, symbol.DoubleInit):
-                    self.indented(f'.double {init.value:.18e}')
-                else:
-                    self.indented(f'.quad {init.value}')
+                self.emit_static_init(init)
+
+    def emit_static_init(self, init: symbol.StaticInit):
+        match init:
+            case symbol.ZeroInit():
+                self.indented(f'.zero {init.bytes}')
+            case symbol.IntInit(value):
+                self.indented(f'.long {value}')
+            case symbol.LongInit(value):
+                self.indented(f'.quad {value}')
+            case symbol.UIntInit(value):
+                self.indented(f'.long {value}')
+            case symbol.ULongInit(value):
+                self.indented(f'.quad {value}')
+            case symbol.DoubleInit(value):
+                self.indented(f'.double {value:.18e}')
+            case _:
+                raise Exception(f'unhandled type of init: {init}')
 
     def emit_function(self, function: assembly.Function):
         if function.is_global:
