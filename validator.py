@@ -1279,11 +1279,11 @@ class Typecheck:
         # Special cases where a cast can be avoided
         match (expression, target_type):
             case (syntax.Constant(syntax.ConstInt(val)), syntax.Long()):
-                return syntax.Constant(syntax.ConstLong(val))
+                return syntax.Constant(syntax.ConstLong(val)).set_type(target_type)
             case (syntax.Constant(syntax.ConstUInt(val)), syntax.ULong()):
-                return syntax.Constant(syntax.ConstULong(val))
+                return syntax.Constant(syntax.ConstULong(val)).set_type(target_type)
             case (syntax.Constant(syntax.ConstUInt(val)), syntax.Long()):
-                return syntax.Constant(syntax.ConstLong(val))
+                return syntax.Constant(syntax.ConstLong(val)).set_type(target_type)
         # Add a cast for other types
         cast_expr = syntax.Cast(target_type, expression)
         cast_expr.set_type(target_type)
