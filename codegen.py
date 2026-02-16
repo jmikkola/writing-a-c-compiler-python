@@ -1128,5 +1128,5 @@ class StackMap:
         self.size_used += size
         # Pad for alignment
         if self.size_used % alignment != 0:
-            self.size_used += size - (self.size_used % alignment)
+            self.size_used += alignment - (self.size_used % alignment)
         return -1 * self.size_used
