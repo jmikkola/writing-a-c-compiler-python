@@ -1276,6 +1276,15 @@ class Typecheck:
         assert(expression.expr_type is not None)
         if expression.expr_type == target_type:
             return expression
+        # Special cases where a cast can be avoided
+        match (expression, target_type):
+            case (syntax.Constant(syntax.ConstInt(val)), syntax.Long()):
+                return syntax.Constant(syntax.ConstLong(val))
+            case (syntax.Constant(syntax.ConstUInt(val)), syntax.ULong()):
+                return syntax.Constant(syntax.ConstULong(val))
+            case (syntax.Constant(syntax.ConstUInt(val)), syntax.Long()):
+                return syntax.Constant(syntax.ConstLong(val))
+        # Add a cast for other types
         cast_expr = syntax.Cast(target_type, expression)
         cast_expr.set_type(target_type)
         return cast_expr
