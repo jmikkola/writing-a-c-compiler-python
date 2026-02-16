@@ -14,7 +14,7 @@ flags:
 
 # Testing
 
-./test.sh
+`./test.sh`
 
 This assumes that [the tests](https://github.com/nlsandler/writing-a-c-compiler-tests/)
 are checked out at `../writing-a-c-compiler-tests/`.
