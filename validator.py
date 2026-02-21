@@ -1069,8 +1069,32 @@ class Typecheck:
 
                         expr = syntax.Sequence(get_ptr, assign)
                         return expr.set_type(left_type)
-                    case syntax.Subscript(left, right):
-                        raise Exception(f'TODO: handle subscripts as an assignment target')
+                    case syntax.Subscript():
+                        # E.g. a[1] <op>= <expr> or 1[a] <op>= <expr>
+                        # Convert it to:
+                        #   tmp.ptr.0 = &a[1]
+                        #   *tmp.ptr.0 = *tmp.ptr.0 <op> <expr>
+                        ptr_value_name = self.new_temp_var('ptr')
+                        ptr_var = syntax.Variable(ptr_value_name)
+
+                        access = self.typecheck_and_convert(lhs)
+                        assert(isinstance(access, syntax.AddrOf))
+                        ptr_type = access.expr_type
+                        self.symbols[ptr_value_name] = symbol.Symbol(ptr_type, symbol.LocalAttr())
+
+                        # get_offset is the fist statement, `tmp.ptr.0 = &a[1]`
+                        get_ptr = syntax.Assignment(ptr_var, lhs, None)
+                        get_ptr = self.typecheck_expr(get_ptr)
+
+                        # assign is the second statement, `*tmp.ptr.0 = *tmp.ptr.0 <op> <expr>`
+                        dereference = syntax.Dereference(ptr_var)
+                        new_rhs = syntax.Binary(op, dereference, rhs)
+                        assign = syntax.Assignment(dereference, new_rhs, None)
+                        assign = self.typecheck_and_convert(assign)
+
+                        # Return one expression that performs both statements
+                        expr = syntax.Sequence(access, assign)
+                        return expr.set_type(left_type)
                     case _:
                         self.error(f'invalid left hand side for assignment: {lhs}')
 
@@ -1298,7 +1322,7 @@ class Typecheck:
             return self.convert_to(expression, target_type)
         if self.is_null_pointer_constant(expression) and isinstance(target_type, syntax.Pointer):
             return self.convert_to(expression, target_type)
-        self.error(f'cannot convert type for assignment {expression} {target_type}')
+        self.error(f'cannot convert type for assignment {expression} to {target_type}')
 
     def is_arithmetic(self, t):
         match t:
