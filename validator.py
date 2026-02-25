@@ -1077,13 +1077,12 @@ class Typecheck:
                         ptr_value_name = self.new_temp_var('ptr')
                         ptr_var = syntax.Variable(ptr_value_name)
 
-                        access = self.typecheck_and_convert(lhs)
-                        assert(isinstance(access, syntax.AddrOf))
+                        access = self.typecheck_and_convert(syntax.AddrOf(lhs))
                         ptr_type = access.expr_type
                         self.symbols[ptr_value_name] = symbol.Symbol(ptr_type, symbol.LocalAttr())
 
                         # get_offset is the fist statement, `tmp.ptr.0 = &a[1]`
-                        get_ptr = syntax.Assignment(ptr_var, lhs, None)
+                        get_ptr = syntax.Assignment(ptr_var, access, None)
                         get_ptr = self.typecheck_expr(get_ptr)
 
                         # assign is the second statement, `*tmp.ptr.0 = *tmp.ptr.0 <op> <expr>`
@@ -1093,7 +1092,7 @@ class Typecheck:
                         assign = self.typecheck_and_convert(assign)
 
                         # Return one expression that performs both statements
-                        expr = syntax.Sequence(access, assign)
+                        expr = syntax.Sequence(get_ptr, assign)
                         return expr.set_type(left_type)
                     case _:
                         self.error(f'invalid left hand side for assignment: {lhs}')
