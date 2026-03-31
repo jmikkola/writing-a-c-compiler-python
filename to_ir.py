@@ -328,6 +328,8 @@ class ToTacky:
                 dst = self.make_tacky_variable(expr.expr_type)
                 instructions.append(tacky.Load(ptr, dst))
                 return instructions, dst
+            case _:
+                raise Exception(f'Unhandled type of result: {result}')
 
     def convert_expression(self, expr: syntax.Expression) -> typing.Tuple[list, ExpResult]:
         ''' returns (instructions, result value) '''
@@ -676,7 +678,7 @@ class ToTacky:
         # Evaluate the first experssion and throw away the result
         instructions_first, _ = self.convert_expression(expr.first)
         # Evaluate the second expression and keep the value
-        instructions_second, val = self.emit_tacky_and_convert(expr.second)
+        instructions_second, val = self.convert_expression(expr.second)
         return (instructions_first + instructions_second, val)
 
     def convert_conditional(self, expr: syntax.Conditional):
