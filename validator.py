@@ -868,6 +868,10 @@ class Typecheck:
                 block = self.typecheck_block(block)
                 return syntax.Compound(block)
             case syntax.Switch(condition, body, switch_label, case_values):
+                # The type without the conversion that decays arrays to pointers
+                raw_condition_type = self.typecheck_expr(condition).expr_type
+                if self.is_array(raw_condition_type):
+                    self.error('cannot switch on an array value')
                 condition = self.typecheck_and_convert(condition)
                 condition_type = condition.expr_type
                 self._switch_condition_types[switch_label] = condition_type
