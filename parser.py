@@ -81,10 +81,9 @@ class Parser:
             self.fail('a type cannot have both signed and unsigned')
 
         if 'char' in specifier_list:
-            if 'int' in specifier_list:
-                self.fail('a type cannot be both char and int')
-            if 'long' in specifier_list:
-                self.fail('a type cannot be both char and long')
+            for spec in specifier_list:
+                if spec not in ['char', 'signed', 'unsigned']:
+                    self.fail(f'a type cannot mix char and {spec}')
             if 'signed' in specifier_list:
                 return syntax.SChar()
             if 'unsigned' in specifier_list:
