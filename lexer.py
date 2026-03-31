@@ -8,13 +8,15 @@ IDENTIFIER = re.compile(r'[a-zA-Z_]\w*\b')
 # Digits optionally ending in l, u, ul, or lu in any mix of case
 INT_CONSTANT    = re.compile(r'([0-9]+([lL]|[uU]|[uU][lL]|[lL][uU])?)[^\w.]')
 DOUBLE_CONSTANT = re.compile(r'(([0-9]*\.[0-9]+|[0-9]+\.?)[Ee][+-]?[0-9]+|[0-9]*\.[0-9]+|[0-9]+\.)[^\w.]')
+CHAR_CONSTANT   = re.compile(r'\'([^\'\\\n]|\\[\'"?\\abfnrtv])\'')
+STRING_CONSTANT = re.compile(r'"([^"\\\n]|\\[\'"?\\abfnrtv])*"')
 
 LINE_COMMENT = re.compile(r'//[^\n]*\n?')
 # The *? is non-greedy, so it will stop at the first */ not the last one
 MULTILINE_COMENT = re.compile(r'/\*.*?\*/')
 
 KEYWORDS = [
-    'int', 'void', 'long', 'signed', 'unsigned', 'double',
+    'int', 'void', 'long', 'signed', 'unsigned', 'double', 'char',
     'return', 'if', 'else', 'goto',
     'do', 'while', 'break', 'continue', 'for',
     'switch', 'case', 'default',
