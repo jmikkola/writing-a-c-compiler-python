@@ -468,11 +468,15 @@ class Initializer:
 
 
 class SingleInit(Initializer, namedtuple('SingleInit', ['expr'])):
-    pass
+    def __str__(self):
+        expr = self.expr.pretty_print()
+        return f'SingleInit({expr})'
 
 
 class CompoundInit(Initializer, namedtuple('CompoundInit', ['initializers'])):
-    pass
+    def __str__(self):
+        initializers = ', '.join([ini.pretty_print() for ini in self.initializers])
+        return f'CompoundInit({initializers})'
 
 
 ##
