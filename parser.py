@@ -7,7 +7,7 @@ from errors import SyntaxError
 
 ASSIGNMENT_OPS = ['=', '>>=', '<<=', '+=', '-=', '*=', '/=', '%=', '&=', '|=', '^=']
 
-TYPE_SPECIFIERS = ['int', 'long', 'signed', 'unsigned', 'double']
+TYPE_SPECIFIERS = ['int', 'long', 'signed', 'unsigned', 'double', 'char']
 STORAGE_CLASSES = ['static', 'extern']
 
 DIGITS = re.compile(r'\d+')
@@ -79,6 +79,18 @@ class Parser:
             self.fail(f'invalid specifier list: {specifier_list}')
         if 'signed' in specifier_list and 'unsigned' in specifier_list:
             self.fail('a type cannot have both signed and unsigned')
+
+        if 'char' in specifier_list:
+            if 'int' in specifier_list:
+                self.fail('a type cannot be both char and int')
+            if 'long' in specifier_list:
+                self.fail('a type cannot be both char and long')
+            if 'signed' in specifier_list:
+                return syntax.SChar()
+            if 'unsigned' in specifier_list:
+                return syntax.UChar()
+            assert(specifier_list == ['char'])
+            return syntax.Char()
 
         is_unsigned = 'unsigned' in specifier_list
         is_long = 'long' in specifier_list
