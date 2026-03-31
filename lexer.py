@@ -71,7 +71,17 @@ def tokenize(text):
         if constant_match is None:
             constant_match = INT_CONSTANT.match(text)
         if constant_match is not None:
+            # group(1) not group(0) to exclude the trailing non-word character
             constant = constant_match.group(1)
+            text = text[len(constant):]
+            tokens.append(Token('constant', constant))
+            continue
+
+        constant_match = STRING_CONSTANT.match(text)
+        if constant_match is None:
+            constant_match = CHAR_CONSTANT.match(text)
+        if constant_match is not None:
+            constant = constant_match.group(0)
             text = text[len(constant):]
             tokens.append(Token('constant', constant))
             continue
