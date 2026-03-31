@@ -76,6 +76,23 @@ class Double(Type):
         return 'Double'
 
 
+class Char(Type):
+    def __str__(self):
+        return 'Char'
+
+
+class SChar(Type):
+    ''' signed char '''
+    def __str__(self):
+        return 'SChar'
+
+
+class UChar(Type):
+    ''' unsigned char '''
+    def __str__(self):
+        return 'UChar'
+
+
 class Func(Type, namedtuple('Func', ['params', 'ret'])):
     def __str__(self):
         params = ', '.join(str(param) for param in self.params)
@@ -667,3 +684,25 @@ class ConstDouble(Const, namedtuple('ConstDouble', ['value'])):
 
     def pretty_print(self):
         return f'ConstDouble({self.value})'
+
+
+class ConstUChar(Const, namedtuple('ConstUChar', ['value'])):
+    def __key(self):
+        return ('UChar', self.value)
+
+    def __hash__(self):
+        return hash(self.__key())
+
+    def pretty_print(self):
+        return f'ConstUChar({self.value})'
+
+
+class ConstChar(Const, namedtuple('ConstChar', ['value'])):
+    def __key(self):
+        return ('Char', self.value)
+
+    def __hash__(self):
+        return hash(self.__key())
+
+    def pretty_print(self):
+        return f'ConstChar({self.value})'
