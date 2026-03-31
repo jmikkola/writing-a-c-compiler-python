@@ -1077,13 +1077,14 @@ class Typecheck:
                         ptr_value_name = self.new_temp_var('ptr')
                         ptr_var = syntax.Variable(ptr_value_name)
 
-                        access = self.typecheck_and_convert(syntax.AddrOf(lhs))
+                        access = syntax.AddrOf(lhs).set_type(syntax.Pointer(lhs.expr_type))
                         ptr_type = access.expr_type
                         self.symbols[ptr_value_name] = symbol.Symbol(ptr_type, symbol.LocalAttr())
 
                         # get_offset is the fist statement, `tmp.ptr.0 = &a[1]`
+                        ptr_var = ptr_var.set_type(ptr_type)
                         get_ptr = syntax.Assignment(ptr_var, access, None)
-                        get_ptr = self.typecheck_expr(get_ptr)
+                        get_ptr = get_ptr.set_type(ptr_type)
 
                         # assign is the second statement, `*tmp.ptr.0 = *tmp.ptr.0 <op> <expr>`
                         dereference = syntax.Dereference(ptr_var)
