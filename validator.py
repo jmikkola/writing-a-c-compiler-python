@@ -1005,6 +1005,9 @@ class Typecheck:
                     return expr.set_type(e.expr_type)
 
             case syntax.Postfix(e, op):
+                raw_type = self.typecheck_expr(e).expr_type
+                if isinstance(raw_type, syntax.Array):
+                    self.error(f'cannot apply postfix operators to arrays: {op}')
                 e = self.typecheck_and_convert(e)
                 expr = syntax.Postfix(e, op)
                 return expr.set_type(e.expr_type)
