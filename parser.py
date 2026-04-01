@@ -121,7 +121,7 @@ class Parser:
         elif self.peek('['):
             while self.peek('['):
                 self.expect('[')
-                size = self.parse_integer()
+                size = self.parse_integer_or_char()
                 self.expect(']')
                 inner = syntax.ArrayDeclarator(inner, size)
             return inner
@@ -693,11 +693,105 @@ class Parser:
         token = self.expect('constant')
         text = token.text
 
+        if text.startswith("'"):
+            return self.parse_char_constant(text)
+
+        if text.startswith('"'):
+            return self.parse_string_constants(text)
+
         if '.' in text or 'e' in text or 'E' in text:
             # based on sys.float_info, it seems like python uses 64-bit floats
             return syntax.Constant(syntax.ConstDouble(float(text)))
 
         return self.parse_integer_constant_from_token(token)
+
+    def parse_string_constants(self, text):
+        ''' multiple string constants next to each other get concatenated '''
+        string = self.parse_string_constant(text)
+
+        while True:
+            next = self.peek('constant')
+            if next is None:
+                break
+            if not next.text.startswith('"'):
+                break
+            token = self.expect('constant')
+            next_string = self.parse_string_constant(token.text)
+            string = syntax.String(string.bytes + next_string.bytes)
+
+        return string
+
+    def parse_string_constant(self, text):
+        assert(text[0] == '"')
+        assert(text[-1] == '"')
+        inner = text[1:-1]
+
+        bytes = []
+        i = 0
+        while i < len(inner):
+            if inner[i] == '\\':
+                byte = self.escape_char(inner[i + 1])
+                i += 2
+            else:
+                byte = ord(inner[i])
+                i += 1
+            bytes.append(byte)
+
+        return syntax.String(bytes)
+
+    def parse_char_constant(self, text):
+        assert(text[0] == "'")
+        assert(text[-1] == "'")
+        assert(len(text) in (3,4))
+        if len(text) == 3:
+            c = text[1]
+            value = ord(c)
+        else:
+            assert(text[1] == '\\')
+            escaped = text[2]
+            value = self.escape_char(escaped)
+        return syntax.Constant(syntax.ConstInt(value))
+
+    def escape_char(self, escaped):
+        map = {
+            "'": 39,
+            '"': 34,
+            '?': 63,
+            '\\': 92,
+            'a': 7,
+            'b': 8,
+            'f': 12,
+            'n': 10,
+            'r': 13,
+            't': 9,
+            'v': 11
+        }
+        # The lexer should ensure this
+        assert(escaped in map)
+        return map[escaped]
+
+    def parse_integer_or_char(self) -> int:
+        token = self.peek('constant')
+        if token is None:
+            self.fail(f'expected an integer or char')
+        if token.text.startswith("'"):
+            return self.parse_char()
+        else:
+            return self.parse_integer()
+
+    def parse_char(self) -> int:
+        token = self.expect('constant')
+        text = token.text
+        assert(text[0] == "'")
+        assert(text[-1] == "'")
+        assert(len(text) in (3,4))
+        if len(text) == 3:
+            c = text[1]
+            return ord(c)
+        else:
+            assert(text[1] == '\\')
+            escaped = text[2]
+            return self.escape_char(escaped)
 
     def parse_integer(self) -> int:
         token = self.expect('constant')

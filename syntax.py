@@ -395,6 +395,10 @@ class Constant(Expression, namedtuple('Constant', ['const'])):
     pass
 
 
+class String(Expression, namedtuple('String', ['bytes'])):
+    pass
+
+
 class Variable(Expression, namedtuple('Variable', ['name'])):
     pass
 
