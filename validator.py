@@ -714,6 +714,10 @@ class Typecheck:
                 inner = self.zero_initializer(elem_t)
                 values = [inner] * size
                 return syntax.CompoundInit(values).set_type(target_type)
+            case syntax.Char() | syntax.SChar():
+                value = syntax.ConstInt(0)
+            case syntax.UChar():
+                value = syntax.ConstUInt(0)
             case syntax.Int():
                 value = syntax.ConstInt(0)
             case syntax.UInt():
@@ -778,12 +782,18 @@ class Typecheck:
             case syntax.Int():
                 value = typeconversion.constant_to_int(value)
                 return symbol.IntInit(value)
+            case syntax.Char() | syntax.SChar():
+                value = typeconversion.constant_to_byte(value)
+                return symbol.CharInit(value)
             case syntax.ULong():
                 value = typeconversion.constant_to_long(value, unsigned=True)
                 return symbol.ULongInit(value)
             case syntax.UInt():
                 value = typeconversion.constant_to_int(value, unsigned=True)
                 return symbol.UIntInit(value)
+            case syntax.UChar():
+                value = typeconversion.constant_to_byte(value, unsigned=True)
+                return symbol.UCharInit(value)
             case syntax.Double():
                 if isinstance(value, int):
                     value = float(value)
@@ -998,6 +1008,10 @@ class Typecheck:
                         self.error(f'invalid unary operator for a pointer: {op}')
                 if isinstance(raw_type, syntax.Array):
                     self.error(f'cannot apply unary operators to arrays: {op}')
+                # Cast characters to ints for some operations
+                if self.is_character(e.expr_type):
+                    if op == syntax.UnaryNegate() or op == syntax.UnaryInvert():
+                        e = self.convert_to(e, syntax.Int())
                 expr = syntax.Unary(op, e)
                 if op == syntax.UnaryNot():
                     return expr.set_type(syntax.Int())
@@ -1336,6 +1350,8 @@ class Typecheck:
 
     def is_arithmetic(self, t):
         match t:
+            case syntax.Char() | syntax.UChar() | syntax.SChar():
+                return True
             case syntax.Int() | syntax.UInt():
                 return True
             case syntax.Long() | syntax.ULong():
@@ -1347,6 +1363,8 @@ class Typecheck:
 
     def is_integer(self, t):
         match t:
+            case syntax.Char() | syntax.UChar() | syntax.SChar():
+                return True
             case syntax.Int() | syntax.UInt():
                 return True
             case syntax.Long() | syntax.ULong():
@@ -1368,7 +1386,18 @@ class Typecheck:
             case _:
                 return False
 
+    def is_character(self, t):
+        match t:
+            case syntax.Char() | syntax.UChar() | syntax.SChar():
+                return True
+            case _:
+                return False
+
     def get_common_type(self, t1, t2):
+        if self.is_character(t1):
+            t1 = syntax.Int()
+        if self.is_character(t2):
+            t2 = syntax.Int()
         if t1 == t2:
             return t1
         if syntax.Double() in [t1, t2]:

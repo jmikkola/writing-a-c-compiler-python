@@ -3,6 +3,8 @@ import syntax
 
 def type_size(t):
     match t:
+        case syntax.Char() | syntax.UChar() | syntax.SChar():
+            return 1
         case syntax.Int() | syntax.UInt():
             return 4
         case syntax.Long() | syntax.ULong():
@@ -20,9 +22,9 @@ def type_size(t):
 
 
 def is_signed(t):
-    if t == syntax.Long() or t == syntax.Int():
+    if t == syntax.Long() or t == syntax.Int() or t == syntax.Char() or t == syntax.SChar():
         return True
-    if t == syntax.ULong() or t == syntax.UInt():
+    if t == syntax.ULong() or t == syntax.UInt() or t == syntax.UChar():
         return False
     if t == syntax.Double():
         return True
@@ -33,6 +35,8 @@ def is_signed(t):
 
 def alignment_of(var_type: syntax.Type) -> int:
     match var_type:
+        case syntax.Char() | syntax.UChar() | syntax.SChar():
+            return 1
         case syntax.Int() | syntax.UInt():
             return 4
         case syntax.Long() | syntax.ULong() | syntax.Double() | syntax.Pointer():
@@ -65,6 +69,11 @@ def constant_to_long(n, unsigned=False):
 def constant_to_int(n, unsigned=False):
     n = int(n)
     return _constant_to_size(n, 4, unsigned)
+
+
+def constant_to_byte(n, unsigned=False):
+    n = int(n)
+    return _constant_to_size(n, 1, unsigned)
 
 
 def _constant_to_size(n, n_bytes, unsigned):

@@ -42,11 +42,20 @@ class StaticInit:
     pass
 
 
+class CharInit(StaticInit, namedtuple('CharInit', ['value'])):
+    ''' for Char and SChar typed values '''
+    pass
+
+
 class IntInit(StaticInit, namedtuple('IntInit', ['value'])):
     pass
 
 
 class LongInit(StaticInit, namedtuple('LongInit', ['value'])):
+    pass
+
+
+class UCharInit(StaticInit, namedtuple('UCharInit', ['value'])):
     pass
 
 
