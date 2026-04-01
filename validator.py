@@ -232,6 +232,8 @@ class IdentifierResolution:
         match expr:
             case syntax.Constant(_):
                 return expr
+            case syntax.String(_):
+                return expr
             case syntax.Variable(name):
                 if name not in identifier_map:
                     self.error(f'undefined variable {name}')
@@ -972,6 +974,11 @@ class Typecheck:
                     case _:
                         raise Exception(f'unhandled type of const {const}')
 
+            case syntax.String(bytes):
+                # Add 1 to the array size for the space of the null terminator byte
+                array_type = syntax.Array(syntax.Char(), 1 + len(bytes))
+                return expr.set_type(array_type)
+
             case syntax.Variable(name):
                 symbol_type = self.symbols[name].type
                 if isinstance(symbol_type, syntax.Func):
@@ -1445,6 +1452,9 @@ class Typecheck:
 
 def is_lvalue(expr: syntax.Expression) -> bool:
     match expr:
+        case syntax.String():
+            # Allow taking a pointer to a string with &
+            return True
         case syntax.Variable():
             return True
         case syntax.Dereference():
