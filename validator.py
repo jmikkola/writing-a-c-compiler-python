@@ -693,6 +693,12 @@ class Typecheck:
 
     def typecheck_var_init(self, target_type: syntax.Type, init: syntax.Initializer):
         match (target_type, init):
+            case (syntax.Array(elem_t, size), syntax.SingleInit(syntax.String(bytes))):
+                if not self.is_character(elem_t):
+                    self.error("can't initialize a non-character type with a string literal")
+                if len(bytes) > size:
+                    self.error("Too many characters in string literal")
+                return init.set_type(target_type)
             case (_, syntax.SingleInit(e)):
                 typechecked_expr = self.typecheck_and_convert(e)
                 cast_expr = self.convert_by_assignment(typechecked_expr, target_type)
