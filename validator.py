@@ -768,7 +768,7 @@ class Typecheck:
                         string_value = symbol.Initial([symbol.StringInit(bytes, True)])
                         self.symbols[new_name] = symbol.Symbol(
                             syntax.Array(elem_t, len(bytes) + 1),
-                            symbol.StaticAttr(init=string_value, is_global=False)
+                            symbol.ConstantAttr(init=string_value)
                         )
                         return [symbol.PointerInit(new_name)]
                     case _:
