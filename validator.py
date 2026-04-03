@@ -736,6 +736,8 @@ class Typecheck:
                 value = syntax.ConstULong(0)
             case syntax.Double():
                 value = syntax.ConstDouble(0.0)
+            case syntax.Pointer():
+                value = syntax.ConstULong(0)
             case _:
                 raise Exception(f'unhandled initializer type {target_type}')
         constant = syntax.Constant(value)
