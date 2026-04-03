@@ -18,6 +18,10 @@ class StaticAttr(IdentifierAttributes, namedtuple('StaticAttr', ['init', 'is_glo
     pass
 
 
+class ConstantAttr(IdentifierAttributes, namedtuple('ConstantAttr', ['init'])):
+    pass
+
+
 class LocalAttr(IdentifierAttributes, namedtuple('LocalAttr', [])):
     pass
 
@@ -68,6 +72,14 @@ class ULongInit(StaticInit, namedtuple('ULongInit', ['value'])):
 
 
 class DoubleInit(StaticInit, namedtuple('DoubleInit', ['value'])):
+    pass
+
+
+class StringInit(StaticInit, namedtuple('StringInit', ['string', 'null_terminated'])):
+    pass
+
+
+class PointerInit(StaticInit, namedtuple('PointerInit', ['name'])):
     pass
 
 

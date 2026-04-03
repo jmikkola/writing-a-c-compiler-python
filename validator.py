@@ -754,6 +754,14 @@ class Typecheck:
                     self.error(f'cannot use a single initializers for an array')
                 return [self.to_static_init(const.value, target_type)]
 
+            case syntax.SingleInit(syntax.String(bytes)):
+                if not self.is_array(target_type):
+                    self.error(f'cannot use a string initializer for a scaler')
+                if target_type.size < len(bytes):
+                    self.error(f'string is too long for type')
+                null_terminated = target_type.size > len(bytes)
+                return [symbol.StringInit(bytes, null_terminated)]
+
             case syntax.SingleInit(expr):
                 self.error(f'non-constant initializer for a static variable: {expr}')
 
@@ -924,9 +932,13 @@ class Typecheck:
 
     def convert_case_value(self, value, target_type: syntax.Type):
         match value:
+            case syntax.ConstChar(n):
+                return self.convert_integer(n, target_type)
             case syntax.ConstInt(n):
                 return self.convert_integer(n, target_type)
             case syntax.ConstLong(n):
+                return self.convert_integer(n, target_type)
+            case syntax.ConstUChar(n):
                 return self.convert_integer(n, target_type)
             case syntax.ConstUInt(n):
                 return self.convert_integer(n, target_type)
@@ -943,12 +955,18 @@ class Typecheck:
             case syntax.Int():
                 value = typeconversion.constant_to_int(value)
                 return syntax.ConstInt(value)
+            case syntax.Char() | syntax.SChar():
+                value = typeconversion.constant_to_byte(value)
+                return syntax.ConstChar(value)
             case syntax.ULong():
                 value = typeconversion.constant_to_long(value, unsigned=True)
                 return syntax.ConstULong(value)
             case syntax.UInt():
                 value = typeconversion.constant_to_int(value, unsigned=True)
                 return syntax.ConstUInt(value)
+            case syntax.UChar():
+                value = typeconversion.constant_to_byte(value, unsigned=True)
+                return syntax.ConstUChar(value)
             case _:
                 raise Exception(f'unhandled type for constant {target_type}')
 
