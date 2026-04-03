@@ -760,12 +760,14 @@ class Typecheck:
                 match target_type:
                     case syntax.Array(elem_t, size):
                         if not self.is_character(elem_t):
+                            # Char, UChar, and SChar are allowed
                             self.error(f'cannot use a string to initialize an array of {elem_t}')
                         if size < len(bytes):
                             self.error(f'string is too long for {target_type}')
                         null_terminated = target_type.size > len(bytes)
                         return [symbol.StringInit(bytes, null_terminated)]
-                    case syntax.Pointer(elem_t) if self.is_character(elem_t):
+                    case syntax.Pointer(syntax.Char()):
+                        # UChar and SChar are not allowed here
                         new_name = self.new_temp_var('str')
                         string_value = symbol.Initial([symbol.StringInit(bytes, True)])
                         self.symbols[new_name] = symbol.Symbol(
