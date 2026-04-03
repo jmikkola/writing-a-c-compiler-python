@@ -1045,6 +1045,7 @@ class Typecheck:
                 return expr.set_type(symbol_type.ret)
 
             case syntax.Unary(op, e):
+                was_string = isinstance(e, syntax.String)
                 raw_type = self.typecheck_expr(e).expr_type
                 e = self.typecheck_and_convert(e)
                 if e.expr_type == syntax.Double():
@@ -1054,7 +1055,12 @@ class Typecheck:
                     if op == syntax.UnaryNegate() or op == syntax.UnaryInvert():
                         self.error(f'invalid unary operator for a pointer: {op}')
                 if isinstance(raw_type, syntax.Array):
-                    self.error(f'cannot apply unary operators to arrays: {op}')
+                    if was_string:
+                        # Unary negate and invert are OK for strings
+                        if op == syntax.UnaryIncrement() or op == syntax.UnaryDecrement():
+                            self.error(f'cannot apply unary operator to strings {op}')
+                    else:
+                        self.error(f'cannot apply unary operators to arrays {op}')
                 # Cast characters to ints for some operations
                 if self.is_character(e.expr_type):
                     if op == syntax.UnaryNegate() or op == syntax.UnaryInvert():
