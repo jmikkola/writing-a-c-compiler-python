@@ -934,6 +934,8 @@ class Typecheck:
                 raise Exception(f'unhandled type of block item {block_item}')
 
     def convert_case_values(self, case_values: set, target_type: syntax.Type) -> set:
+        if self.is_character(target_type):
+            target_type = syntax.Int()
         updated_values = set()
         for value in case_values:
             if value == 'default':
