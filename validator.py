@@ -755,12 +755,21 @@ class Typecheck:
                 return [self.to_static_init(const.value, target_type)]
 
             case syntax.SingleInit(syntax.String(bytes)):
-                if not self.is_array(target_type):
-                    self.error(f'cannot use a string initializer for a scaler')
-                if target_type.size < len(bytes):
-                    self.error(f'string is too long for type')
-                null_terminated = target_type.size > len(bytes)
-                return [symbol.StringInit(bytes, null_terminated)]
+                match target_type:
+                    case syntax.Array(elem_t, size):
+                        if not self.is_character(elem_t):
+                            self.error(f'cannot use a string to initialize an array of {elem_t}')
+                        if size < len(bytes):
+                            self.error(f'string is too long for {target_type}')
+                        null_terminated = target_type.size > len(bytes)
+                        return [symbol.StringInit(bytes, null_terminated)]
+                    case syntax.Pointer(elem_t) if self.is_character(elem_t):
+                        new_name = self.new_temp_var('str')
+                        string_value = symbol.Initial([symbol.StringInit(bytes, True)])
+                        self.symbols[new_name] = symbol.StaticAttr(init=string_value, is_global=False)
+                        return [symbol.PointerInit(new_name)]
+                    case _:
+                        self.error(f'invalid type for assigning a string: {target_type}')
 
             case syntax.SingleInit(expr):
                 self.error(f'non-constant initializer for a static variable: {expr}')
