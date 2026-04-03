@@ -766,7 +766,10 @@ class Typecheck:
                     case syntax.Pointer(elem_t) if self.is_character(elem_t):
                         new_name = self.new_temp_var('str')
                         string_value = symbol.Initial([symbol.StringInit(bytes, True)])
-                        self.symbols[new_name] = symbol.StaticAttr(init=string_value, is_global=False)
+                        self.symbols[new_name] = symbol.Symbol(
+                            syntax.Array(elem_t, len(bytes) + 1),
+                            symbol.StaticAttr(init=string_value, is_global=False)
+                        )
                         return [symbol.PointerInit(new_name)]
                     case _:
                         self.error(f'invalid type for assigning a string: {target_type}')
