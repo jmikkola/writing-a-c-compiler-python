@@ -172,7 +172,7 @@ class ToTacky:
 
     def emit_initializer(self, name: str, init: syntax.Initializer, offset=None):
         match init:
-            case syntax.SingleInit(syntax.String(bytes)):
+            case syntax.SingleInit(syntax.String(bytes)) if isinstance(init.expr_type, syntax.Array):
                 return self.emit_string_initializer(name, offset, bytes, init.expr_type)
 
             case syntax.SingleInit(expr):
@@ -197,9 +197,16 @@ class ToTacky:
             case _:
                 raise Exception(f'unhandled type of initializer: {init}')
 
+    def is_char(self, t):
+        match t:
+            case syntax.Char() | syntax.UChar() | syntax.SChar():
+                return True
+            case _:
+                return False
+
     def emit_string_initializer(self, name, offset, bytes, var_type):
         assert(isinstance(var_type, syntax.Array))
-        assert(isinstance(var_type.element, syntax.Char))
+        assert(self.is_char(var_type.element))
 
         array_size = var_type.size
         if array_size > len(bytes):
