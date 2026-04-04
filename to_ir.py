@@ -89,13 +89,19 @@ class ToTacky:
                         case symbol.NoInitializer():
                             pass
                         case _:
-                            assert(False)
+                            raise Exception(f'unhandled init type {init}')
+                case symbol.ConstantAttr(init):
+                    match init:
+                        case symbol.Initial([value]):
+                            top_level.append(tacky.StaticConstant(name, var_type, value))
+                        case _:
+                            raise Exception(f'invalid initializer for a constant: {init}')
                 case symbol.FuncAttr():
                     pass
                 case symbol.LocalAttr():
                     pass
                 case _:
-                    assert(False)
+                    raise Exception(f'unhandled attribute type {entry.attrs}')
 
         return top_level
 
@@ -220,7 +226,7 @@ class ToTacky:
         # Take 4 bytes at a time
         while i + 3 < len(bytes):
             packed = self.pack_bytes(bytes[i:i+4])
-            constant = tacky.Constant(tacky.ConstChar(packed))
+            constant = tacky.Constant(tacky.ConstInt(packed))
             instructions.append(tacky.CopyToOffset(constant, name, offset))
             i += 4
             offset += 4
@@ -525,6 +531,14 @@ class ToTacky:
                     instruction = tacky.AddPtr(right_result, left_result, scale, result)
                 instructions.append(instruction)
                 return (instructions, DereferencedPointer(result))
+
+            case syntax.String(bytes):
+                const_name = self.new_temp_var()
+                var_type = syntax.Array(syntax.Char(), len(bytes) + 1)
+                string_value = symbol.Initial([symbol.StringInit(bytes, True)])
+                attr = symbol.ConstantAttr(init=string_value)
+                self.symbols[const_name.name] = symbol.Symbol(var_type, attr)
+                return ([], PlainOperand(const_name))
 
             case _:
                 raise Exception(f'unhandled expression type, {expr}')

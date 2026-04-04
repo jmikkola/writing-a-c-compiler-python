@@ -43,6 +43,9 @@ class Type:
     def pretty_print(self):
         return str(self)
 
+    def __repr__(self):
+        return str(self)
+
     def __eq__(self, other):
         # Super lazy
         return str(self) == str(other)

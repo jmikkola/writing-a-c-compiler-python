@@ -14,6 +14,11 @@ class StaticVariable(namedtuple('StaticVariable', ['name', 'is_global', 'var_typ
         return str(self)
 
 
+class StaticConstant(namedtuple('StaticConstant', ['name', 'const_type', 'init'])):
+    def pretty_print(self):
+        return str(self)
+
+
 class Function(namedtuple('Function', ['name', 'is_global', 'params', 'body'])):
     def pretty_print(self):
         params = ', '.join(self.params)
