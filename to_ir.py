@@ -45,6 +45,11 @@ class ToTacky:
             return tacky.Constant(tacky.ConstULong(constant))
         elif const_type == syntax.Double():
             return tacky.Constant(tacky.ConstDouble(float(constant)))
+        elif const_type == syntax.Char() or const_type == syntax.SChar():
+            return tacky.Constant(tacky.ConstChar(constant))
+        elif const_type == syntax.UChar():
+            # A signed char value probably works
+            return tacky.Constant(tacky.ConstChar(constant))
         else:
             raise Exception(f'unhandled type of constant {const_type}')
 
