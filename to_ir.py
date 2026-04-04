@@ -209,11 +209,30 @@ class ToTacky:
         if offset is None:
             offset = 0
         instructions = []
-        for byte in bytes:
+        i = 0
+        # Take 4 bytes at a time
+        while i + 3 < len(bytes):
+            packed = self.pack_bytes(bytes[i:i+4])
+            constant = tacky.Constant(tacky.ConstChar(packed))
+            instructions.append(tacky.CopyToOffset(constant, name, offset))
+            i += 4
+            offset += 4
+        while i < len(bytes):
+            byte = bytes[i]
             constant = tacky.Constant(tacky.ConstChar(byte))
             instructions.append(tacky.CopyToOffset(constant, name, offset))
+            i += 1
             offset += 1
         return instructions
+
+    def pack_bytes(self, bytes) -> int:
+        ''' pack the bytes into an integer in little endian order '''
+        result = 0
+        multiple = 1
+        for b in bytes:
+            result += b * multiple
+            multiple *= 256
+        return result
 
     def convert_do_while(self, stmt: syntax.DoWhile) -> list:
         loop_start = self.new_label('do_while_start')
