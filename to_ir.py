@@ -172,6 +172,9 @@ class ToTacky:
 
     def emit_initializer(self, name: str, init: syntax.Initializer, offset=None):
         match init:
+            case syntax.SingleInit(syntax.String(bytes)):
+                return self.emit_string_initializer(name, offset, bytes, init.expr_type)
+
             case syntax.SingleInit(expr):
                 instructions, result = self.emit_tacky_and_convert(expr)
                 if offset is not None:
@@ -193,6 +196,24 @@ class ToTacky:
 
             case _:
                 raise Exception(f'unhandled type of initializer: {init}')
+
+    def emit_string_initializer(self, name, offset, bytes, var_type):
+        assert(isinstance(var_type, syntax.Array))
+        assert(isinstance(var_type.element, syntax.Char))
+
+        array_size = var_type.size
+        if array_size > len(bytes):
+            # Pad with zeros (the first of which acts as the null terminator)
+            bytes = bytes + [0] * (array_size - len(bytes))
+
+        if offset is None:
+            offset = 0
+        instructions = []
+        for byte in bytes:
+            constant = tacky.Constant(tacky.ConstChar(byte))
+            instructions.append(tacky.CopyToOffset(constant, name, offset))
+            offset += 1
+        return instructions
 
     def convert_do_while(self, stmt: syntax.DoWhile) -> list:
         loop_start = self.new_label('do_while_start')

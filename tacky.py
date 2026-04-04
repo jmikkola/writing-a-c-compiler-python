@@ -151,6 +151,10 @@ class Const:
     pass
 
 
+class ConstChar(Const, namedtuple('ConstChar', ['value'])):
+    pass
+
+
 class ConstInt(Const, namedtuple('ConstInt', ['value'])):
     pass
 
