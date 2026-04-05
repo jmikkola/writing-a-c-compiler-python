@@ -90,7 +90,8 @@ class Movsx(Instruction, namedtuple('Movsx', ['src', 'dst'])):
     pass
 
 
-class MovZeroExtend(Instruction, namedtuple('MovZeroExtend', ['src', 'dst'])):
+class MovZeroExtend(Instruction, namedtuple('MovZeroExtend', ['src_type', 'dst_type', 'src', 'dst'])):
+    # src_type and dst_type are assembly.AssemblyType values
     pass
 
 

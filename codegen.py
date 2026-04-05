@@ -163,10 +163,10 @@ class Codegen:
                     src = stack_map.convert_pseudo_register(src)
                     dst = stack_map.convert_pseudo_register(dst)
                     instr = assembly.Movsx(src, dst)
-                case assembly.MovZeroExtend(src, dst):
+                case assembly.MovZeroExtend(src_type, dst_type, src, dst):
                     src = stack_map.convert_pseudo_register(src)
                     dst = stack_map.convert_pseudo_register(dst)
-                    instr = assembly.MovZeroExtend(src, dst)
+                    instr = assembly.MovZeroExtend(src_type, dst_type, src, dst)
                 case assembly.Lea(src, dst):
                     src = stack_map.convert_pseudo_register(src)
                     dst = stack_map.convert_pseudo_register(dst)
@@ -333,6 +333,7 @@ class Codegen:
             return [instr]
 
     def fix_mov_zero_extend(self, instr: assembly.MovZeroExtend) -> list:
+        # TODO: Take into account src_type and dst_type
         src = instr.src
         dst = instr.dst
         if is_register(dst):
@@ -632,7 +633,7 @@ class Codegen:
         a_type = self.a_type_of(instr.src)
         if a_type == longword:
             return [
-                assembly.MovZeroExtend(src, rdx),
+                assembly.MovZeroExtend(longword, quadword, src, rdx),
                 assembly.Cvtsi2sd(quadword, rdx, dst),
             ]
 
