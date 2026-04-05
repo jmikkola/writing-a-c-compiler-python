@@ -18,6 +18,7 @@ xmm1 = assembly.Register('XMM1')
 xmm14 = assembly.Register('XMM14')
 xmm15 = assembly.Register('XMM15')
 
+byte = assembly.Byte()
 longword = assembly.Longword()
 quadword = assembly.Quadword()
 double = assembly.Double()
@@ -944,6 +945,8 @@ class Codegen:
 
     def sym_type_to_a_type(self, sym_type: syntax.Type) -> assembly.AssemblyType:
         match sym_type:
+            case syntax.Char() | syntax.UChar() | syntax.SChar():
+                return byte
             case syntax.Int() | syntax.UInt():
                 return longword
             case syntax.Long() | syntax.ULong() | syntax.Pointer():
