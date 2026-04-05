@@ -86,7 +86,7 @@ class Mov(Instruction, namedtuple('Mov', ['assembly_type', 'src', 'dst'])):
     pass
 
 
-class Movsx(Instruction, namedtuple('Movsx', ['src', 'dst'])):
+class Movsx(Instruction, namedtuple('Movsx', ['src_type', 'dst_type', 'src', 'dst'])):
     pass
 
 

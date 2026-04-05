@@ -159,10 +159,10 @@ class Codegen:
                     src = stack_map.convert_pseudo_register(src)
                     dst = stack_map.convert_pseudo_register(dst)
                     instr = assembly.Mov(assembly_type, src, dst)
-                case assembly.Movsx(src, dst):
+                case assembly.Movsx(src_type, dst_type, src, dst):
                     src = stack_map.convert_pseudo_register(src)
                     dst = stack_map.convert_pseudo_register(dst)
-                    instr = assembly.Movsx(src, dst)
+                    instr = assembly.Movsx(src_type, dst_type, src, dst)
                 case assembly.MovZeroExtend(src_type, dst_type, src, dst):
                     src = stack_map.convert_pseudo_register(src)
                     dst = stack_map.convert_pseudo_register(dst)
@@ -309,39 +309,42 @@ class Codegen:
             return [instr]
 
     def fix_movsx(self, instr: assembly.Movsx) -> list:
+        src_type = instr.src_type
+        dst_type = instr.dst_type
         src = instr.src
         dst = instr.dst
         # It can't use a memory address as the destination or and immediate as
         # the source
         if is_immediate(src) and is_mem(dst):
             return [
-                assembly.Mov(longword, src, r10),
-                assembly.Movsx(r10, r11),
-                assembly.Mov(quadword, r11, dst),
+                assembly.Mov(src_type, src, r10),
+                assembly.Movsx(src_type, dst_type, r10, r11),
+                assembly.Mov(dst_type, r11, dst),
             ]
         elif is_immediate(src):
             return [
-                assembly.Mov(longword, src, r10),
-                assembly.Movsx(r10, dst),
+                assembly.Mov(src_type, src, r10),
+                assembly.Movsx(src_type, dst_type, r10, dst),
             ]
         elif is_mem(dst):
             return [
-                assembly.Movsx(src, r11),
-                assembly.Mov(quadword, r11, dst),
+                assembly.Movsx(src_type, dst_type, src, r11),
+                assembly.Mov(dst_type, r11, dst),
             ]
         else:
             return [instr]
 
     def fix_mov_zero_extend(self, instr: assembly.MovZeroExtend) -> list:
-        # TODO: Take into account src_type and dst_type
         src = instr.src
         dst = instr.dst
         if is_register(dst):
-            return [assembly.Mov(longword, src, dst)]
+            return [assembly.Mov(instr.src_type, src, dst)]
         elif is_mem(dst):
+            # I don't know if this correctly zero extends for types smaller than
+            # a longword
             return [
-                assembly.Mov(longword, src, r11),
-                assembly.Mov(quadword, r11, dst),
+                assembly.Mov(instr.src_type, src, r11),
+                assembly.Mov(instr.dst_type, r11, dst),
             ]
         else:
             return [instr]
@@ -663,14 +666,18 @@ class Codegen:
         ]
 
     def gen_zero_extend(self, instr: tacky.ZeroExtend) -> list:
+        src_type = self.a_type_of(instr.src)
+        dst_type = self.a_type_of(instr.dst)
         src = self.convert_operand(instr.src)
         dst = self.convert_operand(instr.dst)
-        return [assembly.MovZeroExtend(src, dst)]
+        return [assembly.MovZeroExtend(src_type, dst_type, src, dst)]
 
     def gen_sign_extend(self, instr: tacky.SignExtend) -> list:
+        src_type = self.a_type_of(instr.src)
+        dst_type = self.a_type_of(instr.dst)
         src = self.convert_operand(instr.src)
         dst = self.convert_operand(instr.dst)
-        return [assembly.Movsx(src, dst)]
+        return [assembly.Movsx(src_type, dst_type, src, dst)]
 
     def gen_truncate(self, instr: tacky.Truncate) -> list:
         src = self.convert_operand(instr.src)
