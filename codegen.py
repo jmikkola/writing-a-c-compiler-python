@@ -72,8 +72,11 @@ class Codegen:
             case symbol.LocalAttr():
                 a_type = self.sym_type_to_a_type(sym.type)
                 return assembly.ObjEntry(a_type, False, False)
+            case symbol.ConstantAttr(init):
+                a_type = self.sym_type_to_a_type(sym.type)
+                return assembly.ObjEntry(a_type, True, True)
             case _:
-                assert(False)
+                raise Exception(f'unhandled kind of symbol attributes: {attrs}')
 
     def gen_top_level(self, top_level):
         match top_level:
@@ -81,8 +84,14 @@ class Codegen:
                 return self.gen_function(top_level)
             case tacky.StaticVariable():
                 return self.gen_static_var(top_level)
+            case tacky.StaticConstant():
+                return self.gen_static_constant(top_level)
             case _:
-                assert(False)
+                raise Exception(f'unhandled kind of top level declaration: {top_level}')
+
+    def gen_static_constant(self, const: tacky.StaticConstant) -> assembly.StaticConstant:
+        alignment = typeconversion.alignment_of(const.const_type)
+        return assembly.StaticConstant(const.name, alignment, const.init)
 
     def gen_static_var(self, var: tacky.StaticVariable) -> assembly.StaticVariable:
         alignment = typeconversion.alignment_of(var.var_type)
@@ -592,12 +601,23 @@ class Codegen:
         src = self.convert_operand(instr.src)
         dst = self.convert_operand(instr.dst)
         a_type = self.a_type_of(instr.dst)
+        if a_type == byte:
+            return [
+                assembly.Cvttsd2si(longword, src, rax),
+                assembly.Mov(byte, rax, dst),
+            ]
         return [assembly.Cvttsd2si(a_type, src, dst)]
 
     def gen_double_to_uint(self, instr: tacky.DoubleToUInt) -> list:
         src = self.convert_operand(instr.src)
         dst = self.convert_operand(instr.dst)
         a_type = self.a_type_of(instr.dst)
+        if a_type == byte:
+            return [
+                assembly.Cvttsd2si(longword, src, rax),
+                # Truncate
+                assembly.Mov(byte, rax, dst),
+            ]
         if a_type == longword:
             return [
                 assembly.Cvttsd2si(quadword, src, rdx),
@@ -628,12 +648,22 @@ class Codegen:
         src = self.convert_operand(instr.src)
         dst = self.convert_operand(instr.dst)
         a_type = self.a_type_of(instr.src)
+        if a_type == byte:
+            return [
+                assembly.Movsx(byte, longword, src, rax),
+                assembly.Cvtsi2sd(longword, rax, dst),
+            ]
         return [assembly.Cvtsi2sd(a_type, src, dst)]
 
     def gen_uint_to_double(self, instr: tacky.UIntToDouble) -> list:
         src = self.convert_operand(instr.src)
         dst = self.convert_operand(instr.dst)
         a_type = self.a_type_of(instr.src)
+        if a_type == byte:
+            return [
+                assembly.MovZeroExtend(byte, longword, src, rax),
+                assembly.Cvtsi2sd(longword, rax, dst),
+            ]
         if a_type == longword:
             return [
                 assembly.MovZeroExtend(longword, quadword, src, rdx),
@@ -934,6 +964,8 @@ class Codegen:
 
     def value_type(self, value: tacky.Value) -> syntax.Type:
         match value:
+            case tacky.Constant(tacky.ConstChar(value)):
+                return syntax.Char()
             case tacky.Constant(tacky.ConstInt(value)):
                 return syntax.Int()
             case tacky.Constant(tacky.ConstLong(value)):

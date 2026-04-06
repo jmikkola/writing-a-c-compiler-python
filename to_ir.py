@@ -228,17 +228,18 @@ class ToTacky:
             offset = 0
         instructions = []
         i = 0
+        identifier = tacky.Identifier(name)
         # Take 4 bytes at a time
         while i + 3 < len(bytes):
             packed = self.pack_bytes(bytes[i:i+4])
             constant = tacky.Constant(tacky.ConstInt(packed))
-            instructions.append(tacky.CopyToOffset(constant, name, offset))
+            instructions.append(tacky.CopyToOffset(constant, identifier, offset))
             i += 4
             offset += 4
         while i < len(bytes):
             byte = bytes[i]
             constant = tacky.Constant(tacky.ConstChar(byte))
-            instructions.append(tacky.CopyToOffset(constant, name, offset))
+            instructions.append(tacky.CopyToOffset(constant, identifier, offset))
             i += 1
             offset += 1
         return instructions
