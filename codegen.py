@@ -715,7 +715,8 @@ class Codegen:
             truncated = src.value & (2**32 - 1)
             src = assembly.Immediate(truncated)
         dst = self.convert_operand(instr.dst)
-        return [assembly.Mov(longword, src, dst)]
+        dst_type = self.a_type_of(instr.dst)
+        return [assembly.Mov(dst_type, src, dst)]
 
     def classify_parameters(self, values: list):
         '''Decide whether each value passed to a function goes in an integer
