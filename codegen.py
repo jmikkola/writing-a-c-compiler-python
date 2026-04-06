@@ -304,6 +304,8 @@ class Codegen:
         scratch = r10
         if assembly_type == double:
             scratch = xmm14
+        if is_immediate(src) and assembly_type == byte:
+            src = assembly.Immediate(src.value % 256)
         if is_mem(src) and is_mem(dst):
             return [
                 assembly.Mov(assembly_type, src, scratch),
@@ -344,19 +346,34 @@ class Codegen:
             return [instr]
 
     def fix_mov_zero_extend(self, instr: assembly.MovZeroExtend) -> list:
+        src_type = instr.src_type
+        dst_type = instr.dst_type
         src = instr.src
         dst = instr.dst
-        if is_register(dst):
-            return [assembly.Mov(instr.src_type, src, dst)]
-        elif is_mem(dst):
-            # I don't know if this correctly zero extends for types smaller than
-            # a longword
-            return [
-                assembly.Mov(instr.src_type, src, r11),
-                assembly.Mov(instr.dst_type, r11, dst),
-            ]
-        else:
-            return [instr]
+        match src_type:
+            case assembly.Longword():
+                if is_register(dst):
+                    return [assembly.Mov(src_type, src, dst)]
+                elif is_mem(dst):
+                    return [
+                        assembly.Mov(src_type, src, r11),
+                        assembly.Mov(dst_type, r11, dst),
+                    ]
+                else:
+                    return [instr]
+            case assembly.Byte():
+                prefix = []
+                if is_immediate(src):
+                    prefix = [assembly.Mov(src_type, src, r10)]
+                    src = r10
+                suffix = []
+                if is_mem(dst):
+                    suffix = [assembly.Mov(dst_type, r11, dst)]
+                    dst = r11
+                instruction = [assembly.MovZeroExtend(src_type, dst_type, src, dst)]
+                return prefix + instruction + suffix
+            case _:
+                raise Exception(f'unhandled source type for zero extend: {src_type}')
 
     def fix_lea(self, instr: assembly.Lea) -> list:
         src = instr.src
