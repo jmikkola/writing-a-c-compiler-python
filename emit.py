@@ -85,6 +85,10 @@ class Emit:
         match init:
             case symbol.ZeroInit():
                 self.indented(f'.zero {init.bytes}')
+            case symbol.CharInit(value):
+                self.indented(f'.byte {value}')
+            case symbol.UCharInit(value):
+                self.indented(f'.byte {value}')
             case symbol.IntInit(value):
                 self.indented(f'.long {value}')
             case symbol.LongInit(value):
@@ -95,8 +99,30 @@ class Emit:
                 self.indented(f'.quad {value}')
             case symbol.DoubleInit(value):
                 self.indented(f'.double {value:.18e}')
+            case symbol.StringInit(bytes, null_terminated):
+                escaped = self.bytes_to_escaped_string(bytes)
+                if null_terminated:
+                    self.indented(f'.asciz "{escaped}"')
+                else:
+                    self.indented(f'.ascii "{escaped}"')
+            case symbol.PointerInit(name):
+                self.indented(f'.quad {name}')
             case _:
                 raise Exception(f'unhandled type of init: {init}')
+
+    def bytes_to_escaped_string(self, bytes):
+        parts = []
+        for b in bytes:
+            match b:
+                case 7 | 8 | 9 | 10 | 11 | 12 | 13 | 34 | 39 | 63 | 92:
+                    parts.append('\\' + self.to_octal(b))
+                case _:
+                    parts.append(chr(b))
+        return ''.join(parts)
+
+    def to_octal(self, n):
+        # [2:] strips out the leading '0o'
+        return oct(n)[2:]
 
     def emit_function(self, function: assembly.Function):
         if function.is_global:
@@ -125,10 +151,19 @@ class Emit:
                 suffix = self.suffix_for(assembly_type)
                 self.indented(f'mov{suffix} {src}, {dst}')
 
-            case assembly.Movsx(src, dst):
-                src = self.render_operand(src, longword)
-                dst = self.render_operand(dst, quadword)
-                self.indented(f'movslq {src}, {dst}')
+            case assembly.Movsx(src_type, dst_type, src, dst):
+                src = self.render_operand(src, src_type)
+                dst = self.render_operand(dst, dst_type)
+                src_size = self.suffix_for(src_type)
+                dst_size = self.suffix_for(dst_type)
+                self.indented(f'movs{src_size}{dst_size} {src}, {dst}')
+
+            case assembly.MovZeroExtend(src_type, dst_type, src, dst):
+                src = self.render_operand(src, src_type)
+                dst = self.render_operand(dst, dst_type)
+                src_size = self.suffix_for(src_type)
+                dst_size = self.suffix_for(dst_type)
+                self.indented(f'movz{src_size}{dst_size} {src}, {dst}')
 
             case assembly.Lea(src, dst):
                 src = self.render_operand(src, quadword)
@@ -217,6 +252,8 @@ class Emit:
                 raise Exception(f'unhandled instruction type {instruction}')
 
     def suffix_for(self, assembly_type) -> str:
+        if assembly_type == byte:
+            return 'b'
         if assembly_type == quadword:
             return 'q'
         if assembly_type == double:
