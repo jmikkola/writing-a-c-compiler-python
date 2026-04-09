@@ -727,12 +727,14 @@ class Codegen:
         return [assembly.Movsx(src_type, dst_type, src, dst)]
 
     def gen_truncate(self, instr: tacky.Truncate) -> list:
+        dst_type = self.a_type_of(instr.dst)
         src = self.convert_operand(instr.src)
         if isinstance(src, assembly.Immediate):
-            truncated = src.value & (2**32 - 1)
+            n_bits = dst_type.bytes() * 8
+            mask = 2**n_bits - 1
+            truncated = src.value & mask
             src = assembly.Immediate(truncated)
         dst = self.convert_operand(instr.dst)
-        dst_type = self.a_type_of(instr.dst)
         return [assembly.Mov(dst_type, src, dst)]
 
     def classify_parameters(self, values: list):
