@@ -1306,15 +1306,17 @@ class Typecheck:
                 return expr.set_type(ptr_type.referenced)
 
             case syntax.SizeOf(expr):
-                expr = self.typecheck_and_convert(expr)
-                if is_void(expr.expr_type):
-                    self.error('Cannot find the sizeof a void type')
+                # Don't turn arrays into pointers, so this calls typecheck_expr
+                # instead of typecheck_and_convert:
+                expr = self.typecheck_expr(expr)
+                if not is_complete(expr.expr_type):
+                    self.error('Cannot find the sizeof an incomplete type')
                 return syntax.SizeOf(expr).set_type(syntax.ULong())
 
             case syntax.SizeOfT(type):
                 self.validate_type_specifier(type)
-                if is_void(type):
-                    self.error('Cannot find the sizeof a void type')
+                if not is_complete(type):
+                    self.error('Cannot find the sizeof an incomplete type')
                 return syntax.SizeOfT(type).set_type(syntax.ULong())
 
             case _:
