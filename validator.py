@@ -921,6 +921,10 @@ class Typecheck:
                     self.error('cannot switch on an array value')
                 condition = self.typecheck_and_convert(condition)
                 condition_type = condition.expr_type
+                # Promote characters to integers in switch statements
+                if self.is_character(condition_type):
+                    condition_type = syntax.Int()
+                    condition = self.convert_to(condition, condition_type)
                 self._switch_condition_types[switch_label] = condition_type
                 body = self.typecheck_statement(body)
                 case_values = self.convert_case_values(case_values, condition_type)
@@ -1291,8 +1295,12 @@ class Typecheck:
 
         # << and >> always take the type of the left hand side
         if op == syntax.ShiftLeft() or op == syntax.ShiftRight():
+            result_type = l.expr_type
+            if self.is_character(result_type):
+                result_type = syntax.Int()
+                l = self.convert_to(l, result_type)
             expr = syntax.Binary(op, l, r)
-            return expr.set_type(l.expr_type)
+            return expr.set_type(result_type)
 
         converted_l = self.convert_to(l, common_type)
         converted_r = self.convert_to(r, common_type)
