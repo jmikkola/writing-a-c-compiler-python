@@ -1233,9 +1233,14 @@ class Typecheck:
                 return expr.set_type(common_type)
 
             case syntax.Cast(target_type, e):
-                if self.is_array(target_type):
-                    self.error('Cannot cast to an array')
                 e = self.typecheck_and_convert(e)
+                if target_type == syntax.Void():
+                    # this allows casting any type (including void) to void
+                    return syntax.Cast(target_type, e).set_type(target_type)
+                if not is_scalar(target_type):
+                    self.error('Can only cast to scalar types or void')
+                if not is_scalar(e.expr_type):
+                    self.error('Cannot cast non-sclar expression to scalar type')
                 match (e.expr_type, target_type):
                     case (syntax.Double(), syntax.Pointer()):
                         self.error('Cannot cast doubles to pointers')
