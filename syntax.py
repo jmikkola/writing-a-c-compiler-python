@@ -96,6 +96,11 @@ class UChar(Type):
         return 'UChar'
 
 
+class Void(Type):
+    def __str__(self):
+        return 'Void'
+
+
 class Func(Type, namedtuple('Func', ['params', 'ret'])):
     def __str__(self):
         params = ', '.join(str(param) for param in self.params)
@@ -272,6 +277,8 @@ class Compound(Statement, namedtuple('Compound', ['block'])):
 
 class Return(Statement, namedtuple('Return', ['expr'])):
     def pretty_print(self):
+        if self.expr is None:
+            return ['return']
         return [f'return {self.expr.pretty_print()}']
 
 
@@ -475,6 +482,18 @@ class Subscript(Expression, namedtuple('Subscript', ['left', 'right'])):
         left = self.left.pretty_print()
         right = self.right.pretty_print()
         return f'Subscript({left}, {right})'
+
+
+class SizeOf(Expression, namedtuple('SizeOf', ['expr'])):
+    def __str__(self):
+        expr = self.expr.pretty_print()
+        return f'SizeOf({expr})'
+
+
+class SizeOfT(Expression, namedtuple('SizeOfT', ['type'])):
+    def __str__(self):
+        type = self.type.pretty_print()
+        return f'SizeOfT({type})'
 
 
 ##
