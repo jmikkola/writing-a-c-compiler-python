@@ -1450,8 +1450,10 @@ class Typecheck:
         r_type = r.expr_type
         if isinstance(l_type, syntax.Pointer) or isinstance(r_type, syntax.Pointer):
             common_type = self.get_common_pointer_type(l, r)
-        else:
+        elif self.is_arithmetic(l_type) and self.is_arithmetic(r_type):
             common_type = self.get_common_type(l_type, r_type)
+        else:
+            self.error(f'cannot apply {op} to {l_type} and {r_type}')
         l_converted = self.convert_to(l, common_type)
         r_converted = self.convert_to(r, common_type)
         expr = syntax.Binary(op, l_converted, r_converted)
