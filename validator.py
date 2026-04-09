@@ -765,7 +765,12 @@ class Typecheck:
                         if size < len(bytes):
                             self.error(f'string is too long for {target_type}')
                         null_terminated = target_type.size > len(bytes)
-                        return [symbol.StringInit(bytes, null_terminated)]
+                        static_values = [symbol.StringInit(bytes, null_terminated)]
+                        if len(bytes) + 1 < size:
+                            # +1 for the null terminator
+                            padding_size = size - len(bytes) - 1
+                            static_values.append(symbol.ZeroInit(padding_size))
+                        return static_values
                     case syntax.Pointer(syntax.Char()):
                         # UChar and SChar are not allowed here
                         new_name = self.new_temp_var('str')
