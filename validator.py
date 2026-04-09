@@ -121,7 +121,8 @@ class IdentifierResolution:
                     self.error('function declarations inside a block cannot be static')
                 return self.validate_function(block_item, identifier_map)
             case syntax.Return(expr):
-                expr = self.resolve_expr(expr, identifier_map)
+                if expr is not None:
+                    expr = self.resolve_expr(expr, identifier_map)
                 return syntax.Return(expr)
             case syntax.ExprStmt(expr):
                 expr = self.resolve_expr(expr, identifier_map)
@@ -280,6 +281,11 @@ class IdentifierResolution:
                 left = self.resolve_expr(left, identifier_map)
                 right = self.resolve_expr(right, identifier_map)
                 return syntax.Subscript(left, right)
+            case syntax.SizeOf(expr):
+                expr = self.resolve_expr(expr, identifier_map)
+                return syntax.SizeOf(expr)
+            case syntax.SizeOfT(type):
+                return syntax.SizeOfT(type)
             case _:
                 raise Exception(f'unhandled type of expression {expr}')
 
@@ -872,6 +878,8 @@ class Typecheck:
                 return self.typecheck_var_decl_block_scope(block_item)
             case syntax.FuncDeclaration():
                 return self.typecheck_func_decl(block_item, in_block=True)
+            case syntax.Return(None):
+                return syntax.Return(None)
             case syntax.Return(expr):
                 expr = self.typecheck_and_convert(expr)
                 expr = self.convert_by_assignment(expr, self.current_return_type)
@@ -1251,6 +1259,13 @@ class Typecheck:
                 expr = syntax.Subscript(left, right)
                 return expr.set_type(ptr_type.referenced)
 
+            case syntax.SizeOf(expr):
+                expr = self.typecheck_and_convert(expr)
+                return syntax.SizeOf(expr).set_type(syntax.ULong())
+
+            case syntax.SizeOfT(type):
+                return syntax.SizeOfT(type).set_type(syntax.ULong())
+
             case _:
                 raise Exception(f'Unhandled type of expression {expr}')
 
@@ -1408,11 +1423,16 @@ class Typecheck:
     def convert_by_assignment(self, expression, target_type):
         expr_type = expression.expr_type
         assert(expr_type is not None)
+        void_pointer = syntax.Pointer(syntax.Void())
         if expr_type == target_type:
             return expression
         if self.is_arithmetic(expr_type) and self.is_arithmetic(target_type):
             return self.convert_to(expression, target_type)
         if self.is_null_pointer_constant(expression) and isinstance(target_type, syntax.Pointer):
+            return self.convert_to(expression, target_type)
+        if target_type == void_pointer and self.is_pointer(expr_type):
+            return self.convert_to(expression, target_type)
+        if self.is_pointer(target_type) and expr_type == void_pointer:
             return self.convert_to(expression, target_type)
         self.error(f'cannot convert type for assignment {expression} to {target_type}')
 
@@ -1484,12 +1504,17 @@ class Typecheck:
     def get_common_pointer_type(self, e1: syntax.Expression, e2: syntax.Expression) -> syntax.Type:
         t1 = e1.expr_type
         t2 = e2.expr_type
+        void_pointer = syntax.Pointer(syntax.Void())
         if t1 == t2:
             return t1
         elif self.is_null_pointer_constant(e1):
             return t2
         elif self.is_null_pointer_constant(e2):
             return t1
+        elif t1 == void_pointer and self.is_pointer(t2):
+            return void_pointer
+        elif t2 == void_pointer and self.is_pointer(t1):
+            return void_pointer
         else:
             self.error(f'expressions have incompatible pointer types: {e1} and {e2}')
 
