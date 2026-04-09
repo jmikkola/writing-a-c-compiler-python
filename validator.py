@@ -578,9 +578,13 @@ class Typecheck:
 
     def typecheck_func_decl(self, f: syntax.FuncDeclaration, in_block=False):
         func_type = f.fun_type
+
         self.validate_type_specifier(func_type)
         if self.is_array(func_type.ret):
             self.error('functions cannot return arrays')
+        for t in func_type.params:
+            if t == syntax.Void():
+                self.error('cannot have void typed arguments to functions')
 
         # Array type arguments are implicitly converted to pointers
         adjusted_params = []
@@ -635,6 +639,8 @@ class Typecheck:
 
     def typecheck_var_decl_file_scope(self, v: syntax.VarDeclaration):
         self.validate_type_specifier(v.var_type)
+        if v.var_type == syntax.Void():
+            self.error('cannot have variables of type void')
 
         initial_value = None
         match v.init:
@@ -675,6 +681,8 @@ class Typecheck:
 
     def typecheck_var_decl_block_scope(self, v: syntax.VarDeclaration):
         self.validate_type_specifier(v.var_type)
+        if v.var_type == syntax.Void():
+            self.error('cannot have variables of type void')
 
         if v.storage_class == syntax.Extern():
             if v.init is not None:
@@ -1132,6 +1140,8 @@ class Typecheck:
                 left_type = lhs.expr_type
                 assert(left_type is not None)
 
+                if left_type == syntax.Void():
+                    self.error('cannot assign to void')
                 if isinstance(left_type, syntax.Func):
                     self.error(f'Cannot assign to a function {name}')
 
