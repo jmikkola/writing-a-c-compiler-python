@@ -548,6 +548,15 @@ class ToTacky:
                 self.symbols[const_name.name] = symbol.Symbol(var_type, attr)
                 return ([], PlainOperand(const_name))
 
+            case syntax.SizeOf(expr):
+                t = expr.expr_type
+                result = typeconversion.type_size(t)
+                return ([], PlainOperand(tacky.Constant(tacky.ConstULong(result))))
+
+            case syntax.SizeOfT(type):
+                result = typeconversion.type_size(type)
+                return ([], PlainOperand(tacky.Constant(tacky.ConstULong(result))))
+
             case _:
                 raise Exception(f'unhandled expression type, {expr}')
 
