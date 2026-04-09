@@ -7,7 +7,7 @@ from errors import SyntaxError
 
 ASSIGNMENT_OPS = ['=', '>>=', '<<=', '+=', '-=', '*=', '/=', '%=', '&=', '|=', '^=']
 
-TYPE_SPECIFIERS = ['int', 'long', 'signed', 'unsigned', 'double', 'char']
+TYPE_SPECIFIERS = ['int', 'long', 'signed', 'unsigned', 'double', 'char', 'void']
 STORAGE_CLASSES = ['static', 'extern']
 
 DIGITS = re.compile(r'\d+')
@@ -73,10 +73,17 @@ class Parser:
             self.fail('expected a type specifier')
         if len(specifier_list) != len(set(specifier_list)):
             self.fail(f'duplicates in the specifier list: {specifier_list}')
+
+        if specifier_list == ['void']:
+            return syntax.Void()
+        elif 'void' in specifier_list:
+            self.fail(f'invalid specifier list: {specifier_list}')
+
         if specifier_list == ['double']:
             return syntax.Double()
         if 'double' in specifier_list:
             self.fail(f'invalid specifier list: {specifier_list}')
+
         if 'signed' in specifier_list and 'unsigned' in specifier_list:
             self.fail('a type cannot have both signed and unsigned')
 
