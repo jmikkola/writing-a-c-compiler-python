@@ -40,6 +40,7 @@ class Instruction:
 
 
 class Return(Instruction, namedtuple('Constant', ['val'])):
+    # val is optional
     pass
 
 
@@ -126,6 +127,7 @@ class Label(Instruction, namedtuple('Label', ['name'])):
 
 
 class Call(Instruction, namedtuple('Call', ['func_name', 'arg_vals', 'dst'])):
+    # dst is optional
     pass
 
 

@@ -375,6 +375,8 @@ class ToTacky:
         return instructions
 
     def convert_return(self, stmt: syntax.Return) -> list:
+        if stmt.expr is None:
+            return [tacky.Return(None)]
         instructions, val = self.emit_tacky_and_convert(stmt.expr)
         return instructions + [tacky.Return(val)]
 
@@ -714,7 +716,7 @@ class ToTacky:
         target_type = expr.target_type
 
         instructions, val = self.emit_tacky_and_convert(inner)
-        if target_type == inner_type:
+        if target_type == inner_type or target_type == syntax.Void():
             # No cast needed
             return (instructions, PlainOperand(val))
 
@@ -756,15 +758,19 @@ class ToTacky:
         instructions, val = self.emit_tacky_and_convert(expr.condition)
         instructions.append(tacky.JumpIfZero(val, false_label))
 
+        is_void_result = expr.t.expr_type == syntax.Void()
+
         t_instructions, t_val = self.emit_tacky_and_convert(expr.t)
         instructions += t_instructions
-        instructions.append(tacky.Copy(t_val, result_var))
+        if not is_void_result:
+            instructions.append(tacky.Copy(t_val, result_var))
         instructions.append(tacky.Jump(end_label))
 
         instructions.append(tacky.Label(false_label))
         e_instructions, e_val = self.emit_tacky_and_convert(expr.e)
         instructions += e_instructions
-        instructions.append(tacky.Copy(e_val, result_var))
+        if not is_void_result:
+            instructions.append(tacky.Copy(e_val, result_var))
         instructions.append(tacky.Label(end_label))
 
         return (instructions, PlainOperand(result_var))
@@ -779,7 +785,9 @@ class ToTacky:
             instructions.extend(i)
             arg_vals.append(val)
 
-        dst = self.make_tacky_variable(expr.expr_type)
+        dst = None
+        if expr.expr_type != syntax.Void():
+            dst = self.make_tacky_variable(expr.expr_type)
         instructions.append(tacky.Call(function, arg_vals, dst))
         return (instructions, PlainOperand(dst))
 
