@@ -1237,7 +1237,9 @@ class Typecheck:
 
                 t_type = t.expr_type
                 e_type = e.expr_type
-                if isinstance(t_type, syntax.Pointer) or isinstance(e_type, syntax.Pointer):
+                if is_void(t_type) and is_void(e_type):
+                    common_type = t_type
+                elif isinstance(t_type, syntax.Pointer) or isinstance(e_type, syntax.Pointer):
                     common_type = self.get_common_pointer_type(t, e)
                 else:
                     common_type = self.get_common_type(t_type, e_type)
@@ -1642,5 +1644,13 @@ def is_pointer_to_complete(type: syntax.Type) -> bool:
     match type:
         case syntax.Pointer(t):
             return is_complete(t)
+        case _:
+            return False
+
+
+def is_void(type: syntax.Type) -> bool:
+    match type:
+        case syntax.Void():
+            return True
         case _:
             return False
