@@ -1269,6 +1269,8 @@ class Typecheck:
                 e = self.typecheck_and_convert(e)
                 match e.expr_type:
                     case syntax.Pointer(referenced_type):
+                        if referenced_type == syntax.Void():
+                            self.error('Cannot dereference a void pointer')
                         expr = syntax.Dereference(e)
                         return expr.set_type(referenced_type)
                     case _:
