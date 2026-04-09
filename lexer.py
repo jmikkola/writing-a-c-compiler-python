@@ -20,7 +20,7 @@ KEYWORDS = [
     'return', 'if', 'else', 'goto',
     'do', 'while', 'break', 'continue', 'for',
     'switch', 'case', 'default',
-    'static', 'extern',
+    'static', 'extern', 'sizeof',
 ]
 
 THREE_PART_SYMBOLS = [
