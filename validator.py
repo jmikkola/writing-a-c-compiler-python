@@ -1274,10 +1274,10 @@ class Typecheck:
                 right = self.typecheck_and_convert(right)
                 tl = left.expr_type
                 tr = right.expr_type
-                if self.is_pointer(tl) and self.is_integer(tr):
+                if is_pointer_to_complete(tl) and self.is_integer(tr):
                     ptr_type = tl
                     right = self.convert_to(right, syntax.Long())
-                elif self.is_integer(tl) and self.is_pointer(tr):
+                elif self.is_integer(tl) and is_pointer_to_complete(tr):
                     ptr_type = tr
                     left = self.convert_to(left, syntax.Long())
                 else:
@@ -1379,11 +1379,11 @@ class Typecheck:
             converted_r = self.convert_to(r, common_type)
             expr = syntax.Binary(op, converted_l, converted_r)
             return expr.set_type(common_type)
-        elif self.is_pointer(l.expr_type) and self.is_integer(r.expr_type):
+        elif is_pointer_to_complete(l.expr_type) and self.is_integer(r.expr_type):
             converted_r = self.convert_to(r, syntax.Long())
             expr = syntax.Binary(op, l, converted_r)
             return expr.set_type(l.expr_type)
-        elif self.is_integer(l.expr_type) and self.is_pointer(r.expr_type):
+        elif self.is_integer(l.expr_type) and is_pointer_to_complete(r.expr_type):
             converted_l = self.convert_to(l, syntax.Long())
             expr = syntax.Binary(op, converted_l, r)
             return expr.set_type(r.expr_type)
@@ -1398,11 +1398,11 @@ class Typecheck:
             converted_r = self.convert_to(r, common_type)
             expr = syntax.Binary(op, converted_l, converted_r)
             return expr.set_type(common_type)
-        elif self.is_pointer(l.expr_type) and self.is_integer(r.expr_type):
+        elif is_pointer_to_complete(l.expr_type) and self.is_integer(r.expr_type):
             converted_r = self.convert_to(r, syntax.Long())
             expr = syntax.Binary(op, l, converted_r)
             return expr.set_type(l.expr_type)
-        elif self.is_pointer(l.expr_type) and l.expr_type == r.expr_type:
+        elif is_pointer_to_complete(l.expr_type) and l.expr_type == r.expr_type:
             expr = syntax.Binary(op, l, r)
             return expr.set_type(syntax.Long())
         else:
@@ -1594,3 +1594,19 @@ def is_scalar(type: syntax.Type) -> bool:
             return False
         case _:
             return True
+
+
+def is_complete(type: syntax.Type) -> bool:
+    match type:
+        case syntax.Void():
+            return False
+        case _:
+            return True
+
+
+def is_pointer_to_complete(type: syntax.Type) -> bool:
+    match type:
+        case syntax.Pointer(t):
+            return is_complete(t)
+        case _:
+            return False
