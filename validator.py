@@ -1377,13 +1377,17 @@ class Typecheck:
         return expr.set_type(common_type)
 
     def typecheck_binary_comparison(self, op, l, r):
-        if self.is_pointer(l.expr_type) or self.is_pointer(r.expr_type):
+        l_is_pointer = self.is_pointer(l.expr_type)
+        r_is_pointer = self.is_pointer(r.expr_type)
+        if l_is_pointer != r_is_pointer:
+            self.error('cannot compare pointers and non-pointers')
+        elif l_is_pointer and is_void_pointer(l.expr_type) != is_void_pointer(r.expr_type):
+            self.error('cannot compare void pointers to other pointer types')
+
+        if l_is_pointer:
             common_type = self.get_common_pointer_type(l, r)
         else:
             common_type = self.get_common_type(l.expr_type, r.expr_type)
-
-        if self.is_pointer(l.expr_type) != self.is_pointer(r.expr_type):
-            self.error(f'cannot compare pointers and non-pointers')
 
         converted_l = self.convert_to(l, common_type)
         converted_r = self.convert_to(r, common_type)
@@ -1653,6 +1657,14 @@ def is_pointer_to_complete(type: syntax.Type) -> bool:
 def is_void(type: syntax.Type) -> bool:
     match type:
         case syntax.Void():
+            return True
+        case _:
+            return False
+
+
+def is_void_pointer(type: syntax.Type) -> bool:
+    match type:
+        case syntax.Pointer(syntax.Void()):
             return True
         case _:
             return False
