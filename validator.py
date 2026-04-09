@@ -583,7 +583,7 @@ class Typecheck:
         if self.is_array(func_type.ret):
             self.error('functions cannot return arrays')
         for t in func_type.params:
-            if t == syntax.Void():
+            if is_void(t):
                 self.error('cannot have void typed arguments to functions')
 
         # Array type arguments are implicitly converted to pointers
@@ -639,7 +639,7 @@ class Typecheck:
 
     def typecheck_var_decl_file_scope(self, v: syntax.VarDeclaration):
         self.validate_type_specifier(v.var_type)
-        if v.var_type == syntax.Void():
+        if is_void(v.var_type):
             self.error('cannot have variables of type void')
 
         initial_value = None
@@ -681,7 +681,7 @@ class Typecheck:
 
     def typecheck_var_decl_block_scope(self, v: syntax.VarDeclaration):
         self.validate_type_specifier(v.var_type)
-        if v.var_type == syntax.Void():
+        if is_void(v.var_type):
             self.error('cannot have variables of type void')
 
         if v.storage_class == syntax.Extern():
@@ -892,11 +892,11 @@ class Typecheck:
             case syntax.FuncDeclaration():
                 return self.typecheck_func_decl(block_item, in_block=True)
             case syntax.Return(None):
-                if self.current_return_type != syntax.Void():
+                if not is_void(self.current_return_type):
                     self.error(f'returning no value from a function with a return type: {self.current_return_type}')
                 return syntax.Return(None)
             case syntax.Return(expr):
-                if self.current_return_type == syntax.Void():
+                if is_void(self.current_return_type):
                     self.error(f'returning a value from a void function: {block_item}')
                 expr = self.typecheck_and_convert(expr)
                 expr = self.convert_by_assignment(expr, self.current_return_type)
@@ -1140,7 +1140,7 @@ class Typecheck:
                 left_type = lhs.expr_type
                 assert(left_type is not None)
 
-                if left_type == syntax.Void():
+                if is_void(left_type):
                     self.error('cannot assign to void')
                 if isinstance(left_type, syntax.Func):
                     self.error(f'Cannot assign to a function {name}')
@@ -1252,7 +1252,7 @@ class Typecheck:
             case syntax.Cast(target_type, e):
                 e = self.typecheck_and_convert(e)
                 self.validate_type_specifier(target_type)
-                if target_type == syntax.Void():
+                if is_void(target_type):
                     # this allows casting any type (including void) to void
                     return syntax.Cast(target_type, e).set_type(target_type)
                 if not is_scalar(target_type):
@@ -1271,7 +1271,7 @@ class Typecheck:
                 e = self.typecheck_and_convert(e)
                 match e.expr_type:
                     case syntax.Pointer(referenced_type):
-                        if referenced_type == syntax.Void():
+                        if is_void(referenced_type):
                             self.error('Cannot dereference a void pointer')
                         expr = syntax.Dereference(e)
                         return expr.set_type(referenced_type)
@@ -1307,13 +1307,13 @@ class Typecheck:
 
             case syntax.SizeOf(expr):
                 expr = self.typecheck_and_convert(expr)
-                if expr.expr_type == syntax.Void():
+                if is_void(expr.expr_type):
                     self.error('Cannot find the sizeof a void type')
                 return syntax.SizeOf(expr).set_type(syntax.ULong())
 
             case syntax.SizeOfT(type):
                 self.validate_type_specifier(type)
-                if type == syntax.Void():
+                if is_void(type):
                     self.error('Cannot find the sizeof a void type')
                 return syntax.SizeOfT(type).set_type(syntax.ULong())
 
