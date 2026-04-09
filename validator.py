@@ -578,6 +578,7 @@ class Typecheck:
 
     def typecheck_func_decl(self, f: syntax.FuncDeclaration, in_block=False):
         func_type = f.fun_type
+        self.validate_type_specifier(func_type)
         if self.is_array(func_type.ret):
             self.error('functions cannot return arrays')
 
@@ -633,6 +634,8 @@ class Typecheck:
         )
 
     def typecheck_var_decl_file_scope(self, v: syntax.VarDeclaration):
+        self.validate_type_specifier(v.var_type)
+
         initial_value = None
         match v.init:
             case syntax.SingleInit() | syntax.CompoundInit():
@@ -671,6 +674,8 @@ class Typecheck:
         return v
 
     def typecheck_var_decl_block_scope(self, v: syntax.VarDeclaration):
+        self.validate_type_specifier(v.var_type)
+
         if v.storage_class == syntax.Extern():
             if v.init is not None:
                 self.error(f'initializer on local extern variable declaration for {v.name}')
@@ -1234,6 +1239,7 @@ class Typecheck:
 
             case syntax.Cast(target_type, e):
                 e = self.typecheck_and_convert(e)
+                self.validate_type_specifier(target_type)
                 if target_type == syntax.Void():
                     # this allows casting any type (including void) to void
                     return syntax.Cast(target_type, e).set_type(target_type)
@@ -1292,6 +1298,7 @@ class Typecheck:
                 return syntax.SizeOf(expr).set_type(syntax.ULong())
 
             case syntax.SizeOfT(type):
+                self.validate_type_specifier(type)
                 if type == syntax.Void():
                     self.error('Cannot find the sizeof a void type')
                 return syntax.SizeOfT(type).set_type(syntax.ULong())
@@ -1567,6 +1574,21 @@ class Typecheck:
                 return None
             case _:
                 raise Exception(f'invalid type for ForInit {init}')
+
+    def validate_type_specifier(self, type: syntax.Type):
+        match type:
+            case syntax.Array(elem_type, size):
+                if not is_complete(elem_type):
+                    self.error('Illegal array of incomplete type')
+                self.validate_type_specifier(elem_type)
+            case syntax.Pointer(referenced_type):
+                self.validate_type_specifier(referenced_type)
+            case syntax.Func(params, ret):
+                for param_t in params:
+                    self.validate_type_specifier(param_t)
+                self.validate_type_specifier(ret)
+            case _:
+                pass
 
 
 def is_lvalue(expr: syntax.Expression) -> bool:
