@@ -879,8 +879,12 @@ class Typecheck:
             case syntax.FuncDeclaration():
                 return self.typecheck_func_decl(block_item, in_block=True)
             case syntax.Return(None):
+                if self.current_return_type != syntax.Void():
+                    self.error(f'returning no value from a function with a return type: {self.current_return_type}')
                 return syntax.Return(None)
             case syntax.Return(expr):
+                if self.current_return_type == syntax.Void():
+                    self.error(f'returning a value from a void function: {block_item}')
                 expr = self.typecheck_and_convert(expr)
                 expr = self.convert_by_assignment(expr, self.current_return_type)
                 return syntax.Return(expr)
