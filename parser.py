@@ -459,6 +459,9 @@ class Parser:
     def parse_return(self) -> syntax.Return:
         ''' parse a return statement '''
         self.expect('keyword', 'return')
+        if self.peek(';'):
+            self.expect(';')
+            return syntax.Return(expr=None)
         expression = self.parse_expression()
         self.expect(';')
         return syntax.Return(expr=expression)
