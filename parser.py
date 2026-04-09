@@ -147,7 +147,7 @@ class Parser:
 
     def parse_param_list(self) -> List[syntax.ParamInfo]:
         self.expect('(')
-        if self.peek('keyword', 'void'):
+        if self.peek('keyword', 'void') and self.peek(')', offset=1):
             self.consume()
             self.expect(')')
             return []
