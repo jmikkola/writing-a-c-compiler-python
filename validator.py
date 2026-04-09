@@ -896,22 +896,30 @@ class Typecheck:
                 return block_item
             case syntax.IfStatement(test, t, e):
                 test = self.typecheck_and_convert(test)
+                if not is_scalar(test.expr_type):
+                    self.error('the test of an if statement must have a scalar type')
                 t = self.typecheck_statement(t)
                 if e:
                     e = self.typecheck_statement(e)
                 return syntax.IfStatement(test, t, e)
             case syntax.While(test, body, loop_label):
                 test = self.typecheck_and_convert(test)
+                if not is_scalar(test.expr_type):
+                    self.error('the test of an while loop must have a scalar type')
                 body = self.typecheck_statement(body)
                 return syntax.While(test, body, loop_label)
             case syntax.DoWhile(body, test, loop_label):
                 test = self.typecheck_and_convert(test)
+                if not is_scalar(test.expr_type):
+                    self.error('the test of a do-while loop must have a scalar type')
                 body = self.typecheck_statement(body)
                 return syntax.DoWhile(body, test, loop_label)
             case syntax.For(init, condition, post, body, loop_label):
                 init = self.typecheck_for_init(init)
                 if condition:
                     condition = self.typecheck_and_convert(condition)
+                    if not is_scalar(condition.expr_type):
+                        self.error('the condition of a for loop must have a scalar type')
                 if post:
                     post = self.typecheck_and_convert(post)
                 body = self.typecheck_statement(body)
@@ -933,6 +941,8 @@ class Typecheck:
                     self.error('cannot switch on an array value')
                 condition = self.typecheck_and_convert(condition)
                 condition_type = condition.expr_type
+                if not is_scalar(condition_type):
+                    self.error('the condition of a switch statement must have a scalar type')
                 # Promote characters to integers in switch statements
                 if self.is_character(condition_type):
                     condition_type = syntax.Int()
@@ -1071,6 +1081,8 @@ class Typecheck:
                 was_string = isinstance(e, syntax.String)
                 raw_type = self.typecheck_expr(e).expr_type
                 e = self.typecheck_and_convert(e)
+                if not is_scalar(e.expr_type):
+                    self.error(f'Cannot apply unary op {op} to a non-scalar type {e.expr_type}')
                 if e.expr_type == syntax.Double():
                     if op == syntax.UnaryInvert():
                         self.error(f'Cannot apply unary op {op} to a double')
@@ -1099,6 +1111,8 @@ class Typecheck:
                 if isinstance(raw_type, syntax.Array):
                     self.error(f'cannot apply postfix operators to arrays: {op}')
                 e = self.typecheck_and_convert(e)
+                if not is_scalar(e.expr_type):
+                    self.error(f'cannot apply postfix operators to non-scalar types: {op}')
                 expr = syntax.Postfix(e, op)
                 return expr.set_type(e.expr_type)
 
@@ -1203,6 +1217,9 @@ class Typecheck:
                 t = self.typecheck_and_convert(t)
                 e = self.typecheck_and_convert(e)
 
+                if not is_scalar(condition.expr_type):
+                    self.error('The condition of a ternary expression must have a scalar type')
+
                 t_type = t.expr_type
                 e_type = e.expr_type
                 if isinstance(t_type, syntax.Pointer) or isinstance(e_type, syntax.Pointer):
@@ -1265,9 +1282,13 @@ class Typecheck:
 
             case syntax.SizeOf(expr):
                 expr = self.typecheck_and_convert(expr)
+                if expr.expr_type == syntax.Void():
+                    self.error('Cannot find the sizeof a void type')
                 return syntax.SizeOf(expr).set_type(syntax.ULong())
 
             case syntax.SizeOfT(type):
+                if type == syntax.Void():
+                    self.error('Cannot find the sizeof a void type')
                 return syntax.SizeOfT(type).set_type(syntax.ULong())
 
             case _:
@@ -1277,6 +1298,9 @@ class Typecheck:
         l = self.typecheck_and_convert(expression.left)
         r = self.typecheck_and_convert(expression.right)
         op = expression.operator
+
+        if not is_scalar(l.expr_type) or not is_scalar(l.expr_type):
+            self.error(f'Cannot apply binary operations to non-scalar types')
 
         match op:
             case syntax.Equals():
@@ -1553,3 +1577,15 @@ def is_lvalue(expr: syntax.Expression) -> bool:
             return True
         case _:
             return False
+
+
+def is_scalar(type: syntax.Type) -> bool:
+    match type:
+        case syntax.Void():
+            return False
+        case syntax.Array():
+            return False
+        case syntax.Func():
+            return False
+        case _:
+            return True
