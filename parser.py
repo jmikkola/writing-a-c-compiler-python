@@ -497,7 +497,7 @@ class Parser:
             '>>=', '<<=',
             '=', '?',
         ]
-        left = self.parse_factor()
+        left = self.parse_cast_expression()
         while True:
             token = self.peek()
             if token.text not in operators:
@@ -608,9 +608,9 @@ class Parser:
             return syntax.BinaryOr()
         raise Exception(f'Unhandled binary op {text}')
 
-    def parse_factor(self) -> syntax.Expression:
+    def parse_postfix_expression(self) -> syntax.Expression:
         ''' parse a factor (anything without a binary expression) '''
-        expr = self.parse_factor_without_postfix()
+        expr = self.parse_primary_expression()
         while self.peek('++') or self.peek('--') or self.peek('['):
             if self.peek('++'):
                 self.expect('++')
@@ -625,7 +625,7 @@ class Parser:
                 expr = syntax.Subscript(expr, subscript)
         return expr
 
-    def parse_factor_without_postfix(self):
+    def parse_primary_expression(self):
         if self.peek('constant'):
             return self.parse_constant()
         if self.peek('identifier'):
@@ -634,25 +634,31 @@ class Parser:
                 argument_list = self.parse_argument_list()
                 return syntax.Call(token.text, argument_list)
             return syntax.Variable(token.text)
-        if self.is_unary():
-            return self.parse_unary_expression()
         if self.peek('('):
-            # Hacky way to detect a cast:
-            if self.peek('keyword', offset=1):
-                return self.parse_cast()
-            else:
-                return self.paren_expression()
+            return self.paren_expression()
         else:
             self.fail('expected an expression')
 
+    def parse_cast_expression(self) -> syntax.Expression:
+        if self.peek('('):
+            # Hacky way to detect a type.
+            # If the contents of the parens aren't a type, this should be parsed
+            # as a paren expression.
+            if self.peek('keyword', offset=1):
+                return self.parse_cast()
+        return self.parse_unary_expression()
+
     def parse_cast(self) -> syntax.Expression:
         self.expect('(')
+        derived_type = self.parse_type_name()
+        self.expect(')')
+        expr = self.parse_cast_expression()
+        return syntax.Cast(derived_type, expr)
+
+    def parse_type_name(self) -> syntax.Type:
         target_type = self.parse_type_specifier()
         declarator = self.parse_optional_abstract_declarator()
-        derived_type = self.process_abstract_declarator(target_type, declarator)
-        self.expect(')')
-        expr = self.parse_factor()
-        return syntax.Cast(derived_type, expr)
+        return self.process_abstract_declarator(target_type, declarator)
 
     def paren_expression(self) -> syntax.Expression:
         self.expect('(')
@@ -665,9 +671,26 @@ class Parser:
             return self.parse_dereference()
         if self.peek('&'):
             return self.parse_addr_of()
-        operator = self.parse_unary_operator()
-        expr = self.parse_factor()
-        return syntax.Unary(operator, expr)
+        if self.is_unary():
+            operator = self.parse_unary_operator()
+            expr = self.parse_cast_expression()
+            return syntax.Unary(operator, expr)
+        if self.peek('keyword', 'sizeof'):
+            return self.parse_size_of()
+        return self.parse_postfix_expression()
+
+    def parse_size_of(self) -> syntax.Expression:
+        self.expect('keyword', 'sizeof')
+        # Only parse a SizeOfT if the contents of the parens looks like a
+        # type. Otherwise it can be an expression wrapped in parens.
+        if self.peek('(') and self.peek('keyword', offset=1):
+            self.expect('(')
+            type_name = self.parse_type_name()
+            self.expect(')')
+            return syntax.SizeOfT(type_name)
+        else:
+            expression = self.parse_unary_expression()
+            return syntax.SizeOf(expression)
 
     def is_unary(self):
         unary_operators = ['-', '~', '!', '++', '--', '*', '&']
@@ -690,12 +713,12 @@ class Parser:
 
     def parse_dereference(self) -> syntax.Dereference:
         self.expect('*')
-        expr = self.parse_factor()
+        expr = self.parse_cast_expression()
         return syntax.Dereference(expr)
 
     def parse_addr_of(self) -> syntax.AddrOf:
         self.expect('&')
-        expr = self.parse_factor()
+        expr = self.parse_cast_expression()
         return syntax.AddrOf(expr)
 
     def parse_constant(self) -> syntax.Constant:
