@@ -39,7 +39,7 @@ class Instruction:
         return '  ' + str(self)
 
 
-class Return(Instruction, namedtuple('Constant', ['val'])):
+class Return(Instruction, namedtuple('Return', ['val'])):
     # val is optional
     pass
 

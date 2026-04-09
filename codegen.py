@@ -57,11 +57,11 @@ class Codegen:
 
     def convert_symbols(self):
         return {
-            name: self.convert_symbol(sym)
+            name: self.convert_symbol(name, sym)
             for (name, sym) in self.symbols.items()
         }
 
-    def convert_symbol(self, sym: symbol.Symbol) -> assembly.AsmSymbol:
+    def convert_symbol(self, name: str, sym: symbol.Symbol) -> assembly.AsmSymbol:
         attrs = sym.attrs
         match attrs:
             case symbol.FuncAttr(is_defined, is_global):
@@ -76,7 +76,7 @@ class Codegen:
                 a_type = self.sym_type_to_a_type(sym.type)
                 return assembly.ObjEntry(a_type, True, True)
             case _:
-                raise Exception(f'unhandled kind of symbol attributes: {attrs}')
+                raise Exception(f'unhandled kind of symbol attributes: {attrs} for {name}')
 
     def gen_top_level(self, top_level):
         match top_level:
@@ -811,16 +811,21 @@ class Codegen:
             instructions.append(deallocate)
 
         # Move the result to the correct destination
-        assembly_dst = self.convert_operand(instr.dst)
-        return_type = self.a_type_of(instr.dst)
-        if return_type == double:
-            instructions.append(assembly.Mov(return_type, assembly.Register('XMM0'), assembly_dst))
-        else:
-            instructions.append(assembly.Mov(return_type, assembly.Register('AX'), assembly_dst))
+        if instr.dst is not None:
+            assembly_dst = self.convert_operand(instr.dst)
+            return_type = self.a_type_of(instr.dst)
+            if return_type == double:
+                instructions.append(assembly.Mov(return_type, assembly.Register('XMM0'), assembly_dst))
+            else:
+                instructions.append(assembly.Mov(return_type, assembly.Register('AX'), assembly_dst))
 
         return instructions
 
     def gen_return(self, instr: tacky.Return) -> list:
+        if instr.val is None:
+            # handle a void return
+            return [assembly.Ret()]
+
         src = self.convert_operand(instr.val)
         a_type = self.a_type_of(instr.val)
         instructions = []

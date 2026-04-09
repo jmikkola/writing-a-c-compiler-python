@@ -762,12 +762,14 @@ class ToTacky:
     def convert_conditional(self, expr: syntax.Conditional):
         false_label = self.new_label('cond_false')
         end_label = self.new_label('cond_end')
-        result_var = self.make_tacky_variable(expr.expr_type)
+        is_void_result = expr.t.expr_type == syntax.Void()
+        if is_void_result:
+            result_var = 'UNUSED'
+        else:
+            result_var = self.make_tacky_variable(expr.expr_type)
 
         instructions, val = self.emit_tacky_and_convert(expr.condition)
         instructions.append(tacky.JumpIfZero(val, false_label))
-
-        is_void_result = expr.t.expr_type == syntax.Void()
 
         t_instructions, t_val = self.emit_tacky_and_convert(expr.t)
         instructions += t_instructions
