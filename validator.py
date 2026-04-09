@@ -1102,6 +1102,8 @@ class Typecheck:
                 if isinstance(e.expr_type, syntax.Pointer):
                     if op == syntax.UnaryNegate() or op == syntax.UnaryInvert():
                         self.error(f'invalid unary operator for a pointer: {op}')
+                if is_void_pointer(e.expr_type):
+                    self.error(f'cannot apply op to a void pointer: {op}')
                 if isinstance(raw_type, syntax.Array):
                     if was_string:
                         # Unary negate and invert are OK for strings
@@ -1126,6 +1128,8 @@ class Typecheck:
                 e = self.typecheck_and_convert(e)
                 if not is_scalar(e.expr_type):
                     self.error(f'cannot apply postfix operators to non-scalar types: {op}')
+                if is_void_pointer(e.expr_type):
+                    self.error(f'cannot apply postifx operators to void pointers: {op}')
                 expr = syntax.Postfix(e, op)
                 return expr.set_type(e.expr_type)
 
