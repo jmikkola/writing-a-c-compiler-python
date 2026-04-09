@@ -241,6 +241,9 @@ class Static(StorageClass):
     def __ne__(self, other):
         return not (self == other)
 
+    def __str__(self):
+        return 'Static()'
+
 
 class Extern(StorageClass):
     def __eq__(self, other):
@@ -248,6 +251,9 @@ class Extern(StorageClass):
 
     def __ne__(self, other):
         return not (self == other)
+
+    def __str__(self):
+        return 'Extern'
 
 
 ##
