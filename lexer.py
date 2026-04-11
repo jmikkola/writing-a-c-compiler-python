@@ -92,7 +92,7 @@ def tokenize(text):
             if text.startswith(p):
                 found_punctuation = True
                 text = text[len(p):]
-                if p == '.' and text.strip()[:1].isdigit():
+                if p == '.' and text[:1].isdigit():
                     raise Exception(f'Invalid . token')
                 tokens.append(Token(p, p))
                 break
