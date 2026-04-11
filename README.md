@@ -46,3 +46,23 @@ Example of printing an integer value in the stack (at `-0x24(%rbp)`):
 Example of printing a floating value in a register:
 
     print $xmm0.v2_double[0]
+
+# Debugging the parser
+
+`python -i parser.py`
+
+then
+
+```python
+import lexer
+tokens = lexer.tokenize('struct example')
+p = Parser(tokens)
+p.parse_type_specifier()
+```
+
+or
+
+```python
+import lexer
+Parser(lexer.tokenize('struct example eg;')).parse_block_item()
+```
