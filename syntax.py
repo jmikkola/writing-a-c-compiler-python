@@ -118,6 +118,11 @@ class Array(Type, namedtuple('Array', ['element', 'size'])):
         return f'Array({self.element}, {self.size})'
 
 
+class Struct(Type, namedtuple('Struct', ['tag'])):
+    def __str__(self):
+        return f'Struct({self.tag})'
+
+
 ##
 ## Type declarator
 ##
@@ -233,6 +238,22 @@ class FuncDeclaration(Declaration,
             return headed(header, body)
         else:
             return [header + ';']
+
+
+class StructDeclaration(Declaration, namedtuple('StructDeclaration',  ['tag', 'fields'])):
+    def pretty_print(self):
+        fields = [f.pretty_print() for f in fields]
+        header = f'struct {self.tag}'
+        if fields:
+            return headed(header, fields)
+        else:
+            return [header + ';']
+
+
+class StructField(namedtuple('StructField', ['name', 'type'])):
+    def pretty_print(self):
+        type = self.type.pretty_print()
+        return f'{type} {self.name},'
 
 
 class StorageClass:
@@ -482,6 +503,18 @@ class Subscript(Expression, namedtuple('Subscript', ['left', 'right'])):
         left = self.left.pretty_print()
         right = self.right.pretty_print()
         return f'Subscript({left}, {right})'
+
+
+class Dot(Expression, namedtuple('Dot', ['structure', 'member'])):
+    def __str__(self):
+        structure = self.structure.pretty_print()
+        return f'Dot({structure}, {self.member})'
+
+
+class Arrow(Expression, namedtuple('Arrow', ['pointer', 'member'])):
+    def __str__(self):
+        pointer = self.pointer.pretty_print()
+        return f'Arrow({pointer}, {self.member})'
 
 
 class SizeOf(Expression, namedtuple('SizeOf', ['expr'])):
