@@ -6,6 +6,7 @@ from errors import SyntaxError
 
 
 ASSIGNMENT_OPS = ['=', '>>=', '<<=', '+=', '-=', '*=', '/=', '%=', '&=', '|=', '^=']
+POSTFIX_OPS = ['++', '--', '[', '.', '->']
 
 TYPE_SPECIFIERS = ['int', 'long', 'signed', 'unsigned', 'double', 'char', 'void']
 STORAGE_CLASSES = ['static', 'extern']
@@ -635,19 +636,35 @@ class Parser:
     def parse_postfix_expression(self) -> syntax.Expression:
         ''' parse a factor (anything without a binary expression) '''
         expr = self.parse_primary_expression()
-        while self.peek('++') or self.peek('--') or self.peek('['):
+        while self.peek_postfix_op():
             if self.peek('++'):
                 self.expect('++')
                 expr = syntax.Postfix(expr, syntax.UnaryIncrement())
             elif self.peek('--'):
                 self.expect('--')
                 expr = syntax.Postfix(expr, syntax.UnaryDecrement())
-            else:
+            elif self.peek('['):
                 self.expect('[')
                 subscript = self.parse_expression()
                 self.expect(']')
                 expr = syntax.Subscript(expr, subscript)
+            elif self.peek('.'):
+                self.expect('.')
+                member = self.expect('identifier').text
+                expr = syntax.Dot(expr, member)
+            elif self.peek('->'):
+                self.expect('->')
+                member = self.expect('identifier').text
+                expr = syntax.Arrow(expr, member)
+            else:
+                raise Exception('should be unreachable')
         return expr
+
+    def peek_postfix_op(self):
+        token = self.peek()
+        if not token:
+            return False
+        return token.text in POSTFIX_OPS
 
     def parse_primary_expression(self):
         if self.peek('constant'):
