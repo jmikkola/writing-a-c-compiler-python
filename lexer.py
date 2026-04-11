@@ -16,7 +16,7 @@ LINE_COMMENT = re.compile(r'//[^\n]*\n?')
 MULTILINE_COMENT = re.compile(r'/\*.*?\*/')
 
 KEYWORDS = [
-    'int', 'void', 'long', 'signed', 'unsigned', 'double', 'char',
+    'int', 'void', 'long', 'signed', 'unsigned', 'double', 'char', 'struct',
     'return', 'if', 'else', 'goto',
     'do', 'while', 'break', 'continue', 'for',
     'switch', 'case', 'default',
@@ -33,12 +33,13 @@ TWO_PART_SYMBOLS = [
     '>=', '==', '!=', '<=',
     '+=', '-=', '*=', '/=', '%=',
     '&=', '|=', '^=',
+    '->',
 ]
 PUNCTUATION = [
     '(', ')', '{', '}', '[', ']', ';',
     '+', '-', '*', '/', '%', '~',
     '&', '|', '^', '!', '<', '>',
-    '=', '?', ':', ',',
+    '=', '?', ':', ',', '.',
 ]
 
 
@@ -91,6 +92,8 @@ def tokenize(text):
             if text.startswith(p):
                 found_punctuation = True
                 text = text[len(p):]
+                if p == '.' and text.strip()[:1].isdigit():
+                    raise Exception(f'Invalid . token')
                 tokens.append(Token(p, p))
                 break
         if found_punctuation:
