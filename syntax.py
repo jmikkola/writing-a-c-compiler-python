@@ -242,18 +242,19 @@ class FuncDeclaration(Declaration,
 
 class StructDeclaration(Declaration, namedtuple('StructDeclaration',  ['tag', 'fields'])):
     def pretty_print(self):
-        fields = [f.pretty_print() for f in fields]
+        fields = [f.pretty_print() for f in self.fields]
         header = f'struct {self.tag}'
         if fields:
+            fields = ['{'] + indent(fields) + ['}']
             return headed(header, fields)
         else:
             return [header + ';']
 
 
-class StructField(namedtuple('StructField', ['name', 'type'])):
+class StructField(namedtuple('StructField', ['type', 'name'])):
     def pretty_print(self):
         type = self.type.pretty_print()
-        return f'{type} {self.name},'
+        return f'{type} {self.name};'
 
 
 class StorageClass:

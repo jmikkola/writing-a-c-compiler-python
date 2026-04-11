@@ -250,6 +250,9 @@ class Parser:
                 raise Exception(f'unhandled abstract declarator {declarator}')
 
     def parse_declaration(self) -> syntax.Declaration:
+        if self.peek('keyword', 'struct'):
+            return self.parse_struct_declaration()
+
         base_type, storage_class = self.parse_storage_class_and_type()
         declarator = self.parse_declarator()
         (name, decl_type, arg_names) = self.process_declarator(declarator, base_type)
@@ -267,6 +270,27 @@ class Parser:
                 return self.is_function_type(inner)
             case _:
                 return False
+
+    def parse_struct_declaration(self) -> syntax.StructDeclaration:
+        self.expect('keyword', 'struct')
+        tag = self.expect('identifier').text
+        fields = []
+        if self.peek('{'):
+            self.expect('{')
+            fields.append(self.parse_struct_field())
+            while not self.peek('}'):
+                fields.append(self.parse_struct_field())
+            self.expect('}')
+        self.expect(';')
+        return syntax.StructDeclaration(tag, fields)
+
+    def parse_struct_field(self) -> syntax.StructField:
+        base_type, storage_class = self.parse_storage_class_and_type()
+        assert(storage_class is None)
+        declarator = self.parse_declarator()
+        (name, type, _arg_names) = self.process_declarator(declarator, base_type)
+        self.expect(';')
+        return syntax.StructField(type, name)
 
     def parse_var_declaration(self) -> syntax.VarDeclaration:
         base_type, storage_class = self.parse_storage_class_and_type()
