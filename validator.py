@@ -34,6 +34,19 @@ def copy_identifier_map(identifier_map: dict) -> dict:
     }
 
 
+class StructEntry(namedtuple('StructEntry', ['new_name', 'from_current_scope'])):
+    ''' for IdentifierResolution to track structure names '''
+    def mark_old(self):
+        return StructEntry(self.new_name, False)
+
+
+def copy_struct_map(struct_map: dict) -> dict:
+    return {
+        name: entry.mark_old()
+        for (name, entry) in identifier_map.items()
+    }
+
+
 class IdentifierResolution:
     def __init__(self):
         self._n_vars = 0
