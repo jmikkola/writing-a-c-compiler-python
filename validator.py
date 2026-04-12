@@ -34,10 +34,10 @@ def copy_identifier_map(identifier_map: dict) -> dict:
     }
 
 
-class StructEntry(namedtuple('StructEntry', ['new_name', 'from_current_scope'])):
+class StructEntry(namedtuple('StructEntry', ['new_tag', 'from_current_scope'])):
     ''' for IdentifierResolution to track structure names '''
     def mark_old(self):
-        return StructEntry(self.new_name, False)
+        return StructEntry(self.new_tag, False)
 
 
 def copy_struct_map(struct_map: dict) -> dict:
@@ -77,6 +77,30 @@ class IdentifierResolution:
                 return decl
             case _:
                 raise Exception(f'unhandled kind of declaration {decl}')
+
+    def resolve_type(self, type_spec: syntax.Type, struct_map):
+        match type_spec:
+            case syntax.Struct(tag):
+                if tag in struct_map:
+                    unique_tag = struct_map[tag].new_tag
+                    return syntax.Struct(unique_tag)
+                else:
+                    self.error(f'no struct declared with tag: {tag}')
+            case syntax.Pointer(pointed):
+                resolved = self.resolve_type(pointed, struct_map)
+                return syntax.Pointer(resolved)
+            case syntax.Array(elem_t, size):
+                resolved = self.resolve_type(elem_t, struct_map)
+                return syntax.Array(resolved, size)
+            case syntax.Func(params, ret):
+                params = [
+                    self.resolve_type(param, struct_map)
+                    for param in params
+                ]
+                ret = self.resolve_type(ret, struct_map)
+                return syntax.Func(params, ret)
+            case _:
+                return type_spec
 
     def validate_function(self, function: syntax.FuncDeclaration, identifier_map):
         name = function.name
