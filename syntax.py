@@ -242,11 +242,11 @@ class FuncDeclaration(Declaration,
 
 class StructDeclaration(Declaration, namedtuple('StructDeclaration',  ['tag', 'fields'])):
     def pretty_print(self):
-        fields = [f.pretty_print() for f in self.fields]
         header = f'struct {self.tag}'
-        if fields:
-            fields = ['{'] + indent(fields) + ['}']
-            return headed(header, fields)
+        if self.fields:
+            fields = [f.pretty_print() for f in self.fields]
+            body = ['{'] + indent(fields) + ['}']
+            return headed(header, body)
         else:
             return [header + ';']
 

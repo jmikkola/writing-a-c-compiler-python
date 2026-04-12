@@ -8,7 +8,7 @@ from errors import SyntaxError
 ASSIGNMENT_OPS = ['=', '>>=', '<<=', '+=', '-=', '*=', '/=', '%=', '&=', '|=', '^=']
 POSTFIX_OPS = ['++', '--', '[', '.', '->']
 
-TYPE_SPECIFIERS = ['int', 'long', 'signed', 'unsigned', 'double', 'char', 'void']
+TYPE_SPECIFIERS = ['int', 'long', 'signed', 'unsigned', 'double', 'char', 'void', 'struct']
 STORAGE_CLASSES = ['static', 'extern']
 
 DIGITS = re.compile(r'\d+')
@@ -59,7 +59,11 @@ class Parser:
     def parse_type_specifier(self) -> syntax.Type:
         specifier_list = []
         while self.peek_type_specifier():
-            specifier_list.append(self.expect('keyword').text)
+            keyword = self.expect('keyword').text
+            specifier_list.append(keyword)
+            if keyword == 'struct':
+                tag = self.expect('identifier').text
+                specifier_list.append(tag)
         return self.type_from_specifiers(specifier_list)
 
     def is_type_specifier(self, text):
@@ -74,6 +78,11 @@ class Parser:
             self.fail('expected a type specifier')
         if len(specifier_list) != len(set(specifier_list)):
             self.fail(f'duplicates in the specifier list: {specifier_list}')
+
+        if specifier_list[0] == 'struct':
+            if len(specifier_list) != 2:
+                self.fail(f'invalid struct type specifier: {specifier_list}')
+            return syntax.Struct(specifier_list[1])
 
         if specifier_list == ['void']:
             return syntax.Void()
@@ -252,7 +261,32 @@ class Parser:
 
     def parse_declaration(self) -> syntax.Declaration:
         if self.peek('keyword', 'struct'):
-            return self.parse_struct_declaration()
+            self.expect('keyword', 'struct')
+            tag = self.expect('identifier').text
+            # There are three options for declarations starting with a struct
+            # keyword:
+            # 1. a struct declaration: `struct example;`
+            # 2. a struct definition: `struct example { int member1; };`
+            # 3. another declaration with a struct type:
+            #    `struct example my_struct = { 123 };`
+            # The first two cases are handled here, and the 3rd is handled by
+            # the rest of this function
+            if self.peek(';'):
+                self.expect(';')
+                return syntax.StructDeclaration(tag, None)
+            elif self.peek('{'):
+                self.expect('{')
+                fields = []
+                fields.append(self.parse_struct_field())
+                while not self.peek('}'):
+                    fields.append(self.parse_struct_field())
+                self.expect('}')
+                self.expect(';')
+                return syntax.StructDeclaration(tag, fields)
+            else:
+                # rewind the struct keyword and tag so that
+                # parse_storage_class_and_type can read them
+                self.rewind(2)
 
         base_type, storage_class = self.parse_storage_class_and_type()
         declarator = self.parse_declarator()
@@ -272,24 +306,13 @@ class Parser:
             case _:
                 return False
 
-    def parse_struct_declaration(self) -> syntax.StructDeclaration:
-        self.expect('keyword', 'struct')
-        tag = self.expect('identifier').text
-        fields = []
-        if self.peek('{'):
-            self.expect('{')
-            fields.append(self.parse_struct_field())
-            while not self.peek('}'):
-                fields.append(self.parse_struct_field())
-            self.expect('}')
-        self.expect(';')
-        return syntax.StructDeclaration(tag, fields)
-
     def parse_struct_field(self) -> syntax.StructField:
         base_type, storage_class = self.parse_storage_class_and_type()
         assert(storage_class is None)
         declarator = self.parse_declarator()
         (name, type, _arg_names) = self.process_declarator(declarator, base_type)
+        if isinstance(type, syntax.Func):
+            self.fail('struct members cannot be functions')
         self.expect(';')
         return syntax.StructField(type, name)
 
@@ -321,6 +344,9 @@ class Parser:
             if self.is_type_specifier(token.text):
                 self.consume()
                 type_specifiers.append(token.text)
+                if token.text == 'struct':
+                    tag = self.expect('identifier').text
+                    type_specifiers.append(tag)
             elif token.text in STORAGE_CLASSES:
                 self.consume()
                 storage_classes.append(token.text)
@@ -942,6 +968,9 @@ class Parser:
     def must_eof(self):
         return self.token_iter.must_eof(self)
 
+    def rewind(self, n):
+        self.token_iter.rewind(n)
+
     def fail(self, message, expected=None, value=None):
         msg = 'Syntax error: ' + message
         if value:
@@ -965,6 +994,11 @@ class TokenIterator:
     def __init__(self, tokens):
         self.tokens = tokens
         self.next_token = 0
+
+    def rewind(self, n):
+        if self.next_token < n:
+            raise Exception('invalid parser rewind')
+        self.next_token -= n
 
     def at_end(self, offset=0):
         return self.next_token + offset >= len(self.tokens)
