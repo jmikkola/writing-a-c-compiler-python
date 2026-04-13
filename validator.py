@@ -216,7 +216,7 @@ class IdentifierResolution:
                 return syntax.DoWhile(body, test, loop_label)
             case syntax.For(init, condition, post, body, loop_label):
                 inner_identifier_map = copy_identifier_map(identifier_map)
-                init = self.resolve_for_init(init, inner_identifier_map)
+                init = self.resolve_for_init(init, inner_identifier_map, struct_map)
                 if condition:
                     condition = self.resolve_expr(condition, inner_identifier_map)
                 if post:
@@ -275,10 +275,10 @@ class IdentifierResolution:
             case _:
                 raise Exception(f'unhandled type of initializer {init}')
 
-    def resolve_for_init(self, init: syntax.ForInit, identifier_map: dict):
+    def resolve_for_init(self, init: syntax.ForInit, identifier_map: dict, struct_map: dict):
         match init:
             case syntax.InitDecl(decl):
-                decl = self.validate_statements(decl, identifier_map)
+                decl = self.validate_statements(decl, identifier_map, struct_map)
                 return syntax.InitDecl(decl)
             case syntax.InitExp(exp):
                 if exp:
