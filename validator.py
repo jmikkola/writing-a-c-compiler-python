@@ -340,6 +340,12 @@ class IdentifierResolution:
                 left = self.resolve_expr(left, identifier_map)
                 right = self.resolve_expr(right, identifier_map)
                 return syntax.Subscript(left, right)
+            case syntax.Dot(expr, member):
+                expr = self.resolve_expr(expr, identifier_map)
+                return syntax.Dot(expr, member)
+            case syntax.Arrow(expr, member):
+                expr = self.resolve_expr(expr, identifier_map)
+                return syntax.Arrow(expr, member)
             case syntax.SizeOf(expr):
                 expr = self.resolve_expr(expr, identifier_map)
                 return syntax.SizeOf(expr)
