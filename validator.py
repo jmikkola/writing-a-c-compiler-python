@@ -43,7 +43,7 @@ class StructEntry(namedtuple('StructEntry', ['new_tag', 'from_current_scope'])):
 def copy_struct_map(struct_map: dict) -> dict:
     return {
         name: entry.mark_old()
-        for (name, entry) in identifier_map.items()
+        for (name, entry) in struct_map.items()
     }
 
 
@@ -61,22 +61,40 @@ class IdentifierResolution:
 
     def validate(self, program):
         identifier_map = {}
+        struct_map = {}
         declarations = [
-            self.validate_declaration(d, identifier_map)
+            self.validate_declaration(d, identifier_map, struct_map)
             for d in program.declarations
         ]
         return syntax.Program(declarations)
 
-    def validate_declaration(self, decl: syntax.Declaration, identifier_map):
-        identifier_map[decl.name] = MapEntry.for_name(decl.name, has_linkage=True)
-
+    def validate_declaration(self, decl: syntax.Declaration, identifier_map, struct_map):
         match decl:
             case syntax.FuncDeclaration():
-                return self.validate_function(decl, identifier_map)
+                identifier_map[decl.name] = MapEntry.for_name(decl.name, has_linkage=True)
+                return self.validate_function(decl, identifier_map, struct_map)
             case syntax.VarDeclaration():
+                identifier_map[decl.name] = MapEntry.for_name(decl.name, has_linkage=True)
                 return decl
+            case syntax.StructDeclaration():
+                return self.validate_struct(decl, struct_map)
             case _:
                 raise Exception(f'unhandled kind of declaration {decl}')
+
+    def validate_struct(self, struct: syntax.StructDeclaration, struct_map):
+        prev_entry = struct_map.get(struct.tag)
+        if prev_entry is None or not prev_entry.from_current_scope:
+            unique_tag = self.make_unique(struct.tag)
+            struct_map[struct.tag] = StructEntry(unique_tag, True)
+        else:
+            unique_tag = prev_entry.new_tag
+
+        processed_members = []
+        for member in struct.fields:
+            processed_type = self.resolve_type(member.type, struct_map)
+            processed_member = syntax.StructField(processed_type, member.name)
+            processed_members.append(processed_member)
+        return syntax.StructDeclaration(unique_tag, processed_members)
 
     def resolve_type(self, type_spec: syntax.Type, struct_map):
         match type_spec:
@@ -102,7 +120,7 @@ class IdentifierResolution:
             case _:
                 return type_spec
 
-    def validate_function(self, function: syntax.FuncDeclaration, identifier_map):
+    def validate_function(self, function: syntax.FuncDeclaration, identifier_map, struct_map):
         name = function.name
         if name in identifier_map:
             prev_entry = identifier_map[name]
@@ -112,6 +130,7 @@ class IdentifierResolution:
         identifier_map[name] = MapEntry.for_name(name, has_linkage=True)
 
         inner_identifier_map = copy_identifier_map(identifier_map)
+        inner_struct_map = copy_struct_map(struct_map)
 
         new_params = []
         for param in function.params:
@@ -120,7 +139,7 @@ class IdentifierResolution:
         body = function.body
         if body:
             block_items = [
-                self.validate_statements(b, inner_identifier_map)
+                self.validate_statements(b, inner_identifier_map, inner_struct_map)
                 for b in body.block_items
             ]
             body = syntax.Block(block_items)
@@ -139,15 +158,16 @@ class IdentifierResolution:
         identifier_map[param] = MapEntry.for_name(new_name)
         return new_name
 
-    def validate_block(self, block: syntax.Block, identifier_map: dict):
+    def validate_block(self, block: syntax.Block, identifier_map: dict, struct_map: dict):
         inner_identifier_map = copy_identifier_map(identifier_map)
+        inner_struct_map = copy_struct_map(struct_map)
         block_items = [
-            self.validate_statements(b, inner_identifier_map)
+            self.validate_statements(b, inner_identifier_map, inner_struct_map)
             for b in block.block_items
         ]
         return syntax.Block(block_items)
 
-    def validate_statements(self, block_item: syntax.BlockItem, identifier_map: dict):
+    def validate_statements(self, block_item: syntax.BlockItem, identifier_map: dict, struct_map: dict):
         match block_item:
             case syntax.VarDeclaration():
                 return self.validate_block_scope_variable(block_item, identifier_map)
@@ -156,7 +176,9 @@ class IdentifierResolution:
                     self.error('function definitions not allowed inside another function')
                 if storage_class == syntax.Static():
                     self.error('function declarations inside a block cannot be static')
-                return self.validate_function(block_item, identifier_map)
+                return self.validate_function(block_item, identifier_map, struct_map)
+            case syntax.StructDeclaration():
+                return self.validate_struct(block_item, struct_map)
             case syntax.Return(expr):
                 if expr is not None:
                     expr = self.resolve_expr(expr, identifier_map)
@@ -168,17 +190,17 @@ class IdentifierResolution:
                 return block_item
             case syntax.IfStatement(test, t, e):
                 test = self.resolve_expr(test, identifier_map)
-                t = self.validate_statements(t, identifier_map)
+                t = self.validate_statements(t, identifier_map, struct_map)
                 if e:
-                    e = self.validate_statements(e, identifier_map)
+                    e = self.validate_statements(e, identifier_map, struct_map)
                 return syntax.IfStatement(test, t, e)
             case syntax.Goto(_):
                 return block_item
             case syntax.LabeledStmt(label, stmt):
-                stmt = self.validate_statements(stmt, identifier_map)
+                stmt = self.validate_statements(stmt, identifier_map, struct_map)
                 return syntax.LabeledStmt(label, stmt)
             case syntax.Compound(block):
-                block = self.validate_block(block, identifier_map)
+                block = self.validate_block(block, identifier_map, struct_map)
                 return syntax.Compound(block)
             case syntax.Break(_):
                 return block_item
@@ -186,10 +208,10 @@ class IdentifierResolution:
                 return block_item
             case syntax.While(test, body, loop_label):
                 test = self.resolve_expr(test, identifier_map)
-                body = self.validate_statements(body, identifier_map)
+                body = self.validate_statements(body, identifier_map, struct_map)
                 return syntax.While(test, body, loop_label)
             case syntax.DoWhile(body, test, loop_label):
-                body = self.validate_statements(body, identifier_map)
+                body = self.validate_statements(body, identifier_map, struct_map)
                 test = self.resolve_expr(test, identifier_map)
                 return syntax.DoWhile(body, test, loop_label)
             case syntax.For(init, condition, post, body, loop_label):
@@ -199,19 +221,19 @@ class IdentifierResolution:
                     condition = self.resolve_expr(condition, inner_identifier_map)
                 if post:
                     post = self.resolve_expr(post, inner_identifier_map)
-                body = self.validate_statements(body, inner_identifier_map)
+                body = self.validate_statements(body, inner_identifier_map, struct_map)
                 return syntax.For(init, condition, post, body, loop_label)
             case syntax.Switch(condition, body, switch_label, case_values):
                 condition = self.resolve_expr(condition, identifier_map)
-                body = self.validate_statements(body, identifier_map)
+                body = self.validate_statements(body, identifier_map, struct_map)
                 return syntax.Switch(condition, body, switch_label, case_values)
             case syntax.Case(value, stmt, switch_label):
                 if stmt:
-                    stmt = self.validate_statements(stmt, identifier_map)
+                    stmt = self.validate_statements(stmt, identifier_map, struct_map)
                 return syntax.Case(value, stmt, switch_label)
             case syntax.Default(stmt, switch_label):
                 if stmt:
-                    stmt = self.validate_statements(stmt, identifier_map)
+                    stmt = self.validate_statements(stmt, identifier_map, struct_map)
                 return syntax.Default(stmt, switch_label)
             case _:
                 raise Exception(f'unhandled type of block item {block_item}')
