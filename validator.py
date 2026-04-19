@@ -724,12 +724,15 @@ class Typecheck:
     def typecheck_func_decl(self, f: syntax.FuncDeclaration, in_block=False):
         func_type = f.fun_type
 
-        self.validate_type_specifier(func_type)
         if self.is_array(func_type.ret):
             self.error('functions cannot return arrays')
         for t in func_type.params:
             if is_void(t):
                 self.error('cannot have void typed arguments to functions')
+        if f.body is not None:
+            # Function declarations can have incomplete types, but not function
+            # definitions
+            self.validate_type_specifier(func_type)
 
         # Array type arguments are implicitly converted to pointers
         adjusted_params = []
