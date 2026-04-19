@@ -1596,7 +1596,7 @@ class Typecheck:
         r = self.typecheck_and_convert(expression.right)
         op = expression.operator
 
-        if not is_scalar(l.expr_type) or not is_scalar(l.expr_type):
+        if not is_scalar(l.expr_type) or not is_scalar(r.expr_type):
             self.error(f'Cannot apply binary operations to non-scalar types')
 
         match op:
