@@ -1041,7 +1041,7 @@ class Typecheck:
                     current_offset = member.offset + self.get_size(member.type)
                     i += 1
                 if current_offset != struct_def.size:
-                    static_values.append(syntax.ZeroInit(struct_def.size - current_offset))
+                    static_values.append(symbol.ZeroInit(struct_def.size - current_offset))
                 return static_values
 
             case (_, syntax.CompoundInit()):
