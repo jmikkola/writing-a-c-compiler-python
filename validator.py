@@ -75,11 +75,20 @@ class IdentifierResolution:
                 return self.validate_function(decl, identifier_map, struct_map)
             case syntax.VarDeclaration():
                 identifier_map[decl.name] = MapEntry.for_name(decl.name, has_linkage=True)
-                return decl
+                return self.validate_variable(decl, struct_map)
             case syntax.StructDeclaration():
                 return self.validate_struct(decl, struct_map)
             case _:
                 raise Exception(f'unhandled kind of declaration {decl}')
+
+    def validate_variable(self, variable: syntax.VarDeclaration, struct_map):
+        type = self.resolve_type(variable.var_type, struct_map)
+        return syntax.VarDeclaration(
+            variable.name,
+            variable.init,
+            type,
+            variable.storage_class
+        )
 
     def validate_struct(self, struct: syntax.StructDeclaration, struct_map):
         prev_entry = struct_map.get(struct.tag)
@@ -122,12 +131,15 @@ class IdentifierResolution:
 
     def validate_function(self, function: syntax.FuncDeclaration, identifier_map, struct_map):
         name = function.name
+        type = function.fun_type
+
         if name in identifier_map:
             prev_entry = identifier_map[name]
             if prev_entry.from_current_scope and not prev_entry.has_linkage:
                 self.error(f'duplicate declaration of {name}')
-
         identifier_map[name] = MapEntry.for_name(name, has_linkage=True)
+
+        type = self.resolve_type(type, struct_map)
 
         inner_identifier_map = copy_identifier_map(identifier_map)
         inner_struct_map = copy_struct_map(struct_map)
@@ -144,10 +156,10 @@ class IdentifierResolution:
             ]
             body = syntax.Block(block_items)
         return syntax.FuncDeclaration(
-            function.name,
+            name,
             new_params,
             body,
-            function.fun_type,
+            type,
             function.storage_class
         )
 
@@ -170,7 +182,7 @@ class IdentifierResolution:
     def validate_statements(self, block_item: syntax.BlockItem, identifier_map: dict, struct_map: dict):
         match block_item:
             case syntax.VarDeclaration():
-                return self.validate_block_scope_variable(block_item, identifier_map)
+                return self.validate_block_scope_variable(block_item, identifier_map, struct_map)
             case syntax.FuncDeclaration(name, _, body, storage_class):
                 if body is not None:
                     self.error('function definitions not allowed inside another function')
@@ -238,9 +250,10 @@ class IdentifierResolution:
             case _:
                 raise Exception(f'unhandled type of block item {block_item}')
 
-    def validate_block_scope_variable(self, var: syntax.VarDeclaration, identifier_map):
+    def validate_block_scope_variable(self, var: syntax.VarDeclaration, identifier_map, struct_map):
         name = var.name
         is_extern = var.storage_class == syntax.Extern()
+        var_type = self.resolve_type(var.var_type, struct_map)
 
         if name in identifier_map:
             prev_entry = identifier_map[name]
@@ -259,7 +272,7 @@ class IdentifierResolution:
             if init:
                 init = self.resolve_init(init, identifier_map)
 
-            return syntax.VarDeclaration(unique_name, init, var.var_type, var.storage_class)
+            return syntax.VarDeclaration(unique_name, init, var_type, var.storage_class)
 
     def resolve_init(self, init: syntax.Initializer, identifier_map):
         match init:
@@ -612,7 +625,7 @@ class LoopLabels:
 class StructType(namedtuple('StructType', ['alignment', 'size', 'members'])):
     ''' a defined struct type '''
     def get_member(self, name):
-        for m in members:
+        for m in self.members:
             if m.name == name:
                 return m
 
@@ -1689,7 +1702,7 @@ class Typecheck:
             return self.convert_to(expression, target_type)
         if self.is_pointer(target_type) and expr_type == void_pointer:
             return self.convert_to(expression, target_type)
-        self.error(f'cannot convert type for assignment {expression} to {target_type}')
+        self.error(f'cannot convert type for assignment {expression} {expr_type} to {target_type}')
 
     def is_arithmetic(self, t):
         match t:
