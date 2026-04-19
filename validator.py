@@ -877,16 +877,38 @@ class Typecheck:
 
     def typecheck_var_init(self, target_type: syntax.Type, init: syntax.Initializer):
         match (target_type, init):
+            case (syntax.Struct(tag), syntax.CompoundInit(inits)):
+                struct_def = self.types.get(tag)
+                assert(struct_def)
+                if len(inits) > len(struct_def.members):
+                    self.error('too many elements in struction initializer')
+                typechecked_list = []
+                i = 0
+                # Check and convert the initializers for each field
+                for init in inits:
+                    struct_member = struct_def.members[i]
+                    typechecked_elem = self.typecheck_var_init(struct_member.type, init)
+                    typechecked_list.append(typechecked_elem)
+                    i += 1
+                # Add zero initializers for any uninitialized fields
+                while i < len(struct_def.members):
+                    struct_member = struct_def.members[i]
+                    typechecked_list.append(self.zero_initializer(struct_member.type))
+                    i += 1
+                return syntax.CompoundInit(typechecked_list).set_type(target_type)
+
             case (syntax.Array(elem_t, size), syntax.SingleInit(syntax.String(bytes))):
                 if not self.is_character(elem_t):
                     self.error("can't initialize a non-character type with a string literal")
                 if len(bytes) > size:
                     self.error("Too many characters in string literal")
                 return init.set_type(target_type)
+
             case (_, syntax.SingleInit(e)):
                 typechecked_expr = self.typecheck_and_convert(e)
                 cast_expr = self.convert_by_assignment(typechecked_expr, target_type)
                 return syntax.SingleInit(cast_expr).set_type(target_type)
+
             case (syntax.Array(elem_t, size), syntax.CompoundInit(inits)):
                 if len(inits) > size:
                     self.error('wrong number of valies in initializer')
@@ -897,6 +919,7 @@ class Typecheck:
                 while len(typechecked_list) < size:
                     typechecked_list.append(self.zero_initializer(elem_t))
                 return syntax.CompoundInit(typechecked_list).set_type(target_type)
+
             case _:
                 self.error('cannot initialize a scalar object with a compound initializer')
 
@@ -905,6 +928,14 @@ class Typecheck:
             case syntax.Array(elem_t, size):
                 inner = self.zero_initializer(elem_t)
                 values = [inner] * size
+                return syntax.CompoundInit(values).set_type(target_type)
+            case syntax.Struct(tag):
+                struct_def = self.types.get(tag)
+                assert(struct_def)
+                values = [
+                    self.zero_initializer(member.type)
+                    for member in struct_def.members
+                ]
                 return syntax.CompoundInit(values).set_type(target_type)
             case syntax.Char() | syntax.SChar():
                 value = syntax.ConstInt(0)
