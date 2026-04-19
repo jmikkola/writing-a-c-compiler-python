@@ -1849,6 +1849,10 @@ def is_lvalue(expr: syntax.Expression) -> bool:
             return True
         case syntax.Subscript():
             return True
+        case syntax.Arrow():
+            return True
+        case syntax.Dot(left, _):
+            return is_lvalue(left)
         case _:
             return False
 
