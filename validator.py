@@ -1770,6 +1770,8 @@ def is_scalar(type: syntax.Type) -> bool:
             return False
         case syntax.Func():
             return False
+        case syntax.Struct():
+            return False
         case _:
             return True
 
