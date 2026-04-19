@@ -806,8 +806,6 @@ class Typecheck:
             self.error('cannot have variables of type void')
         if not (v.storage_class == syntax.Extern() and v.init is None):
             # only extern variables with no initializer can use incomplete types
-            if not self.is_complete(v.var_type):
-                self.error('cannot declare variable with an incomplete type')
             self.validate_type_specifier(v.var_type)
 
         initial_value = None
@@ -1493,7 +1491,8 @@ class Typecheck:
 
             case syntax.Cast(target_type, e):
                 e = self.typecheck_and_convert(e)
-                self.validate_type_specifier(target_type)
+                if not is_void(target_type):
+                    self.validate_type_specifier(target_type)
                 if is_void(target_type):
                     # this allows casting any type (including void) to void
                     return syntax.Cast(target_type, e).set_type(target_type)
@@ -1877,16 +1876,19 @@ class Typecheck:
         match type:
             case syntax.Array(elem_type, size):
                 if not self.is_complete(elem_type):
-                    self.error('Illegal array of incomplete type')
+                    self.error(f'Illegal array of incomplete type {elem_type}')
                 self.validate_type_specifier(elem_type)
             case syntax.Pointer(referenced_type):
-                self.validate_type_specifier(referenced_type)
+                if not is_void(referenced_type) and not is_struct(referenced_type):
+                    self.validate_type_specifier(referenced_type)
             case syntax.Func(params, ret):
                 for param_t in params:
                     self.validate_type_specifier(param_t)
-                self.validate_type_specifier(ret)
+                if not is_void(ret):
+                    self.validate_type_specifier(ret)
             case _:
-                pass
+                if not self.is_complete(type):
+                    self.error(f'use of incomplete type {type}')
 
     def is_complete(self, type: syntax.Type) -> bool:
         match type:
@@ -1894,9 +1896,6 @@ class Typecheck:
                 return False
             case syntax.Struct(tag):
                 return tag in self.types
-            case syntax.Array(elem_type, _):
-                # The book doesn't call for this part, but I think it's correct to have.
-                return self.is_complete(elem_type)
             case _:
                 return True
 
