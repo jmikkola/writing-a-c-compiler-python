@@ -609,7 +609,7 @@ class LoopLabels:
 
 ## Entries in the type table:
 
-class StructEntry(namedtuple('StructEntry', ['alignment', 'size', 'members'])):
+class StructType(namedtuple('StructType', ['alignment', 'size', 'members'])):
     ''' a defined struct type '''
     def get_member(self, name):
         for m in members:
@@ -617,7 +617,7 @@ class StructEntry(namedtuple('StructEntry', ['alignment', 'size', 'members'])):
                 return m
 
 
-class MemberEntry(namedtuple('MemberEntry', ['name', 'type', 'offset'])):
+class StructMember(namedtuple('StructMember', ['name', 'type', 'offset'])):
     ''' a field in a struct type '''
     pass
 
@@ -676,14 +676,14 @@ class Typecheck:
         for field in decl.fields:
             member_alignment = self.get_alignment(field.type)
             member_offset = round_up(struct_size, member_alignment)
-            entry = MemberEntry(field.name, field.type, member_offset)
+            entry = StructMember(field.name, field.type, member_offset)
             member_entries.append(entry)
             struct_alignment = max(struct_alignment, member_alignment)
             struct_size = member_offset + self.get_size(field.type)
 
         struct_size = round_up(struct_size, struct_alignment)
-        struct_entry = StructEntry(struct_alignment, struct_size, member_entries)
-        self.types[tag] = struct_entry
+        struct_entry = StructType(struct_alignment, struct_size, member_entries)
+        self.types[decl.tag] = struct_entry
 
     def get_alignment(self, type: syntax.Type) -> int:
         ''' this is specifically for the alignment of types, not variables '''
@@ -1830,3 +1830,12 @@ def is_void_pointer(type: syntax.Type) -> bool:
             return True
         case _:
             return False
+
+
+def round_up(size: int, alignment: int) -> int:
+    ''' return the next smallest size that is aligned to alignment '''
+    remainder = size % alignment
+    if remainder == 0:
+        return size
+    padding = alignment - remainder
+    return size + padding
