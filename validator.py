@@ -193,15 +193,15 @@ class IdentifierResolution:
                 return self.validate_struct(block_item, struct_map)
             case syntax.Return(expr):
                 if expr is not None:
-                    expr = self.resolve_expr(expr, identifier_map)
+                    expr = self.resolve_expr(expr, identifier_map, struct_map)
                 return syntax.Return(expr)
             case syntax.ExprStmt(expr):
-                expr = self.resolve_expr(expr, identifier_map)
+                expr = self.resolve_expr(expr, identifier_map, struct_map)
                 return syntax.ExprStmt(expr)
             case syntax.NullStatement():
                 return block_item
             case syntax.IfStatement(test, t, e):
-                test = self.resolve_expr(test, identifier_map)
+                test = self.resolve_expr(test, identifier_map, struct_map)
                 t = self.validate_statements(t, identifier_map, struct_map)
                 if e:
                     e = self.validate_statements(e, identifier_map, struct_map)
@@ -219,24 +219,24 @@ class IdentifierResolution:
             case syntax.Continue(_):
                 return block_item
             case syntax.While(test, body, loop_label):
-                test = self.resolve_expr(test, identifier_map)
+                test = self.resolve_expr(test, identifier_map, struct_map)
                 body = self.validate_statements(body, identifier_map, struct_map)
                 return syntax.While(test, body, loop_label)
             case syntax.DoWhile(body, test, loop_label):
                 body = self.validate_statements(body, identifier_map, struct_map)
-                test = self.resolve_expr(test, identifier_map)
+                test = self.resolve_expr(test, identifier_map, struct_map)
                 return syntax.DoWhile(body, test, loop_label)
             case syntax.For(init, condition, post, body, loop_label):
                 inner_identifier_map = copy_identifier_map(identifier_map)
                 init = self.resolve_for_init(init, inner_identifier_map, struct_map)
                 if condition:
-                    condition = self.resolve_expr(condition, inner_identifier_map)
+                    condition = self.resolve_expr(condition, inner_identifier_map, struct_map)
                 if post:
-                    post = self.resolve_expr(post, inner_identifier_map)
+                    post = self.resolve_expr(post, inner_identifier_map, struct_map)
                 body = self.validate_statements(body, inner_identifier_map, struct_map)
                 return syntax.For(init, condition, post, body, loop_label)
             case syntax.Switch(condition, body, switch_label, case_values):
-                condition = self.resolve_expr(condition, identifier_map)
+                condition = self.resolve_expr(condition, identifier_map, struct_map)
                 body = self.validate_statements(body, identifier_map, struct_map)
                 return syntax.Switch(condition, body, switch_label, case_values)
             case syntax.Case(value, stmt, switch_label):
@@ -270,18 +270,18 @@ class IdentifierResolution:
 
             init = var.init
             if init:
-                init = self.resolve_init(init, identifier_map)
+                init = self.resolve_init(init, identifier_map, struct_map)
 
             return syntax.VarDeclaration(unique_name, init, var_type, var.storage_class)
 
-    def resolve_init(self, init: syntax.Initializer, identifier_map):
+    def resolve_init(self, init: syntax.Initializer, identifier_map, struct_map):
         match init:
             case syntax.SingleInit(expr):
-                expr = self.resolve_expr(expr, identifier_map)
+                expr = self.resolve_expr(expr, identifier_map, struct_map)
                 return syntax.SingleInit(expr)
             case syntax.CompoundInit(initializers):
                 initializers = [
-                    self.resolve_init(i, identifier_map)
+                    self.resolve_init(i, identifier_map, struct_map)
                     for i in initializers
                 ]
                 return syntax.CompoundInit(initializers)
@@ -295,13 +295,13 @@ class IdentifierResolution:
                 return syntax.InitDecl(decl)
             case syntax.InitExp(exp):
                 if exp:
-                    exp = self.resolve_expr(exp, identifier_map)
+                    exp = self.resolve_expr(exp, identifier_map, struct_map)
                 return syntax.InitExp(exp)
             case _:
                 raise Exception(f'invalid type for ForInit {init}')
 
 
-    def resolve_expr(self, expr: syntax.Expression, identifier_map: dict):
+    def resolve_expr(self, expr: syntax.Expression, identifier_map: dict, struct_map: dict):
         match expr:
             case syntax.Constant(_):
                 return expr
@@ -314,55 +314,56 @@ class IdentifierResolution:
             case syntax.Unary(op, expr):
                 if self.is_modifying_operator(op) and not is_lvalue(expr):
                     self.error(f'invalid to apply {op} to {expr}')
-                expr = self.resolve_expr(expr, identifier_map)
+                expr = self.resolve_expr(expr, identifier_map, struct_map)
                 return syntax.Unary(op, expr)
             case syntax.Postfix(expr, op):
                 if self.is_modifying_operator(op) and not is_lvalue(expr):
                     self.error(f'invalid to apply {op} to {expr}')
-                expr = self.resolve_expr(expr, identifier_map)
+                expr = self.resolve_expr(expr, identifier_map, struct_map)
                 return syntax.Postfix(expr, op)
             case syntax.Binary(op, left, right):
-                left = self.resolve_expr(left, identifier_map)
-                right = self.resolve_expr(right, identifier_map)
+                left = self.resolve_expr(left, identifier_map, struct_map)
+                right = self.resolve_expr(right, identifier_map, struct_map)
                 return syntax.Binary(op, left, right)
             case syntax.Assignment(lhs, rhs, op):
-                lhs = self.resolve_expr(lhs, identifier_map)
-                rhs = self.resolve_expr(rhs, identifier_map)
+                lhs = self.resolve_expr(lhs, identifier_map, struct_map)
+                rhs = self.resolve_expr(rhs, identifier_map, struct_map)
                 return syntax.Assignment(lhs, rhs, op)
             case syntax.Conditional(test, t, e):
-                test = self.resolve_expr(test, identifier_map)
-                t = self.resolve_expr(t, identifier_map)
-                e = self.resolve_expr(e, identifier_map)
+                test = self.resolve_expr(test, identifier_map, struct_map)
+                t = self.resolve_expr(t, identifier_map, struct_map)
+                e = self.resolve_expr(e, identifier_map, struct_map)
                 return syntax.Conditional(test, t, e)
             case syntax.Call(func_name, arguments):
                 if func_name not in identifier_map:
                     self.error(f'calling an undefined function {func_name}')
                 new_func_name = identifier_map[func_name].new_name
-                new_args = [self.resolve_expr(arg, identifier_map) for arg in arguments]
+                new_args = [self.resolve_expr(arg, identifier_map, struct_map) for arg in arguments]
                 return syntax.Call(new_func_name, new_args)
             case syntax.Cast(target_type, expr):
-                expr = self.resolve_expr(expr, identifier_map)
+                expr = self.resolve_expr(expr, identifier_map, struct_map)
                 return syntax.Cast(target_type, expr)
             case syntax.Dereference(expr):
-                expr = self.resolve_expr(expr, identifier_map)
+                expr = self.resolve_expr(expr, identifier_map, struct_map)
                 return syntax.Dereference(expr)
             case syntax.AddrOf(expr):
-                expr = self.resolve_expr(expr, identifier_map)
+                expr = self.resolve_expr(expr, identifier_map, struct_map)
                 return syntax.AddrOf(expr)
             case syntax.Subscript(left, right):
-                left = self.resolve_expr(left, identifier_map)
-                right = self.resolve_expr(right, identifier_map)
+                left = self.resolve_expr(left, identifier_map, struct_map)
+                right = self.resolve_expr(right, identifier_map, struct_map)
                 return syntax.Subscript(left, right)
             case syntax.Dot(expr, member):
-                expr = self.resolve_expr(expr, identifier_map)
+                expr = self.resolve_expr(expr, identifier_map, struct_map)
                 return syntax.Dot(expr, member)
             case syntax.Arrow(expr, member):
-                expr = self.resolve_expr(expr, identifier_map)
+                expr = self.resolve_expr(expr, identifier_map, struct_map)
                 return syntax.Arrow(expr, member)
             case syntax.SizeOf(expr):
-                expr = self.resolve_expr(expr, identifier_map)
+                expr = self.resolve_expr(expr, identifier_map, struct_map)
                 return syntax.SizeOf(expr)
             case syntax.SizeOfT(type):
+                type = self.resolve_type(type, struct_map)
                 return syntax.SizeOfT(type)
             case _:
                 raise Exception(f'unhandled type of expression {expr}')
