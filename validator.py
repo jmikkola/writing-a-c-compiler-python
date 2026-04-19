@@ -1616,6 +1616,11 @@ class Typecheck:
 
     def convert_to(self, expression, target_type):
         assert(expression.expr_type is not None)
+        if not is_scalar(expression.expr_type):
+            self.error(f'cannot cast from a non-scalar type: {expression.expr_type}')
+        if not is_scalar(target_type):
+            self.error(f'cannot cast to a non-scalar type: {target_type}')
+
         if expression.expr_type == target_type:
             return expression
         # Special cases where a cast can be avoided
