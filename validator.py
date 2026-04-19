@@ -263,7 +263,7 @@ class IdentifierResolution:
 
         if is_extern:
             identifier_map[name] = MapEntry.for_name(name, has_linkage=True)
-            return var
+            return syntax.VarDeclaration(name, var.init, var_type, var.storage_class)
         else:
             unique_name = self.make_unique(name)
             identifier_map[name] = MapEntry.for_name(unique_name)
@@ -1537,7 +1537,7 @@ class Typecheck:
                     ptr_type = tr
                     left = self.convert_to(left, syntax.Long())
                 else:
-                    self.error('Subscript must have integer and pointer operatnd')
+                    self.error('Subscript must have integer and pointer operand')
                 expr = syntax.Subscript(left, right)
                 return expr.set_type(ptr_type.referenced)
 
