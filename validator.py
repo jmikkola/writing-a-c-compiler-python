@@ -1750,6 +1750,8 @@ class Typecheck:
         match type:
             case syntax.Void():
                 return False
+            case syntax.Struct(tag):
+                return tag in self.types
             case _:
                 return True
 
