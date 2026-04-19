@@ -749,6 +749,10 @@ class Typecheck:
             # Function declarations can have incomplete types, but not function
             # definitions
             self.validate_type_specifier(func_type)
+        else:
+            # Even if they don't have bodies, they still can't use invalid types
+            # like arrays of void
+            self.validate_non_void_type(func_type)
 
         # Array type arguments are implicitly converted to pointers
         adjusted_params = []
@@ -807,6 +811,8 @@ class Typecheck:
         if not (v.storage_class == syntax.Extern() and v.init is None):
             # only extern variables with no initializer can use incomplete types
             self.validate_type_specifier(v.var_type)
+        else:
+            self.validate_non_void_type(v.var_type)
 
         initial_value = None
         match v.init:
@@ -851,6 +857,8 @@ class Typecheck:
         if not (v.storage_class == syntax.Extern() and v.init is None):
             # only extern variables with no initializer can use incomplete types
             self.validate_type_specifier(v.var_type)
+        else:
+            self.validate_non_void_type(v.var_type)
 
         if v.storage_class == syntax.Extern():
             if v.init is not None:
@@ -1479,7 +1487,7 @@ class Typecheck:
                 else:
                     common_type = self.get_common_type(t_type, e_type)
 
-                if is_struct(common_type):
+                if is_struct(common_type) or is_void(common_type):
                     converted_t = t
                     converted_e = e
                 else:
@@ -1871,6 +1879,25 @@ class Typecheck:
                 return None
             case _:
                 raise Exception(f'invalid type for ForInit {init}')
+
+    def validate_non_void_type(self, type: syntax.Type):
+        match type:
+            case syntax.Void():
+                self.error(f'Illegal array of incomplete type {elem_type}')
+            case syntax.Array(elem_type, size):
+                if is_void(elem_type):
+                    self.error(f'Illegal array of incomplete type {elem_type}')
+                self.validate_non_void_type(elem_type)
+            case syntax.Pointer(referenced_type):
+                if not is_void(referenced_type):
+                    self.validate_non_void_type(referenced_type)
+            case syntax.Func(params, ret):
+                for param_t in params:
+                    self.validate_non_void_type(param_t)
+                if not is_void(ret):
+                    self.validate_non_void_type(ret)
+            case _:
+                pass
 
     def validate_type_specifier(self, type: syntax.Type):
         match type:

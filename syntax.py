@@ -258,7 +258,8 @@ class StructField(namedtuple('StructField', ['type', 'name'])):
 
 
 class StorageClass:
-    pass
+    def __repr__(self):
+        return str(self)
 
 
 class Static(StorageClass):
@@ -280,7 +281,7 @@ class Extern(StorageClass):
         return not (self == other)
 
     def __str__(self):
-        return 'Extern'
+        return 'Extern()'
 
 
 ##
