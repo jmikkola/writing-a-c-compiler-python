@@ -735,8 +735,7 @@ class Typecheck:
             if field.name in field_names_used:
                 self.error(f'duplicate struct field {field.name} in struct {tag}')
             field_names_used.add(field.name)
-            if not self.is_complete(field.type):
-                self.error(f'incomplete type used in struct field {field.name} of {tag}')
+            self.validate_type_specifier(field.type)
 
     def typecheck_func_decl(self, f: syntax.FuncDeclaration, in_block=False):
         func_type = f.fun_type
@@ -1894,7 +1893,7 @@ class Typecheck:
             case syntax.Struct(tag):
                 return tag in self.types
             case syntax.Array(elem_type, _):
-                # The book doesn't call of this part, but I think it's correct to have.
+                # The book doesn't call for this part, but I think it's correct to have.
                 return self.is_complete(elem_type)
             case _:
                 return True
