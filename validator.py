@@ -965,49 +965,49 @@ class Typecheck:
 
     def make_static_values(self, target_type: syntax.Type, init: syntax.Initializer):
         ''' recurse down into any compound initializers and flatten the values '''
-        match init:
-            case syntax.SingleInit(syntax.Constant(const)):
-                if self.is_array(target_type):
-                    self.error(f'cannot use a single initializers for an array')
+        match (target_type, init):
+            ### Constant values ###
+            case (syntax.Array(), syntax.SingleInit(syntax.Constant())):
+                self.error(f'cannot use a single initializers for an array')
+            case (syntax.Struct(), syntax.SingleInit(syntax.Constant())):
+                self.error(f'cannot use a single initializers for a struct')
+            case (_, syntax.SingleInit(syntax.Constant(const))):
                 return [self.to_static_init(const.value, target_type)]
 
-            case syntax.SingleInit(syntax.String(bytes)):
-                match target_type:
-                    case syntax.Array(elem_t, size):
-                        if not self.is_character(elem_t):
-                            # Char, UChar, and SChar are allowed
-                            self.error(f'cannot use a string to initialize an array of {elem_t}')
-                        if size < len(bytes):
-                            self.error(f'string is too long for {target_type}')
-                        null_terminated = target_type.size > len(bytes)
-                        static_values = [symbol.StringInit(bytes, null_terminated)]
-                        if len(bytes) + 1 < size:
-                            # +1 for the null terminator
-                            padding_size = size - len(bytes) - 1
-                            static_values.append(symbol.ZeroInit(padding_size))
-                        return static_values
-                    case syntax.Pointer(syntax.Char()):
-                        # UChar and SChar are not allowed here
-                        new_name = self.new_temp_var('str')
-                        string_value = symbol.Initial([symbol.StringInit(bytes, True)])
-                        self.symbols[new_name] = symbol.Symbol(
-                            syntax.Array(elem_t, len(bytes) + 1),
-                            symbol.ConstantAttr(init=string_value)
-                        )
-                        return [symbol.PointerInit(new_name)]
-                    case _:
-                        self.error(f'invalid type for assigning a string: {target_type}')
+            ### String values ###
+            case (syntax.Array(elem_t, size), syntax.SingleInit(syntax.String(bytes))):
+                if not self.is_character(elem_t):
+                    # Char, UChar, and SChar are allowed
+                    self.error(f'cannot use a string to initialize an array of {elem_t}')
+                if size < len(bytes):
+                    self.error(f'string is too long for {target_type}')
+                null_terminated = target_type.size > len(bytes)
+                static_values = [symbol.StringInit(bytes, null_terminated)]
+                if len(bytes) + 1 < size:
+                    # +1 for the null terminator
+                    padding_size = size - len(bytes) - 1
+                    static_values.append(symbol.ZeroInit(padding_size))
+                return static_values
 
-            case syntax.SingleInit(expr):
+            case (syntax.Pointer(syntax.Char()), syntax.SingleInit(syntax.String(bytes))):
+                # UChar and SChar are not allowed here
+                new_name = self.new_temp_var('str')
+                string_value = symbol.Initial([symbol.StringInit(bytes, True)])
+                self.symbols[new_name] = symbol.Symbol(
+                    syntax.Array(elem_t, len(bytes) + 1),
+                    symbol.ConstantAttr(init=string_value)
+                )
+                return [symbol.PointerInit(new_name)]
+
+            case (_, syntax.SingleInit(syntax.String(bytes))):
+                self.error(f'invalid type for assigning a string: {target_type}')
+
+            ### Any other single init ###
+            case (_, syntax.SingleInit(expr)):
                 self.error(f'non-constant initializer for a static variable: {expr}')
 
-            case syntax.CompoundInit(initializers):
-                if not self.is_array(target_type):
-                    self.error(f'cannot use a compound initializers for scalars')
-
-                elem_t = target_type.element
-                size = target_type.size
-
+            ### Compound initializers ###
+            case (syntax.Array(elem_t, size), syntax.CompoundInit(initializers)):
                 if len(initializers) > size:
                     self.error(f'too many values in initializer for {target_type}')
                 static_values = []
@@ -1019,11 +1019,36 @@ class Typecheck:
                     static_values.append(symbol.ZeroInit(n_values_to_pad * padding_size))
                 return static_values
 
-            case None:
+            case (syntax.Struct(tag), syntax.CompoundInit(initializers)):
+                struct_def = self.types.get(tag)
+                assert(struct_def)
+                members = struct_def.members
+                if len(initializers) > len(members):
+                    self.error(f'too many initializers for struct {tag}')
+
+                static_values = []
+                current_offset = 0
+                i = 0
+                for init_elem in initializers:
+                    member = members[i]
+                    if member.offset != current_offset:
+                        static_values.append(symbol.ZeroInit(member.offset - current_offset))
+                    static_values.extend(self.make_static_values(member.type, init_elem))
+                    current_offset = member.offset + self.get_size(member.type)
+                    i += 1
+                if current_offset != struct_def.size:
+                    static_values.append(syntax.ZeroInit(struct_def.size - current_offset))
+                return static_values
+
+            case (_, syntax.CompoundInit()):
+                self.error(f'cannot use a compound initializers for scalars')
+
+            ### Other cases ###
+            case (_, None):
                 bytes = typeconversion.type_size(target_type)
                 return [symbol.ZeroInit(bytes)]
 
-            case _:
+            case (_, _):
                 raise Exception(f'unhandled type of initializer {init}')
 
     def to_static_init(self, value, var_type):
