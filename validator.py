@@ -1016,7 +1016,7 @@ class Typecheck:
                     static_values.extend(self.make_static_values(elem_t, initializer))
                 if len(initializers) < size:
                     n_values_to_pad = size - len(initializers)
-                    padding_size = typeconversion.type_size(elem_t)
+                    padding_size = self.get_size(elem_t)
                     static_values.append(symbol.ZeroInit(n_values_to_pad * padding_size))
                 return static_values
 
@@ -1046,7 +1046,7 @@ class Typecheck:
 
             ### Other cases ###
             case (_, None):
-                bytes = typeconversion.type_size(target_type)
+                bytes = self.get_size(target_type)
                 return [symbol.ZeroInit(bytes)]
 
             case (_, _):
@@ -1821,12 +1821,12 @@ class Typecheck:
             return t1
         if syntax.Double() in [t1, t2]:
             return syntax.Double()
-        if typeconversion.type_size(t1) == typeconversion.type_size(t2):
+        if self.get_size(t1) == self.get_size(t2):
             if typeconversion.is_signed(t1):
                 return t2
             else:
                 return t1
-        if typeconversion.type_size(t1) > typeconversion.type_size(t2):
+        if self.get_size(t1) > self.get_size(t2):
             return t1
         else:
             return t2
