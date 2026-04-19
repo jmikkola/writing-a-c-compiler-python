@@ -1416,8 +1416,13 @@ class Typecheck:
                     common_type = self.get_common_pointer_type(t, e)
                 else:
                     common_type = self.get_common_type(t_type, e_type)
-                converted_t = self.convert_to(t, common_type)
-                converted_e = self.convert_to(e, common_type)
+
+                if is_struct(common_type):
+                    converted_t = t
+                    converted_e = e
+                else:
+                    converted_t = self.convert_to(t, common_type)
+                    converted_e = self.convert_to(e, common_type)
 
                 expr = syntax.Conditional(condition, converted_t, converted_e)
                 return expr.set_type(common_type)
@@ -1754,6 +1759,7 @@ class Typecheck:
             t1 = syntax.Int()
         if self.is_character(t2):
             t2 = syntax.Int()
+
         if t1 == t2:
             return t1
         if syntax.Double() in [t1, t2]:
@@ -1870,6 +1876,13 @@ def is_scalar(type: syntax.Type) -> bool:
         case _:
             return True
 
+
+def is_struct(type: syntax.Type) -> bool:
+    match type:
+        case syntax.Struct():
+            return True
+        case _:
+            return False
 
 
 def is_void(type: syntax.Type) -> bool:
