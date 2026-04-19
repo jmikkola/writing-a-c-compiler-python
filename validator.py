@@ -806,6 +806,8 @@ class Typecheck:
             self.error('cannot have variables of type void')
         if not (v.storage_class == syntax.Extern() and v.init is None):
             # only extern variables with no initializer can use incomplete types
+            if not self.is_complete(v.var_type):
+                self.error('cannot declare variable with an incomplete type')
             self.validate_type_specifier(v.var_type)
 
         initial_value = None
