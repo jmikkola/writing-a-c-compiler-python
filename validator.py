@@ -1465,6 +1465,34 @@ class Typecheck:
                 expr = syntax.Subscript(left, right)
                 return expr.set_type(ptr_type.referenced)
 
+            case syntax.Dot(expr, member):
+                expr = self.typecheck_and_convert(expr)
+                expr_type = expr.expr_type
+                if not isinstance(expr_type, syntax.Struct):
+                    self.error(f'cannot access member of non-struct type: {member} {expr_type}')
+                tag = expr_type.tag
+                struct_type = self.types.get(tag)
+                assert(struct_type)
+                struct_member = struct_type.get_member(member)
+                if struct_member is None:
+                    self.error(f'structure has no member with this name: {member} {tag}')
+                return syntax.Dot(expr, member).set_type(struct_member.type)
+
+            case syntax.Arrow(expr, member):
+                expr = self.typecheck_and_convert(expr)
+                expr_type = expr.expr_type
+                match expr_type:
+                    case syntax.Pointer(syntax.Struct(struct_tag)):
+                        tag = struct_tag
+                    case _:
+                        self.error(f'invalid type for the -> operator: {expr_type}')
+                struct_type = self.types.get(tag)
+                assert(struct_type)
+                struct_member = struct_type.get_member(member)
+                if struct_member is None:
+                    self.error(f'structure has no member with this name: {member} {tag}')
+                return syntax.Arrow(expr, member).set_type(struct_member.type)
+
             case syntax.SizeOf(expr):
                 # Don't turn arrays into pointers, so this calls typecheck_expr
                 # instead of typecheck_and_convert:
