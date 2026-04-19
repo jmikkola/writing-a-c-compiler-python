@@ -703,7 +703,7 @@ class Typecheck:
             if field.name in field_names_used:
                 self.error(f'duplicate struct field {field.name} in struct {tag}')
             field_names_used.add(field.name)
-            if not is_complete(field.type):
+            if not self.is_complete(field.type):
                 self.error(f'incomplete type used in struct field {field.name} of {tag}')
 
     def typecheck_func_decl(self, f: syntax.FuncDeclaration, in_block=False):
@@ -1428,10 +1428,10 @@ class Typecheck:
                 right = self.typecheck_and_convert(right)
                 tl = left.expr_type
                 tr = right.expr_type
-                if is_pointer_to_complete(tl) and self.is_integer(tr):
+                if self.is_pointer_to_complete(tl) and self.is_integer(tr):
                     ptr_type = tl
                     right = self.convert_to(right, syntax.Long())
-                elif self.is_integer(tl) and is_pointer_to_complete(tr):
+                elif self.is_integer(tl) and self.is_pointer_to_complete(tr):
                     ptr_type = tr
                     left = self.convert_to(left, syntax.Long())
                 else:
@@ -1443,13 +1443,13 @@ class Typecheck:
                 # Don't turn arrays into pointers, so this calls typecheck_expr
                 # instead of typecheck_and_convert:
                 expr = self.typecheck_expr(expr)
-                if not is_complete(expr.expr_type):
+                if not self.is_complete(expr.expr_type):
                     self.error('Cannot find the sizeof an incomplete type')
                 return syntax.SizeOf(expr).set_type(syntax.ULong())
 
             case syntax.SizeOfT(type):
                 self.validate_type_specifier(type)
-                if not is_complete(type):
+                if not self.is_complete(type):
                     self.error('Cannot find the sizeof an incomplete type')
                 return syntax.SizeOfT(type).set_type(syntax.ULong())
 
@@ -1540,11 +1540,11 @@ class Typecheck:
             converted_r = self.convert_to(r, common_type)
             expr = syntax.Binary(op, converted_l, converted_r)
             return expr.set_type(common_type)
-        elif is_pointer_to_complete(l.expr_type) and self.is_integer(r.expr_type):
+        elif self.is_pointer_to_complete(l.expr_type) and self.is_integer(r.expr_type):
             converted_r = self.convert_to(r, syntax.Long())
             expr = syntax.Binary(op, l, converted_r)
             return expr.set_type(l.expr_type)
-        elif self.is_integer(l.expr_type) and is_pointer_to_complete(r.expr_type):
+        elif self.is_integer(l.expr_type) and self.is_pointer_to_complete(r.expr_type):
             converted_l = self.convert_to(l, syntax.Long())
             expr = syntax.Binary(op, converted_l, r)
             return expr.set_type(r.expr_type)
@@ -1559,11 +1559,11 @@ class Typecheck:
             converted_r = self.convert_to(r, common_type)
             expr = syntax.Binary(op, converted_l, converted_r)
             return expr.set_type(common_type)
-        elif is_pointer_to_complete(l.expr_type) and self.is_integer(r.expr_type):
+        elif self.is_pointer_to_complete(l.expr_type) and self.is_integer(r.expr_type):
             converted_r = self.convert_to(r, syntax.Long())
             expr = syntax.Binary(op, l, converted_r)
             return expr.set_type(l.expr_type)
-        elif is_pointer_to_complete(l.expr_type) and l.expr_type == r.expr_type:
+        elif self.is_pointer_to_complete(l.expr_type) and l.expr_type == r.expr_type:
             expr = syntax.Binary(op, l, r)
             return expr.set_type(syntax.Long())
         else:
@@ -1734,7 +1734,7 @@ class Typecheck:
     def validate_type_specifier(self, type: syntax.Type):
         match type:
             case syntax.Array(elem_type, size):
-                if not is_complete(elem_type):
+                if not self.is_complete(elem_type):
                     self.error('Illegal array of incomplete type')
                 self.validate_type_specifier(elem_type)
             case syntax.Pointer(referenced_type):
@@ -1745,6 +1745,20 @@ class Typecheck:
                 self.validate_type_specifier(ret)
             case _:
                 pass
+
+    def is_complete(self, type: syntax.Type) -> bool:
+        match type:
+            case syntax.Void():
+                return False
+            case _:
+                return True
+
+    def is_pointer_to_complete(self, type: syntax.Type) -> bool:
+        match type:
+            case syntax.Pointer(t):
+                return self.is_complete(t)
+            case _:
+                return False
 
 
 def is_lvalue(expr: syntax.Expression) -> bool:
@@ -1775,21 +1789,6 @@ def is_scalar(type: syntax.Type) -> bool:
         case _:
             return True
 
-
-def is_complete(type: syntax.Type) -> bool:
-    match type:
-        case syntax.Void():
-            return False
-        case _:
-            return True
-
-
-def is_pointer_to_complete(type: syntax.Type) -> bool:
-    match type:
-        case syntax.Pointer(t):
-            return is_complete(t)
-        case _:
-            return False
 
 
 def is_void(type: syntax.Type) -> bool:
