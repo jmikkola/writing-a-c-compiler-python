@@ -2,6 +2,7 @@ import pathlib
 import subprocess
 import sys
 import time
+import os
 from contextlib import contextmanager
 
 import labels
@@ -58,20 +59,23 @@ def compile(stage, preprocessed_file, assembly_file, print_output):
     with open(preprocessed_file) as inf:
         text = inf.read()
 
-    tokens = lexer.tokenize(text)
+    with timed('tokenize'):
+        tokens = lexer.tokenize(text)
     if stage == 'lex':
         if print_output:
             for t in tokens:
                 print(t)
         return
 
-    syntax = parser.parse(tokens)
+    with timed('parse'):
+        syntax = parser.parse(tokens)
     if stage == 'parse':
         if print_output:
             print('\n'.join(syntax.pretty_print()))
         return
 
-    syntax, symbols = validator.validate(syntax)
+    with timed('validate'):
+        syntax, symbols = validator.validate(syntax)
     if stage == 'validate':
         if print_output:
             print('\n'.join(syntax.pretty_print()))
@@ -81,7 +85,8 @@ def compile(stage, preprocessed_file, assembly_file, print_output):
         return
 
     label_gen = labels.Labels()
-    ir = to_ir.to_ir(syntax, symbols, label_gen)
+    with timed('tacky'):
+        ir = to_ir.to_ir(syntax, symbols, label_gen)
     if stage == 'tacky':
         if print_output:
             print(ir.pretty_print())
@@ -90,7 +95,8 @@ def compile(stage, preprocessed_file, assembly_file, print_output):
                 print(f'{name}: {sym}')
         return
 
-    asm, backend_symbols = codegen.gen(ir, symbols, label_gen)
+    with timed('codegen'):
+        asm, backend_symbols = codegen.gen(ir, symbols, label_gen)
     if stage == 'codegen':
         if print_output:
             print(asm.pretty_print())
@@ -99,7 +105,8 @@ def compile(stage, preprocessed_file, assembly_file, print_output):
                 print(f'{name}: {sym}')
         return
 
-    emit.emit(asm, backend_symbols, assembly_file)
+    with timed('emit'):
+        emit.emit(asm, backend_symbols, assembly_file)
     if stage == 'emit':
         if print_output:
             with open(assembly_file, 'r') as inf:
@@ -115,7 +122,7 @@ def assemble_and_link(assembly_file, compiled_file, object, libraries):
     subprocess.run(command, check=True)
 
 
-enable_timing = False
+enable_timing = os.environ.get('TIMING') is not None
 
 
 @contextmanager
