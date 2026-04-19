@@ -998,7 +998,7 @@ class Typecheck:
                 new_name = self.new_temp_var('str')
                 string_value = symbol.Initial([symbol.StringInit(bytes, True)])
                 self.symbols[new_name] = symbol.Symbol(
-                    syntax.Array(elem_t, len(bytes) + 1),
+                    syntax.Array(syntax.Char(), len(bytes) + 1),
                     symbol.ConstantAttr(init=string_value)
                 )
                 return [symbol.PointerInit(new_name)]
