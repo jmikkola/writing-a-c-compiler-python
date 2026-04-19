@@ -686,12 +686,27 @@ class Typecheck:
         self.types[tag] = struct_entry
 
     def get_alignment(self, type: syntax.Type) -> int:
-        # TODO
-        return 1
+        ''' this is specifically for the alignment of types, not variables '''
+        match type:
+            case syntax.Struct(tag):
+                struct_def = self.types[tag]
+                return struct_def.alignment
+            case syntax.Array(elem_type, _size):
+                # This is a different alignment rule than variables of array types,
+                # where any array 16 bytes or larger is 16-byte aligned.
+                return self.get_alignment(elem_type)
+            case _:
+                return typeconversion.alignment_of(type)
 
-    def get_size(self, type: sytnax.Type) -> int:
-        # TODO
-        return 1
+    def get_size(self, type: syntax.Type) -> int:
+        match type:
+            case syntax.Struct(tag):
+                struct_def = self.types[tag]
+                return struct_def.size
+            case syntax.Array(elem_type, size):
+                return size * self.get_size(elem_type)
+            case _:
+                return typeconversion.type_size(type)
 
     def validate_struct_decl(self, decl: syntax.StructDeclaration):
         tag = decl.tag
