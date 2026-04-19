@@ -341,6 +341,7 @@ class IdentifierResolution:
                 new_args = [self.resolve_expr(arg, identifier_map, struct_map) for arg in arguments]
                 return syntax.Call(new_func_name, new_args)
             case syntax.Cast(target_type, expr):
+                target_type = self.resolve_type(target_type, struct_map)
                 expr = self.resolve_expr(expr, identifier_map, struct_map)
                 return syntax.Cast(target_type, expr)
             case syntax.Dereference(expr):
