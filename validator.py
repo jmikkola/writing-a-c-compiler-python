@@ -1192,6 +1192,10 @@ class Typecheck:
                 # Insert an implicit dereference when the expression's type is array
                 addr_expr = syntax.AddrOf(typed)
                 return addr_expr.set_type(syntax.Pointer(elem_type))
+            case syntax.Struct(tag):
+                if tag not in self.types:
+                    self.error(f'invalid use of incomplete structure type: {tag}')
+                return typed
             case _:
                 return typed
 
