@@ -90,7 +90,7 @@ class IdentifierResolution:
             unique_tag = prev_entry.new_tag
 
         processed_members = []
-        for member in struct.fields:
+        for member in (struct.fields or []):
             processed_type = self.resolve_type(member.type, struct_map)
             processed_member = syntax.StructField(processed_type, member.name)
             processed_members.append(processed_member)
@@ -385,6 +385,8 @@ class LabelValidator:
                 return self.validate_function(decl)
             case syntax.VarDeclaration():
                 return decl
+            case syntax.StructDeclaration():
+                return decl
             case _:
                 raise Exception(f'unhandled kind of declaration {decl}')
 
@@ -503,6 +505,8 @@ class LoopLabels:
                 return self.validate_function(decl)
             case syntax.VarDeclaration():
                 return decl
+            case syntax.StructDeclaration():
+                return decl
             case _:
                 raise Exception(f'unhandled kind of declaration {decl}')
 
@@ -603,10 +607,25 @@ class LoopLabels:
             case _:
                 raise Exception(f'unhandled type of block item {block_item}')
 
+## Entries in the type table:
+
+class StructEntry(namedtuple('StructEntry', ['alignment', 'size', 'members'])):
+    ''' a defined struct type '''
+    def get_member(self, name):
+        for m in members:
+            if m.name == name:
+                return m
+
+
+class MemberEntry(namedtuple('MemberEntry', ['name', 'type', 'offset'])):
+    ''' a field in a struct type '''
+    pass
+
 
 class Typecheck:
     def __init__(self):
         self.symbols = {}
+        self.types = {}
         self.current_return_type = None
         self._switch_condition_types = {}
         self._n_temp = 0
@@ -638,8 +657,54 @@ class Typecheck:
                 return self.typecheck_func_decl(decl)
             case syntax.VarDeclaration():
                 return self.typecheck_var_decl_file_scope(decl)
+            case syntax.StructDeclaration():
+                self.check_struct_decl(decl)
+                return decl
             case _:
                 raise Exception(f'unhandled kind of declaration {decl}')
+
+    def check_struct_decl(self, decl: syntax.StructDeclaration):
+        if not decl.fields:
+            # This is a declaration not a definition, so ignore it
+            return
+
+        self.validate_struct_decl(decl)
+
+        member_entries = []
+        struct_size = 0
+        struct_alignment = 1
+        for field in decl.fields:
+            member_alignment = self.get_alignment(field.type)
+            member_offset = round_up(struct_size, member_alignment)
+            entry = MemberEntry(field.name, field.type, member_offset)
+            member_entries.append(entry)
+            struct_alignment = max(struct_alignment, member_alignment)
+            struct_size = member_offset + self.get_size(field.type)
+
+        struct_size = round_up(struct_size, struct_alignment)
+        struct_entry = StructEntry(struct_alignment, struct_size, member_entries)
+        self.types[tag] = struct_entry
+
+    def get_alignment(self, type: syntax.Type) -> int:
+        # TODO
+        return 1
+
+    def get_size(self, type: sytnax.Type) -> int:
+        # TODO
+        return 1
+
+    def validate_struct_decl(self, decl: syntax.StructDeclaration):
+        tag = decl.tag
+        if tag in self.types:
+            self.error(f'multiple definitions in the same scope of struct: {tag}')
+
+        field_names_used = set()
+        for field in decl.fields:
+            if field.name in field_names_used:
+                self.error(f'duplicate struct field {field.name} in struct {tag}')
+            field_names_used.add(field.name)
+            if not is_complete(field.type):
+                self.error(f'incomplete type used in struct field {field.name} of {tag}')
 
     def typecheck_func_decl(self, f: syntax.FuncDeclaration, in_block=False):
         func_type = f.fun_type
