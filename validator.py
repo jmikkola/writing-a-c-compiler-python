@@ -440,6 +440,7 @@ class LabelValidator:
                  syntax.Continue(_) | \
                  syntax.Break(_) | \
                  syntax.ExprStmt(_) | \
+                 syntax.StructDeclaration() | \
                  syntax.NullStatement():
                 return block_item
             case syntax.IfStatement(test, t, e):
@@ -552,6 +553,7 @@ class LoopLabels:
                  syntax.Return(_) | \
                  syntax.ExprStmt(_) | \
                  syntax.Goto(_) | \
+                 syntax.StructDeclaration() | \
                  syntax.NullStatement():
                 return block_item
             case syntax.IfStatement(test, t, e):
@@ -1197,6 +1199,9 @@ class Typecheck:
                 if stmt:
                     stmt = self.typecheck_statement(stmt)
                 return syntax.Default(stmt, switch_label)
+            case syntax.StructDeclaration():
+                self.check_struct_decl(block_item)
+                return block_item
             case _:
                 raise Exception(f'unhandled type of block item {block_item}')
 
