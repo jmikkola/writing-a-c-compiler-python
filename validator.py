@@ -786,9 +786,11 @@ class Typecheck:
         )
 
     def typecheck_var_decl_file_scope(self, v: syntax.VarDeclaration):
-        self.validate_type_specifier(v.var_type)
         if is_void(v.var_type):
             self.error('cannot have variables of type void')
+        if not (v.storage_class == syntax.Extern() and v.init is None):
+            # only extern variables with no initializer can use incomplete types
+            self.validate_type_specifier(v.var_type)
 
         initial_value = None
         match v.init:
@@ -828,9 +830,11 @@ class Typecheck:
         return v
 
     def typecheck_var_decl_block_scope(self, v: syntax.VarDeclaration):
-        self.validate_type_specifier(v.var_type)
         if is_void(v.var_type):
             self.error('cannot have variables of type void')
+        if not (v.storage_class == syntax.Extern() and v.init is None):
+            # only extern variables with no initializer can use incomplete types
+            self.validate_type_specifier(v.var_type)
 
         if v.storage_class == syntax.Extern():
             if v.init is not None:
