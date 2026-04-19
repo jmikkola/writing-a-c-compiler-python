@@ -1752,6 +1752,9 @@ class Typecheck:
                 return False
             case syntax.Struct(tag):
                 return tag in self.types
+            case syntax.Array(elem_type, _):
+                # The book doesn't call of this part, but I think it's correct to have.
+                return self.is_complete(elem_type)
             case _:
                 return True
 
