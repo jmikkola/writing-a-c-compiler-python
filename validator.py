@@ -8,13 +8,13 @@ from errors import ValidationError, TypeError
 import typeconversion
 
 
-def validate(program: syntax.Program) -> typing.Tuple[syntax.Program, dict]:
+def validate(program: syntax.Program) -> typing.Tuple[syntax.Program, dict, dict]:
     program = IdentifierResolution().validate(program)
     program = LabelValidator().validate(program)
     program = LoopLabels().validate(program)
     typecheck = Typecheck()
-    program, symbols = typecheck.typecheck(program)
-    return (program, symbols)
+    program, symbols, types = typecheck.typecheck(program)
+    return (program, symbols, types)
 
 
 class MapEntry(namedtuple('MapEntry', ['new_name', 'from_current_scope', 'has_linkage'])):
@@ -666,7 +666,7 @@ class Typecheck:
         ]
         program = syntax.Program(declarations)
 
-        return program, self.symbols
+        return program, self.symbols, self.types
 
     def typecheck_decl(self, decl: syntax.Declaration):
         match decl:

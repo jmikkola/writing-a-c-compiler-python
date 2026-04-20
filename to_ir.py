@@ -9,15 +9,16 @@ import symbol
 import typeconversion
 
 
-def to_ir(syntax: syntax.Program, symbols: dict, label_gen: labels.Labels) -> tacky.Program:
-    tt = ToTacky(syntax, symbols, label_gen)
+def to_ir(syntax: syntax.Program, symbols: dict, types: dict, label_gen: labels.Labels) -> tacky.Program:
+    tt = ToTacky(syntax, symbols, types, label_gen)
     return tt.convert()
 
 
 class ToTacky:
-    def __init__(self, syntax, symbols, label_gen):
+    def __init__(self, syntax, symbols, types, label_gen):
         self.syntax = syntax
         self.symbols = symbols
+        self.types = types
         self.label_gen = label_gen
         self.n_temp_vars = 0
         # To be set by convert_function

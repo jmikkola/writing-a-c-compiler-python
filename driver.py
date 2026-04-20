@@ -75,7 +75,7 @@ def compile(stage, preprocessed_file, assembly_file, print_output):
         return
 
     with timed('validate'):
-        syntax, symbols = validator.validate(syntax)
+        syntax, symbols, types = validator.validate(syntax)
     if stage == 'validate':
         if print_output:
             print('\n'.join(syntax.pretty_print()))
@@ -86,7 +86,7 @@ def compile(stage, preprocessed_file, assembly_file, print_output):
 
     label_gen = labels.Labels()
     with timed('tacky'):
-        ir = to_ir.to_ir(syntax, symbols, label_gen)
+        ir = to_ir.to_ir(syntax, symbols, types, label_gen)
     if stage == 'tacky':
         if print_output:
             print(ir.pretty_print())
