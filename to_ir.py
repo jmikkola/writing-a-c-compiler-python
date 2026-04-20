@@ -392,6 +392,10 @@ class ToTacky:
                 dst = self.make_tacky_variable(expr.expr_type)
                 instructions.append(tacky.Load(ptr, dst))
                 return instructions, dst
+            case SubObject(base, offset):
+                dst = self.make_tacky_variable(expr.expr_type)
+                instructions.append(tacky.CopyFromOffset(base, offset, dst))
+                return instructions, dst
             case _:
                 raise Exception(f'Unhandled type of result: {result}')
 
@@ -527,6 +531,12 @@ class ToTacky:
                         return (instructions, PlainOperand(dst))
                     case DereferencedPointer(ptr):
                         return (instructions, PlainOperand(ptr))
+                    case SubObject(base, offset):
+                        dst = self.make_tacky_variable(expr.expr_type)
+                        instructions.append(tacky.GetAddress(tacky.Identifier(base), dst))
+                        index = tacky.Constant(tacky.ConstLong(offset))
+                        instructions.append(tacky.AddPtr(dst, index, 1, dst))
+                        return (instructions, PlainOperand(dst))
 
             case syntax.Subscript(left, right):
                 left_instructions, left_result = self.emit_tacky_and_convert(left)
@@ -602,6 +612,9 @@ class ToTacky:
                 return (instructions, lval_expr)
             case DereferencedPointer(ptr):
                 instructions.append(tacky.Store(rval, ptr))
+                return (instructions, PlainOperand(rval))
+            case SubObject(base, offset):
+                instructions.append(tacky.CopyToOffset(rval, base, offset))
                 return (instructions, PlainOperand(rval))
 
     def convert_operator_assignment(self, expr: syntax.Assignment):
