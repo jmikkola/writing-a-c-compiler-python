@@ -110,6 +110,10 @@ class CopyToOffset(Instruction, namedtuple('CopyToOffset', ['src', 'dst', 'offse
     pass
 
 
+class CopyFromOffset(Instruction, namedtuple('CopyFromOffset', ['src', 'offset', 'dst'])):
+    pass
+
+
 class Jump(Instruction, namedtuple('Jump', ['target'])):
     pass
 
