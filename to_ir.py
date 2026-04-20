@@ -543,6 +543,12 @@ class ToTacky:
                 instructions.append(instruction)
                 return (instructions, DereferencedPointer(result))
 
+            case syntax.Dot():
+                return self.convert_dot(expr)
+
+            case syntax.Arrow():
+                return self.convert_arrow(expr)
+
             case syntax.String(bytes):
                 const_name = self.new_temp_var()
                 var_type = syntax.Array(syntax.Char(), len(bytes) + 1)
@@ -562,6 +568,28 @@ class ToTacky:
 
             case _:
                 raise Exception(f'unhandled expression type, {expr}')
+
+
+    def convert_dot(self, expr: sytnax.Dot):
+        tag = expr.expr_type.tag
+        struct_type = self.types[tag]
+        member = struct_type.get_member(expr.member)
+
+        instructions, inner_object = self.convert_expression(expr.structure)
+        match inner_object:
+            case PlainOperand(tacky.Identifier(v)):
+                return instructions, SubObject(v, member.offset)
+            case SubObject(base, offset):
+                return instructions, SubObject(base, offset + member.offset)
+            case DereferencedPointer(ptr):
+                dst_ptr = self.make_tacky_variable(syntax.Pointer(expr.expr_type))
+                index = tacky.Constant(tacky.ConstLong(member.offset))
+                add_ptr = tacky.AddPtr(ptr, index, 1, dst_ptr)
+                instructions.append(add_ptr)
+                return instructions, DereferencedPointer(dst_ptr)
+
+    def convert_arrow(self, expr: syntax.Arrow):
+        pass
 
     def convert_simple_assignment(self, expr: syntax.Assignment):
         assert(expr.op is None)
