@@ -581,7 +581,7 @@ class ToTacky:
 
 
     def convert_dot(self, expr: sytnax.Dot):
-        tag = expr.expr_type.tag
+        tag = expr.structure.expr_type.tag
         struct_type = self.types[tag]
         member = struct_type.get_member(expr.member)
 
@@ -599,7 +599,21 @@ class ToTacky:
                 return instructions, DereferencedPointer(dst_ptr)
 
     def convert_arrow(self, expr: syntax.Arrow):
-        pass
+        structure_type = expr.pointer.expr_type
+        assert(isinstance(structure_type, syntax.Pointer))
+        referenced = structure_type.referenced
+        assert(isinstance(referenced, syntax.Struct))
+        tag = referenced.tag
+        struct_type = self.types[tag]
+        member = struct_type.get_member(expr.member)
+
+        instructions, inner_object = self.emit_tacky_and_convert(expr.pointer)
+        assert(isinstance(inner_object, DereferencedPointer))
+
+        member_ptr = self.make_tacky_variable(syntax.Pointer(member.type))
+        index = tacky.Constant(tacky.ConstLong(member.offset))
+        instructions.append(tacky.AddPtr(inner_object.val, index, 1, member_ptr))
+        return instructions, DereferencedPointer(member_ptr)
 
     def convert_simple_assignment(self, expr: syntax.Assignment):
         assert(expr.op is None)
