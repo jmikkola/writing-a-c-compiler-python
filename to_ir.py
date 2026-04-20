@@ -89,7 +89,7 @@ class ToTacky:
                 case symbol.StaticAttr(init, is_global):
                     match init:
                         case symbol.Tentative():
-                            n_bytes = typeconversion.type_size(var_type)
+                            n_bytes = self.get_size(var_type)
                             values = [symbol.ZeroInit(n_bytes)]
                             top_level.append(tacky.StaticVariable(name, is_global, var_type, values))
                         case symbol.Initial(values):
@@ -198,14 +198,24 @@ class ToTacky:
                 instructions.append(copy)
                 return instructions
 
-            case syntax.CompoundInit(initializers):
+            case syntax.CompoundInit(initializers) if isinstance(init.expr_type, syntax.Array):
                 if offset is None:
                     offset = 0
-                scale = typeconversion.type_size(init.expr_type.element)
+                scale = self.get_size(init.expr_type.element)
                 instructions = []
                 for initializer in initializers:
                     instructions.extend(self.emit_initializer(name, initializer, offset))
                     offset += scale
+                return instructions
+
+            case syntax.CompoundInit(initializers) if isinstance(init.expr_type, syntax.Struct):
+                if offset is None:
+                    offset = 0
+                struct_members = self.types[init.expr_type.tag].members
+                instructions = []
+                for (mem_init, member) in zip(initializers, struct_members):
+                    mem_offset = offset + member.offset
+                    instructions.extend(self.emit_initializer(name, mem_init, mem_offset))
                 return instructions
 
             case _:
@@ -430,7 +440,7 @@ class ToTacky:
                             case PlainOperand(val):
                                 match expr.expr_type:
                                     case syntax.Pointer(inner):
-                                        stride = typeconversion.type_size(inner)
+                                        stride = self.get_size(inner)
                                         right = self.make_constant_of_type(stride, syntax.ULong())
                                     case _:
                                         right = self.make_constant_of_type(1, expr.expr_type)
@@ -476,7 +486,7 @@ class ToTacky:
                     case PlainOperand(val):
                         match expr.expr_type:
                             case syntax.Pointer(inner):
-                                stride = typeconversion.type_size(inner)
+                                stride = self.get_size(inner)
                                 right = self.make_constant_of_type(stride, syntax.ULong())
                             case _:
                                 right = self.make_constant_of_type(1, expr.expr_type)
@@ -545,11 +555,11 @@ class ToTacky:
                 instructions = left_instructions + right_instructions
                 result = self.make_tacky_variable(syntax.Pointer(expr.expr_type))
                 if is_pointer(left.expr_type):
-                    scale = typeconversion.type_size(left.expr_type.referenced)
+                    scale = self.get_size(left.expr_type.referenced)
                     instruction = tacky.AddPtr(left_result, right_result, scale, result)
                 else:
                     assert(is_pointer(right.expr_type))
-                    scale = typeconversion.type_size(right.expr_type.referenced)
+                    scale = self.get_size(right.expr_type.referenced)
                     instruction = tacky.AddPtr(right_result, left_result, scale, result)
                 instructions.append(instruction)
                 return (instructions, DereferencedPointer(result))
@@ -570,11 +580,11 @@ class ToTacky:
 
             case syntax.SizeOf(expr):
                 t = expr.expr_type
-                result = typeconversion.type_size(t)
+                result = self.get_size(t)
                 return ([], PlainOperand(tacky.Constant(tacky.ConstULong(result))))
 
             case syntax.SizeOfT(type):
-                result = typeconversion.type_size(type)
+                result = self.get_size(type)
                 return ([], PlainOperand(tacky.Constant(tacky.ConstULong(result))))
 
             case _:
@@ -712,10 +722,10 @@ class ToTacky:
                 left_type = expr.left.expr_type
                 right_type = expr.right.expr_type
                 if is_pointer(left_type) and is_integer(right_type):
-                    scale = typeconversion.type_size(left_type.referenced)
+                    scale = self.get_size(left_type.referenced)
                     instruction = tacky.AddPtr(val_left, val_right, scale, result_var)
                 elif is_integer(left_type) and is_pointer(right_type):
-                    scale = typeconversion.type_size(right_type.referenced)
+                    scale = self.get_size(right_type.referenced)
                     instruction = tacky.AddPtr(val_right, val_left, scale, result_var)
                 else:
                     instruction = tacky.Binary(op, val_left, val_right, result_var)
@@ -737,11 +747,11 @@ class ToTacky:
                     negate = tacky.Unary(tacky.UnaryNegate(), val_right, negated_result_var)
                     instructions.append(negate)
 
-                    scale = typeconversion.type_size(left_type.referenced)
+                    scale = self.get_size(left_type.referenced)
                     add_ptr = tacky.AddPtr(val_left, negated_result_var, scale, result_var)
                     instructions.append(add_ptr)
                 elif is_pointer(left_type) and is_pointer(right_type):
-                    scale = typeconversion.type_size(right_type.referenced)
+                    scale = self.get_size(right_type.referenced)
                     unscaled_result_var = self.make_tacky_variable(expr.expr_type)
                     sub = tacky.Binary(op, val_left, val_right, unscaled_result_var)
                     instructions.append(sub)
@@ -805,9 +815,9 @@ class ToTacky:
                 instructions.append(tacky.IntToDouble(val, dst))
             else:
                 instructions.append(tacky.UIntToDouble(val, dst))
-        elif typeconversion.type_size(target_type) == typeconversion.type_size(inner_type):
+        elif self.get_size(target_type) == self.get_size(inner_type):
             instructions.append(tacky.Copy(val, dst))
-        elif typeconversion.type_size(target_type) < typeconversion.type_size(inner_type):
+        elif self.get_size(target_type) < self.get_size(inner_type):
             instructions.append(tacky.Truncate(val, dst))
         elif typeconversion.is_signed(inner_type):
             instructions.append(tacky.SignExtend(val, dst))
@@ -922,6 +932,9 @@ class ToTacky:
                 return tacky.BinarySubtract()
             case _:
                 raise Exception(f'not a modifying operator {op}')
+
+    def get_size(self, type: syntax.Type) -> int:
+        return typeconversion.type_size(type, self.types)
 
 
 def is_pointer(t: syntax.Type):

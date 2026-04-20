@@ -1,7 +1,7 @@
 import syntax
 
 
-def type_size(t):
+def type_size(t, types=None):
     match t:
         case syntax.Char() | syntax.UChar() | syntax.SChar():
             return 1
@@ -14,7 +14,9 @@ def type_size(t):
         case syntax.Pointer():
             return 8
         case syntax.Array(elem_t, size):
-            return size * type_size(elem_t)
+            return size * type_size(elem_t, types)
+        case syntax.Struct(tag):
+            return types[tag].size
         case syntax.Func():
             raise Exception('cannot determine size of a function type')
         case _:
@@ -33,7 +35,7 @@ def is_signed(t):
     raise Exception(f'Unhandled type to get signedness of {t}')
 
 
-def alignment_of(var_type: syntax.Type) -> int:
+def alignment_of(var_type: syntax.Type, types=None) -> int:
     match var_type:
         case syntax.Char() | syntax.UChar() | syntax.SChar():
             return 1
@@ -47,7 +49,9 @@ def alignment_of(var_type: syntax.Type) -> int:
                 return 16
             else:
                 scalar = find_scalar(elem_t)
-                return alignment_of(scalar)
+                return alignment_of(scalar, types)
+        case syntax.Struct(tag):
+            return types[tag].alignment
         case _:
             raise Exception(f'Unexpected type to find alignment of {var_type}')
 
