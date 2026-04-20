@@ -172,6 +172,8 @@ class ToTacky:
                 return self.convert_case(body)
             case syntax.Default(_, _):
                 return self.convert_default(body)
+            case syntax.StructDeclaration():
+                return []
             case _:
                 raise Exception(f'unhandled statement type, {body}')
 
@@ -589,7 +591,6 @@ class ToTacky:
 
             case _:
                 raise Exception(f'unhandled expression type, {expr}')
-
 
     def convert_dot(self, expr: sytnax.Dot):
         tag = expr.structure.expr_type.tag
