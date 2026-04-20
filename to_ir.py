@@ -880,6 +880,7 @@ def is_integer(t: syntax.Type):
         case _:
             return False
 
+
 @dataclass
 class PlainOperand:
     val: tacky.Value
@@ -890,4 +891,10 @@ class DereferencedPointer:
     val: tacky.Value
 
 
-ExpResult = typing.Union[PlainOperand, DereferencedPointer]
+@dataclass
+class SubObject:
+    base: str
+    offset: int
+
+
+ExpResult = typing.Union[PlainOperand, DereferencedPointer, SubObject]
