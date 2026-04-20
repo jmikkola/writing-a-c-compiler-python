@@ -71,6 +71,8 @@ class ToTacky:
                         top_level.append(self.convert_function(decl))
                 case syntax.VarDeclaration():
                     pass
+                case syntax.StructDeclaration():
+                    pass
                 case _:
                     raise Exception(f'unhandled {decl}')
 
