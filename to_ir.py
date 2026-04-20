@@ -534,8 +534,9 @@ class ToTacky:
                     case SubObject(base, offset):
                         dst = self.make_tacky_variable(expr.expr_type)
                         instructions.append(tacky.GetAddress(tacky.Identifier(base), dst))
-                        index = tacky.Constant(tacky.ConstLong(offset))
-                        instructions.append(tacky.AddPtr(dst, index, 1, dst))
+                        if offset > 0:
+                            index = tacky.Constant(tacky.ConstLong(offset))
+                            instructions.append(tacky.AddPtr(dst, index, 1, dst))
                         return (instructions, PlainOperand(dst))
 
             case syntax.Subscript(left, right):
@@ -592,6 +593,8 @@ class ToTacky:
             case SubObject(base, offset):
                 return instructions, SubObject(base, offset + member.offset)
             case DereferencedPointer(ptr):
+                if member.offset == 0:
+                    return instructions, inner_object
                 dst_ptr = self.make_tacky_variable(syntax.Pointer(expr.expr_type))
                 index = tacky.Constant(tacky.ConstLong(member.offset))
                 add_ptr = tacky.AddPtr(ptr, index, 1, dst_ptr)
@@ -609,6 +612,9 @@ class ToTacky:
 
         instructions, inner_object = self.emit_tacky_and_convert(expr.pointer)
         assert(isinstance(inner_object, DereferencedPointer))
+
+        if member.offset == 0:
+            return instructions, inner_object
 
         member_ptr = self.make_tacky_variable(syntax.Pointer(member.type))
         index = tacky.Constant(tacky.ConstLong(member.offset))
