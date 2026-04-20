@@ -621,14 +621,14 @@ class ToTacky:
         member = struct_type.get_member(expr.member)
 
         instructions, inner_object = self.emit_tacky_and_convert(expr.pointer)
-        assert(isinstance(inner_object, DereferencedPointer))
+        assert(isinstance(inner_object, tacky.Identifier))
 
         if member.offset == 0:
-            return instructions, inner_object
+            return instructions, DereferencedPointer(inner_object)
 
         member_ptr = self.make_tacky_variable(syntax.Pointer(member.type))
         index = tacky.Constant(tacky.ConstLong(member.offset))
-        instructions.append(tacky.AddPtr(inner_object.val, index, 1, member_ptr))
+        instructions.append(tacky.AddPtr(inner_object, index, 1, member_ptr))
         return instructions, DereferencedPointer(member_ptr)
 
     def convert_simple_assignment(self, expr: syntax.Assignment):
