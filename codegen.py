@@ -24,16 +24,17 @@ quadword = assembly.Quadword()
 double = assembly.Double()
 
 
-def gen(tacky: tacky.Program, symbols: dict, label_gen: labels.Labels) ->\
+def gen(tacky: tacky.Program, symbols: dict, types: dict, label_gen: labels.Labels) ->\
         typing.Tuple[assembly.Program, dict]:
-    cg = Codegen(tacky, symbols, label_gen)
+    cg = Codegen(tacky, symbols, types, label_gen)
     return cg.generate(), cg.asm_symbols
 
 
 class Codegen:
-    def __init__(self, tacky, symbols, label_gen):
+    def __init__(self, tacky, symbols, types, label_gen):
         self.tacky = tacky
         self.symbols = symbols
+        self.types = types
         self.label_gen = label_gen
         self.asm_symbols = self.convert_symbols()
         self.arg_registers = ['DI', 'SI', 'DX', 'CX', 'R8', 'R9']
@@ -1022,6 +1023,9 @@ class Codegen:
                 bytes = typeconversion.type_size(elem_t) * size
                 alignment = typeconversion.alignment_of(sym_type)
                 return assembly.ByteArray(bytes, alignment)
+            case syntax.Struct(tag):
+                struct_def = self.types[tag]
+                return assembly.ByteArray(struct_def.size, struct_def.alignment)
             case _:
                 raise Exception(f'unexpected type {sym_type}')
 

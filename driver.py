@@ -96,7 +96,7 @@ def compile(stage, preprocessed_file, assembly_file, print_output):
         return
 
     with timed('codegen'):
-        asm, backend_symbols = codegen.gen(ir, symbols, label_gen)
+        asm, backend_symbols = codegen.gen(ir, symbols, types, label_gen)
     if stage == 'codegen':
         if print_output:
             print(asm.pretty_print())
