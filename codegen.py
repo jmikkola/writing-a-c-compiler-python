@@ -1092,6 +1092,8 @@ class Codegen:
                 match value_type:
                     case syntax.Array():
                         return assembly.PseudoMem(name, 0)
+                    case syntax.Struct():
+                        return assembly.PseudoMem(name, 0)
                     case _:
                         return assembly.Pseudo(name)
             case _:
