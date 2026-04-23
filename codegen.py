@@ -644,7 +644,7 @@ class Codegen:
 
         assert(a_type == quadword)
         upper_bound_label = self.add_double(9223372036854775808.0)
-        upper_bound = assembly.Data(upper_bound_label)
+        upper_bound = assembly.Data(upper_bound_label, 0)
         upper_bound_long = assembly.Immediate(9223372036854775808)
         out_of_range_label = self.label_gen.new_label('out_of_range')
         end_label = self.label_gen.new_label('end')
@@ -851,7 +851,7 @@ class Codegen:
             # xor the constant with the dest
             return [
                 assembly.Mov(a_type, src, dst),
-                assembly.Binary(assembly.BitXor(), a_type, assembly.Data(label), dst),
+                assembly.Binary(assembly.BitXor(), a_type, assembly.Data(label, 0), dst),
             ]
 
         if a_type == double and instr.unary_operator == tacky.UnaryNot():
@@ -1081,7 +1081,7 @@ class Codegen:
         match value:
             case tacky.Constant(tacky.ConstDouble(value)):
                 label = self.add_double(value)
-                return assembly.Data(label)
+                return assembly.Data(label, 0)
             case tacky.Constant(const):
                 return assembly.Immediate(const.value)
             case tacky.Identifier(name):
@@ -1162,7 +1162,7 @@ class StackMap:
                 assert(isinstance(entry, assembly.ObjEntry))
 
                 if entry.is_static:
-                    return assembly.Data(name)
+                    return assembly.Data(name, 0)
 
                 location = self._get_next_location(entry)
                 self.pseudo_registers[name] = location
@@ -1177,7 +1177,7 @@ class StackMap:
 
                 if entry.is_static:
                     assert(offset == 0)
-                    return assembly.Data(name)
+                    return assembly.Data(name, 0)
 
                 location = self._get_next_location(entry)
                 self.pseudo_registers[name] = location

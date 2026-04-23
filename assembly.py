@@ -248,5 +248,5 @@ class Memory(Operand, namedtuple('Memory', ['reg', 'offset'])):
     pass
 
 
-class Data(Operand, namedtuple('Data', ['name'])):
+class Data(Operand, namedtuple('Data', ['name', 'offset'])):
     pass
