@@ -1024,8 +1024,12 @@ class Codegen:
                 alignment = typeconversion.alignment_of(sym_type)
                 return assembly.ByteArray(bytes, alignment)
             case syntax.Struct(tag):
-                struct_def = self.types[tag]
-                return assembly.ByteArray(struct_def.size, struct_def.alignment)
+                struct_def = self.types.get(tag)
+                if struct_def is not None:
+                    return assembly.ByteArray(struct_def.size, struct_def.alignment)
+                else:
+                    # Return a dummy value for incomplete structure declarations
+                    return assembly.ByteArray(8, 8)
             case _:
                 raise Exception(f'unexpected type {sym_type}')
 
