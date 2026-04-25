@@ -519,6 +519,19 @@ class Codegen:
                 return [
                     assembly.Mov(a_type, asm_src, asm_dst),
                 ]
+            case tacky.CopyFromOffset(src, offset, dst):
+                a_type = self.a_type_of(src)
+                if isinstance(a_type, assembly.ByteArray):
+                    return self.copy_byte_array(a_type, src, dst, src_offset=offset)
+                match src:
+                    case tacky.Identifier(name):
+                        asm_src = assembly.PseudoMem(name, offset)
+                    case _:
+                        raise Exception(f'invalid operand for CopyFromOffset: {src}')
+                asm_dst = self.convert_operand(dst)
+                return [
+                    assembly.Mov(a_type, asm_src, asm_dst),
+                ]
             case tacky.GetAddress(src, dst):
                 return [
                     assembly.Lea(self.convert_operand(src), self.convert_operand(dst)),
@@ -623,7 +636,7 @@ class Codegen:
             case _:
                 raise Exception(f'unhandled instruction type, {instr}')
 
-    def copy_byte_array(self, a_type, src, dst, dst_offset=0):
+    def copy_byte_array(self, a_type, src, dst, src_offset=0, dst_offset=0):
         assert(isinstance(a_type, assembly.ByteArray))
         src = self.convert_operand(src)
         dst = self.convert_operand(dst)
@@ -634,7 +647,7 @@ class Codegen:
 
         mov_instruction = lambda size, bytes_copied: assembly.Mov(
             size,
-            assembly.PseudoMem(src_name, bytes_copied)
+            assembly.PseudoMem(src_name, bytes_copied + src_offset)
             assembly.PseudoMem(dst_name, bytes_copied + dst_offset)
         )
         return self._make_copy_movs(a_type, [], mov_instruction)
