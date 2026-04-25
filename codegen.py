@@ -1,3 +1,4 @@
+from enum import Enum
 import struct
 import typing
 
@@ -1301,3 +1302,9 @@ class StackMap:
         if self.size_used % alignment != 0:
             self.size_used += alignment - (self.size_used % alignment)
         return -1 * self.size_used
+
+
+class MemClass(Enum):
+    INTEGER = 1
+    SSE = 2
+    MEMORY = 3
