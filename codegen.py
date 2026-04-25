@@ -647,7 +647,7 @@ class Codegen:
 
         mov_instruction = lambda size, bytes_copied: assembly.Mov(
             size,
-            assembly.PseudoMem(src_name, bytes_copied + src_offset)
+            assembly.PseudoMem(src_name, bytes_copied + src_offset),
             assembly.PseudoMem(dst_name, bytes_copied + dst_offset)
         )
         return self._make_copy_movs(a_type, [], mov_instruction)
@@ -684,7 +684,7 @@ class Codegen:
 
         mov_instruction = lambda size, bytes_copied: assembly.Mov(
             size,
-            assembly.PseudoMem(src_name, bytes_copied)
+            assembly.PseudoMem(src_name, bytes_copied),
             assembly.Memory('AX', bytes_copied),
         )
 
