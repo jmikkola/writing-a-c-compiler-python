@@ -632,47 +632,17 @@ class Codegen:
         src_name = src.name
         dst_name = dst.name
 
-        instructions = []
-        bytes_copied = 0
-        remaining_bytes = a_type.size
-        while remaining_bytes >= 8:
-            instructions.append(
-                assembly.Mov(
-                    quadword,
-                    assembly.PseudoMem(src_name, bytes_copied),
-                    assembly.PseudoMem(dst_name, bytes_copied + dst_offset),
-                )
-            )
-            remaining_bytes -= 8
-            bytes_copied += 8
-        while remaining_bytes >= 4:
-            instructions.append(
-                assembly.Mov(
-                    longword,
-                    assembly.PseudoMem(src_name, bytes_copied),
-                    assembly.PseudoMem(dst_name, bytes_copied + dst_offset),
-                )
-            )
-            remaining_bytes -= 4
-            bytes_copied += 4
-        while remaining_bytes > 0:
-            instructions.append(
-                assembly.Mov(
-                    byte,
-                    assembly.PseudoMem(src_name, bytes_copied),
-                    assembly.PseudoMem(dst_name, bytes_copied + dst_offset),
-                )
-            )
-            remaining_bytes -= 1
-            bytes_copied += 1
-
-        return instructions
+        mov_instruction = lambda size, bytes_copied: assembly.Mov(
+            size,
+            assembly.PseudoMem(src_name, bytes_copied)
+            assembly.PseudoMem(dst_name, bytes_copied + dst_offset)
+        )
+        return self._make_copy_movs(a_type, [], mov_instruction)
 
     def load_byte_array(self, a_type, src_ptr, dst):
         assert(isinstance(a_type, assembly.ByteArray))
         src = self.convert_operand(src)
         dst = self.convert_operand(dst)
-
         assert(isinstance(dst, assembly.PseudoMem))
         dst_name = dst.name
 
@@ -686,28 +656,12 @@ class Codegen:
             assembly.PseudoMem(dst_name, bytes_copied)
         )
 
-        bytes_copied = 0
-        remaining_bytes = a_type.size
-        while remaining_bytes >= 8:
-            instructions.append(mov_instruction(quadword, bytes_copied))
-            remaining_bytes -= 8
-            bytes_copied += 8
-        while remaining_bytes >= 4:
-            instructions.append(mov_instruction(longword, bytes_copied))
-            remaining_bytes -= 4
-            bytes_copied += 4
-        while remaining_bytes > 0:
-            instructions.append(mov_instruction(byte, bytes_copied))
-            remaining_bytes -= 1
-            bytes_copied += 1
-
-        return instructions
+        return self._make_copy_movs(a_type, instructions, mov_instruction)
 
     def store_byte_array(self, a_type, src, dst_ptr):
         assert(isinstance(a_type, assembly.ByteArray))
         src = self.convert_operand(src)
         dst = self.convert_operand(dst)
-
         assert(isinstance(src, assembly.PseudoMem))
         src_name = src.name
 
@@ -721,6 +675,9 @@ class Codegen:
             assembly.Memory('AX', bytes_copied),
         )
 
+        return self._make_copy_movs(a_type, instructions, mov_instruction)
+
+    def _make_copy_movs(self, a_type, instructions, mov_instruction):
         bytes_copied = 0
         remaining_bytes = a_type.size
         while remaining_bytes >= 8:
