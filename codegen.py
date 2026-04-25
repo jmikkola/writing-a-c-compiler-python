@@ -508,6 +508,8 @@ class Codegen:
                 ]
             case tacky.CopyToOffset(src, dst, offset):
                 a_type = self.a_type_of(src)
+                if isinstance(a_type, assembly.ByteArray):
+                    return self.copy_byte_array(a_type, src, dst, dst_offset=offset)
                 asm_src = self.convert_operand(src)
                 match dst:
                     case tacky.Identifier(name):
@@ -617,7 +619,7 @@ class Codegen:
             case _:
                 raise Exception(f'unhandled instruction type, {instr}')
 
-    def copy_byte_array(self, a_type, src, dst):
+    def copy_byte_array(self, a_type, src, dst, dst_offset=0):
         assert(isinstance(a_type, assembly.ByteArray))
         src = self.convert_operand(src)
         dst = self.convert_operand(dst)
@@ -634,7 +636,7 @@ class Codegen:
                 assembly.Mov(
                     quadword,
                     assembly.PseudoMem(src_name, bytes_copied),
-                    assembly.PseudoMem(dst_name, bytes_copied),
+                    assembly.PseudoMem(dst_name, bytes_copied + dst_offset),
                 )
             )
             remaining_bytes -= 8
@@ -644,7 +646,7 @@ class Codegen:
                 assembly.Mov(
                     longword,
                     assembly.PseudoMem(src_name, bytes_copied),
-                    assembly.PseudoMem(dst_name, bytes_copied),
+                    assembly.PseudoMem(dst_name, bytes_copied + dst_offset),
                 )
             )
             remaining_bytes -= 4
@@ -654,7 +656,7 @@ class Codegen:
                 assembly.Mov(
                     byte,
                     assembly.PseudoMem(src_name, bytes_copied),
-                    assembly.PseudoMem(dst_name, bytes_copied),
+                    assembly.PseudoMem(dst_name, bytes_copied + dst_offset),
                 )
             )
             remaining_bytes -= 1
