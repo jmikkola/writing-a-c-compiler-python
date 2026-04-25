@@ -856,6 +856,59 @@ class Codegen:
 
         return (int_reg_args, double_reg_args, stack_args)
 
+    def classify_structure(self, struct_entry) -> typing.List[MemClass]:
+        # struct_entry is a StructType
+
+        # Large structs are passed only in memory
+        if struct_type.size > 16:
+            result = []
+            size = struct_type.size
+            while size > 0:
+                result.append(MemClass.MEMORY)
+                size -= 8
+            return result
+
+        # Given that the type is 16 or fewer bytes, flattening it out can't be a
+        # list with more than 16 elements.
+        scalar_types = self.flatten_struct(struct_entry)
+        first_is_double = scalar_types[0] == syntax.Double()
+        last_is_double = scalar_types[-1] == syntax.Double()
+
+        if struct_type.size > 8:
+            result = []
+            if first_is_double:
+                result.append(MemClass.SSE)
+            else:
+                result.append(MemClass.INTEGER)
+            if last_is_double:
+                result.append(MemClass.SSE)
+            else:
+                result.append(MemClass.INTEGER)
+        elif first_is_double:
+            return [MemClass.SSE]
+        else:
+            return [MemClass.INTEGER]
+
+    def flatten_struct(self, struct_entry):
+        result = []
+        for member in struct_entry.members:
+            result.extend(self.flatten_type(member.type))
+        return result
+
+    def flatten_type(self, type: syntax.Type):
+        match type:
+            case assembly.Array(elem_t, size):
+                elem_flattened = self.flatten_type(elem_t)
+                result = []
+                for _ in range(size):
+                    result.extend(elem_flattened)
+                return result
+            case assembly.Struct(tag):
+                struct_type = self.types[tag]
+                return self.flatten_struct(struct_type)
+            case _:
+                return [type]
+
     def gen_call(self, instr: tacky.Call) -> list:
         int_reg_args, double_reg_args, stack_params = self.classify_parameters(instr.arg_vals)
         stack_padding = 8 * (len(stack_params) % 2)
