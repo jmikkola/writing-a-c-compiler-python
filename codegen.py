@@ -860,9 +860,9 @@ class Codegen:
         # struct_entry is a StructType
 
         # Large structs are passed only in memory
-        if struct_type.size > 16:
+        if struct_entry.size > 16:
             result = []
-            size = struct_type.size
+            size = struct_entry.size
             while size > 0:
                 result.append(MemClass.MEMORY)
                 size -= 8
@@ -874,7 +874,7 @@ class Codegen:
         first_is_double = scalar_types[0] == syntax.Double()
         last_is_double = scalar_types[-1] == syntax.Double()
 
-        if struct_type.size > 8:
+        if struct_entry.size > 8:
             result = []
             if first_is_double:
                 result.append(MemClass.SSE)
@@ -904,8 +904,8 @@ class Codegen:
                     result.extend(elem_flattened)
                 return result
             case assembly.Struct(tag):
-                struct_type = self.types[tag]
-                return self.flatten_struct(struct_type)
+                struct_entry = self.types[tag]
+                return self.flatten_struct(struct_entry)
             case _:
                 return [type]
 
