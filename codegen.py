@@ -501,6 +501,8 @@ class Codegen:
                 return self.gen_binary(instr)
             case tacky.Copy(src, dst):
                 a_type = self.a_type_of(src)
+                if isinstance(a_type, assembly.ByteArray):
+                    return self.copy_byte_array(a_type, src, dst)
                 return [
                     assembly.Mov(a_type, self.convert_operand(src), self.convert_operand(dst)),
                 ]
@@ -614,6 +616,51 @@ class Codegen:
                 return self.gen_uint_to_double(instr)
             case _:
                 raise Exception(f'unhandled instruction type, {instr}')
+
+    def copy_byte_array(self, a_type, src, dst):
+        assert(isinstance(a_type, assembly.ByteArray))
+        src = self.convert_operand(src)
+        dst = self.convert_operand(dst)
+        assert(isinstance(src, assembly.PseudoMem))
+        assert(isinstance(dst, assembly.PseudoMem))
+        src_name = src.name
+        dst_name = dst.name
+
+        instructions = []
+        bytes_copied = 0
+        remaining_bytes = a_type.size
+        while remaining_bytes >= 8:
+            instructions.append(
+                assembly.Mov(
+                    quadword,
+                    assembly.PseudoMem(src_name, bytes_copied),
+                    assembly.PseudoMem(dst_name, bytes_copied),
+                )
+            )
+            remaining_bytes -= 8
+            bytes_copied += 8
+        while remaining_bytes >= 4:
+            instructions.append(
+                assembly.Mov(
+                    longword,
+                    assembly.PseudoMem(src_name, bytes_copied),
+                    assembly.PseudoMem(dst_name, bytes_copied),
+                )
+            )
+            remaining_bytes -= 4
+            bytes_copied += 4
+        while remaining_bytes > 0:
+            instructions.append(
+                assembly.Mov(
+                    byte,
+                    assembly.PseudoMem(src_name, bytes_copied),
+                    assembly.PseudoMem(dst_name, bytes_copied),
+                )
+            )
+            remaining_bytes -= 1
+            bytes_copied += 1
+
+        return instructions
 
     def gen_double_to_int(self, instr: tacky.DoubleToInt) -> list:
         src = self.convert_operand(instr.src)
