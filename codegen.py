@@ -1,4 +1,6 @@
+from __future__ import annotations
 from enum import Enum
+import functools
 import struct
 import typing
 
@@ -832,12 +834,21 @@ class Codegen:
         dst = self.convert_operand(instr.dst)
         return [assembly.Mov(dst_type, src, dst)]
 
-    def classify_parameters(self, values: list):
+    def classify_parameters(self, values: list, return_in_memory):
         '''Decide whether each value passed to a function goes in an integer
         register, an XMM register, or the stack'''
         int_reg_args = []
         double_reg_args = []
         stack_args = []
+
+        if return_in_memory:
+            # When the return value goes in memory instead of a register (due to
+            # being a larger struct), the first integer register is used to hold
+            # the pointer to the memory where the return value will go, so
+            # there's one fewer for integer arguments.
+            int_regs_available = 5
+        else:
+            int_regs_available = 6
 
         for v in values:
             operand = self.convert_operand(v)
@@ -848,13 +859,61 @@ class Codegen:
                     double_reg_args.append(operand)
                 else:
                     stack_args.append(typed_operand)
-            else:
-                if len(int_reg_args) < 6:
+            elif is_scalar(t):
+                if len(int_reg_args) < int_regs_available:
                     int_reg_args.append(typed_operand)
                 else:
                     stack_args.append(typed_operand)
+            else:
+                # A struct value
+                classes = self.classify_structure_by_tag(t.tag)
+                use_stack = True
+                struct_size = self.types[t.tag].size
+                if classes[0] != MemClass.MEMORY:
+                    tentative_ints = []
+                    tentative_doubles = []
+                    offset = 0
+                    for c in classes:
+                        operand = assembly.PseudoMem(v.name, offset)
+                        if c == MemClass.SSE:
+                            tentative_doubles.append(operand)
+                        else:
+                            eightbyte_type = self.get_eightbyte_type(offset, struct_size)
+                            tentative_ints.append((eightbyte_type, operand))
+                        offset += 8
+
+                    space_for_doubles = len(tentative_doubles) + len(double_reg_args) <= 8
+                    space_for_ints = len(tentative_ints) + len(int_reg_args) <= int_regs_available
+                    if space_for_ints and space_for_doubles:
+                        double_reg_args.extend(tentative_doubles)
+                        int_reg_args.extend(tentative_ints)
+                        use_stack = False
+
+                if use_stack:
+                    offset = 0
+                    for c in classes:
+                        operand = assembly.PseudoMem(v.name, offset)
+                        eightbyte_type = self.get_eightbyte_type(offset, struct_size)
+                        stack_args.append((eightbyte_type, operand))
+                        offset += 8
 
         return (int_reg_args, double_reg_args, stack_args)
+
+    def get_eightbyte_type(self, offset: int, struct_size: int) -> assembly.AssemblyType:
+        bytes_from_end = struct_size - offset
+        if bytes_from_end >= 8:
+            return quadword
+        if bytes_from_end == 4:
+            return longword
+        if bytes_from_end == 1:
+            return byte
+        else:
+            return assembly.ByteArray(bytes_from_end, 8)
+
+    @functools.cache
+    def classify_structure_by_tag(self, tag) -> typing.List[MemClass]:
+        struct_entry = self.types[tag]
+        return self.classify_structure(struct_entry)
 
     def classify_structure(self, struct_entry) -> typing.List[MemClass]:
         # struct_entry is a StructType
@@ -1361,3 +1420,17 @@ class MemClass(Enum):
     INTEGER = 1
     SSE = 2
     MEMORY = 3
+
+
+def is_scalar(type: syntax.Type) -> bool:
+    match type:
+        case syntax.Void():
+            return False
+        case syntax.Array():
+            return False
+        case syntax.Func():
+            return False
+        case syntax.Struct():
+            return False
+        case _:
+            return True
