@@ -1,7 +1,7 @@
 import syntax
 
 
-def type_size(t, types=None):
+def type_size(t, types):
     match t:
         case syntax.Char() | syntax.UChar() | syntax.SChar():
             return 1
@@ -35,7 +35,7 @@ def is_signed(t):
     raise Exception(f'Unhandled type to get signedness of {t}')
 
 
-def alignment_of(var_type: syntax.Type, types=None) -> int:
+def alignment_of(var_type: syntax.Type, types) -> int:
     match var_type:
         case syntax.Char() | syntax.UChar() | syntax.SChar():
             return 1
@@ -44,7 +44,7 @@ def alignment_of(var_type: syntax.Type, types=None) -> int:
         case syntax.Long() | syntax.ULong() | syntax.Double() | syntax.Pointer():
             return 8
         case syntax.Array(elem_t, _):
-            size = type_size(var_type)
+            size = type_size(var_type, types)
             if size >= 16:
                 return 16
             else:

@@ -69,7 +69,7 @@ class Codegen:
         attrs = sym.attrs
         match attrs:
             case symbol.FuncAttr(is_defined, is_global):
-                return_on_stack = self.function_returns_in_memory(function.name)
+                return_on_stack = self.function_returns_in_memory(name)
                 return assembly.FunEntry(is_defined, return_on_stack)
             case symbol.StaticAttr(init, is_global):
                 a_type = self.sym_type_to_a_type(sym.type)
@@ -95,11 +95,11 @@ class Codegen:
                 raise Exception(f'unhandled kind of top level declaration: {top_level}')
 
     def gen_static_constant(self, const: tacky.StaticConstant) -> assembly.StaticConstant:
-        alignment = typeconversion.alignment_of(const.const_type)
+        alignment = typeconversion.alignment_of(const.const_type, self.types)
         return assembly.StaticConstant(const.name, alignment, const.init)
 
     def gen_static_var(self, var: tacky.StaticVariable) -> assembly.StaticVariable:
-        alignment = typeconversion.alignment_of(var.var_type)
+        alignment = typeconversion.alignment_of(var.var_type, self.types)
         inits = var.inits
         if var.var_type == syntax.Double() and inits[0] == 0:
             inits = [symbol.DoubleInit(0.0)]
@@ -111,12 +111,8 @@ class Codegen:
         )
 
     def function_returns_in_memory(self, function_name):
-        ret_type = self.value_type(function_name).ret
-        if ret_type == syntax.Void():
-            return False
-        ret_a_type = self.sym_type_to_a_type(ret_type)
-        _, _, return_in_memory = self.classify_return_type(ret_a_type)
-        return return_in_memory
+        func_type = self.symbols[function_name].type
+        return self.return_type_uses_memory(func_type.ret)
 
     def gen_function(self, function: tacky.Function) -> assembly.Function:
         # Generate the basic assembly
@@ -975,10 +971,7 @@ class Codegen:
     def classify_return_value(self, retval):
         ''' returns ([int args], [double args], in_memory) '''
         t = self.a_type_of(retval)
-        return self.classify_return_type(t)
 
-    def classify_return_type(self, t):
-        ''' returns ([int args], [double args], in_memory) '''
         if t == syntax.Double():
             operand = self.convert_operand(retval)
             return ([], [operand], False)
@@ -1012,6 +1005,17 @@ class Codegen:
                     offset += 8
 
                 return (int_retvals, double_retvals, False)
+
+    def return_type_uses_memory(self, t: syntax.Type):
+        ''' returns true if the value is returned in memory '''
+        if is_scalar(t):
+            return False
+        if t == syntax.Void():
+            return False
+
+        assert(isinstance(t, syntax.Struct))
+        classes = self.classify_structure_by_tag(t.tag)
+        return classes[0] == MemClass.MEMORY
 
     def get_eightbyte_type(self, offset: int, struct_size: int) -> assembly.AssemblyType:
         bytes_from_end = struct_size - offset
@@ -1057,6 +1061,7 @@ class Codegen:
                 result.append(MemClass.SSE)
             else:
                 result.append(MemClass.INTEGER)
+            return result
         elif first_is_double:
             return [MemClass.SSE]
         else:
@@ -1070,13 +1075,13 @@ class Codegen:
 
     def flatten_type(self, type: syntax.Type):
         match type:
-            case assembly.Array(elem_t, size):
+            case syntax.Array(elem_t, size):
                 elem_flattened = self.flatten_type(elem_t)
                 result = []
                 for _ in range(size):
                     result.extend(elem_flattened)
                 return result
-            case assembly.Struct(tag):
+            case syntax.Struct(tag):
                 struct_entry = self.types[tag]
                 return self.flatten_struct(struct_entry)
             case _:
@@ -1202,7 +1207,7 @@ class Codegen:
         if retval is None:
             return [assembly.Ret()]
 
-        int_retvals, double_retvals, return_in_memory = classify_return_value(retval)
+        int_retvals, double_retvals, return_in_memory = self.classify_return_value(retval)
 
         instructions = []
         if return_in_memory:
@@ -1424,8 +1429,8 @@ class Codegen:
             case syntax.Double():
                 return double
             case syntax.Array(elem_t, size):
-                bytes = typeconversion.type_size(elem_t) * size
-                alignment = typeconversion.alignment_of(sym_type)
+                bytes = typeconversion.type_size(elem_t, self.types) * size
+                alignment = typeconversion.alignment_of(sym_type, self.types)
                 return assembly.ByteArray(bytes, alignment)
             case syntax.Struct(tag):
                 struct_def = self.types.get(tag)
