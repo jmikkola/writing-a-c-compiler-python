@@ -111,7 +111,10 @@ class Codegen:
         )
 
     def function_returns_in_memory(self, function_name):
-        ret_a_type = self.sym_type_to_a_type(self.value_type(function_name).ret)
+        ret_type = self.value_type(function_name).ret
+        if ret_type == syntax.Void():
+            return False
+        ret_a_type = self.sym_type_to_a_type(ret_type)
         _, _, return_in_memory = self.classify_return_type(ret_a_type)
         return return_in_memory
 
