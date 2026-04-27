@@ -69,7 +69,10 @@ class Codegen:
         attrs = sym.attrs
         match attrs:
             case symbol.FuncAttr(is_defined, is_global):
-                return_on_stack = self.function_returns_in_memory(name)
+                # Functions that are not defined may return structures of
+                # incomplete types, so we can't actually compute if they return
+                # on the stack or not (default to False since it doesn't matter)
+                return_on_stack = is_defined and self.function_returns_in_memory(name)
                 return assembly.FunEntry(is_defined, return_on_stack)
             case symbol.StaticAttr(init, is_global):
                 a_type = self.sym_type_to_a_type(sym.type)
@@ -173,11 +176,7 @@ class Codegen:
         stack_offset = 16
         for (a_type, param) in stack_params:
             if isinstance(a_type, assembly.ByteArray):
-                copy_instructions = self.copy_bytes(
-                    assembly.Memory('BP', stack_offset),
-                    self.convert_operand(param),
-                    a_type.size
-                )
+                copy_instructions = self.copy_bytes(a_type, assembly.Memory('BP', stack_offset), param)
                 instructions.extend(copy_instructions)
             else:
                 instructions.append(assembly.Mov(a_type, assembly.Memory('BP', stack_offset), param))
@@ -762,7 +761,8 @@ class Codegen:
         return self._make_copy_movs(a_type, instructions, mov_instruction)
 
     def _make_copy_movs(self, a_type, instructions, mov_instruction):
-        assert(isinstance(a_type, assembly.ByteArray))
+        if not isinstance(a_type, assembly.ByteArray):
+            raise Exception(f'unhandled type of data for copy movs: {a_type}')
         bytes_copied = 0
         remaining_bytes = a_type.size
         while remaining_bytes >= 8:
@@ -1150,11 +1150,7 @@ class Codegen:
                     assembly.Immediate(8),
                     assembly.Register('SP'),
                 ))
-                copy_instructions = self.copy_bytes(
-                    a_type,
-                    self.convert_operand(arg),
-                    assembly.Memory('SP', 0),
-                )
+                copy_instructions = self.copy_bytes(a_type, arg, assembly.Memory('SP', 0))
                 instructions.extend(copy_instructions)
             elif is_register or is_immediate or a_type == quadword or a_type == double:
                 instructions.append(assembly.Push(arg))
