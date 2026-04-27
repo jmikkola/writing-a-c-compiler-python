@@ -136,16 +136,28 @@ class Codegen:
             instructions=instructions
         )
 
-    def save_arguments(self, params):
+    def save_arguments(self, params, return_in_memory):
         ''' For simplicity, copy all parameters to the current stack frame '''
-        # It seems like params is the wrong type of thing
-        int_reg_args, double_reg_args, stack_params = self.classify_parameters(params)
+        int_reg_args, double_reg_args, stack_params = self.classify_parameters(params, return_in_memory)
 
         instructions = []
 
+        reg_index = 0
+        if return_in_memory:
+            instructions.append(assembly.Mov(
+                quadword,
+                assembly.Register('DI'),
+                assembly.Memory('BP', -8),
+            ))
+            reg_index = 1
+
         # Handle arguments that are passed in registers
-        for ((a_type, param), reg) in zip(int_reg_args, self.arg_registers):
-            instructions.append(assembly.Mov(a_type, assembly.Register(reg), param))
+        for ((a_type, param), reg) in zip(int_reg_args, self.arg_registers[reg_index:]):
+            if isinstance(a_type, assembly.ByteArray):
+                copy_instructions = self.copy_bytes_from_reg(reg, param, a_type.size)
+                instructions.extend(copy_instructions)
+            else:
+                instructions.append(assembly.Mov(a_type, assembly.Register(reg), param))
 
         for (param, reg) in zip(double_reg_args, self.double_registers):
             instructions.append(assembly.Mov(double, assembly.Register(reg), param))
@@ -153,7 +165,11 @@ class Codegen:
         # Handle arguments that are passed on the stack
         stack_offset = 16
         for (a_type, param) in stack_params:
-            instructions.append(assembly.Mov(a_type, assembly.Memory('BP', stack_offset), param))
+            if isinstance(a_type, assembly.ByteArray):
+                copy_instructions = self.copy_bytes(assembly.Memory('BP', stack_offset), param, a_type.size)
+                instructions.extend(copy_instructions)
+            else:
+                instructions.append(assembly.Mov(a_type, assembly.Memory('BP', stack_offset), param))
             stack_offset += 8
 
         return instructions
