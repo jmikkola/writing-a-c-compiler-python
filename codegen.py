@@ -166,7 +166,11 @@ class Codegen:
         stack_offset = 16
         for (a_type, param) in stack_params:
             if isinstance(a_type, assembly.ByteArray):
-                copy_instructions = self.copy_bytes(assembly.Memory('BP', stack_offset), param, a_type.size)
+                copy_instructions = self.copy_bytes(
+                    assembly.Memory('BP', stack_offset),
+                    self.convert_operand(param),
+                    a_type.size
+                )
                 instructions.extend(copy_instructions)
             else:
                 instructions.append(assembly.Mov(a_type, assembly.Memory('BP', stack_offset), param))
@@ -700,8 +704,8 @@ class Codegen:
         return instructions
 
     def copy_bytes(self, a_type, src, dst):
-        src = self.convert_operand(src)
-
+        '''unlike the other copy functions, src and dst have already been
+        converted to the assembly types'''
         mov_instruction = lambda size, bytes_copied: assembly.Mov(
             size,
             src.add_offset(bytes_copied),
@@ -1127,7 +1131,11 @@ class Codegen:
                     assembly.Immediate(8),
                     assembly.Register('SP'),
                 ))
-                copy_instructions = self.copy_bytes(a_type, arg, assembly.Memory('SP', 0))
+                copy_instructions = self.copy_bytes(
+                    a_type,
+                    self.convert_operand(arg),
+                    assembly.Memory('SP', 0),
+                )
                 instructions.extend(copy_instructions)
             elif is_register or is_immediate or a_type == quadword or a_type == double:
                 instructions.append(assembly.Push(arg))
