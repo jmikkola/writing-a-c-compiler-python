@@ -639,6 +639,50 @@ class Codegen:
             case _:
                 raise Exception(f'unhandled instruction type, {instr}')
 
+    def copy_bytes_to_reg(self, src_op, dst_reg, byte_count):
+        ''' copy one byte at a time from memory to a register '''
+        instructions = []
+        offset = byte_count - 1
+        while offset >= 0:
+            # Go in reverse order because the data is little-endian
+            src_byte = src_op.add_offset(offset)
+            instructions.append(assembly.Mov(
+                byte,
+                src_type,
+                assembly.Register(dst_reg),
+            ))
+            if offset > 0:
+                instructions.append(assembly.Binary(
+                    assembly.ShiftLeft(),
+                    quadword,
+                    assembly.Immediate(8),
+                    assembly.Register(dst_reg),
+                ))
+            offset -= 1
+
+        return instructions
+
+    def copy_bytes_from_reg(self, src_reg, dst_op, byte_count):
+        ''' copy one byte at a time from a register to memory '''
+        instructions = []
+        offset = 0
+        while offset < byte_count:
+            dst_byte = dst_op.add_offset(offset)
+            instructions.append(assembly.Mov(
+                byte,
+                assembly.Register(src_reg),
+                dst_byte,
+            ))
+            if offset < byte_count - 1:
+                instructions.append(assembly.Binary(
+                    assembly.ShiftRight,
+                    quadword,
+                    assembly.Immediate(8),
+                    assembly.Register(src_reg),
+                ))
+            offset += 1
+        return instructions
+
     def copy_bytes(self, a_type, src, dst):
         assert(isinstance(a_type, assembly.ByteArray))
         src = self.convert_operand(src)

@@ -241,11 +241,13 @@ class Pseudo(Operand, namedtuple('Pseudo', ['name'])):
 
 
 class PseudoMem(Operand, namedtuple('PseudoMem', ['name', 'offset'])):
-    pass
+    def add_offset(self, offset):
+        return PseudoMem(self.name, self.offset + offset)
 
 
 class Memory(Operand, namedtuple('Memory', ['reg', 'offset'])):
-    pass
+    def add_offset(self, offset):
+        return Memory(self.reg, self.offset + offset)
 
 
 class Data(Operand, namedtuple('Data', ['name', 'offset'])):
