@@ -1007,12 +1007,28 @@ class Codegen:
                 return [type]
 
     def gen_call(self, instr: tacky.Call) -> list:
-        int_reg_args, double_reg_args, stack_params = self.classify_parameters(instr.arg_vals)
-        stack_padding = 8 * (len(stack_params) % 2)
-
         instructions = []
 
+        return_in_memory = False
+        int_dests = []
+        double_dests = []
+        reg_index = 0
+
+        # Classify the return value
+        if instr.dst is not None:
+            int_dests, double_dests, return_in_memory = self.classify_return_value(instr.dst)
+
+            if return_in_memory:
+                # Set up the pointer so the called function knows where to
+                # return the value
+                dst_operand = self.convert_operand(instr.dst)
+                instructions.append(assembly.Lea(dst_operand, assembly.Register('DI')))
+                reg_index = 1
+
+        int_reg_args, double_reg_args, stack_params = self.classify_parameters(instr.arg_vals, return_in_memory)
+
         # Add stack padding so the alignment comes out right
+        stack_padding = 8 * (len(stack_params) % 2)
         if stack_padding > 0:
             allocate = assembly.Binary(
                 assembly.Sub(),
@@ -1022,9 +1038,21 @@ class Codegen:
             )
             instructions.append(allocate)
 
-        # Pass the first 6 integer arguments in registers
-        for ((a_type, arg), register) in zip(int_reg_args, self.arg_registers):
-            instructions.append(assembly.Mov(a_type, arg, assembly.Register(register)))
+        # Pass the first 6 (or 5) integer arguments in registers
+        # (it's only 5 if the first register is used to hold the pointer to
+        # where the return value will be stored)
+        assert(len(int_reg_args) <= (len(self.arg_registers) - reg_index))
+        for (a_type, arg) in int_reg_args:
+            register = self.arg_registers[reg_index]
+            match a_type:
+                case assembly.ByteArray(size, _alignment):
+                    # Structs of weird sizes (e.g. 3 bytes) need special handling
+                    copy_instructions = self.copy_bytes_to_reg(arg, register, size)
+                    instructions.extend(copy_instructions)
+                case _:
+                    mov = assembly.Mov(a_type, arg, assembly.Register(register))
+                    instructions.append(mov)
+            reg_index += 1
 
         # Pass the first 8 double arguments in XMM registers
         for (arg, register) in zip(double_reg_args, self.double_registers):
@@ -1034,7 +1062,16 @@ class Codegen:
         for (a_type, arg) in stack_params[::-1]:
             is_register = isinstance(arg, assembly.Register)
             is_immediate = isinstance(arg, assembly.Immediate)
-            if is_register or is_immediate or a_type == quadword or a_type == double:
+            if isinstance(a_type, assembly.ByteArray):
+                instructions.append(assembly.Binary(
+                    assembly.Sub(),
+                    quadword,
+                    assembly.Immediate(8),
+                    assembly.Register('SP'),
+                ))
+                copy_instructions = self.copy_bytes(arg, assembly.Memory('SP', 0), a_type.size)
+                instructions.extend(copy_instructions)
+            elif is_register or is_immediate or a_type == quadword or a_type == double:
                 instructions.append(assembly.Push(arg))
             else:
                 # Only longword from memory need to be extended to 64 bits before being pushed
@@ -1056,13 +1093,27 @@ class Codegen:
             instructions.append(deallocate)
 
         # Move the result to the correct destination
-        if instr.dst is not None:
-            assembly_dst = self.convert_operand(instr.dst)
-            return_type = self.a_type_of(instr.dst)
-            if return_type == double:
-                instructions.append(assembly.Mov(return_type, assembly.Register('XMM0'), assembly_dst))
-            else:
-                instructions.append(assembly.Mov(return_type, assembly.Register('AX'), assembly_dst))
+        if instr.dst is not None and not return_in_memory:
+            int_return_registers = ['AX', 'DX']
+            double_return_registers = ['XMM0', 'XMM1']
+
+            # Retrieve values returned in general-purpose registers
+            reg_index = 0
+            for (t, op) in int_dests:
+                register = int_return_registers[reg_index]
+                if isinstance(t, assembly.ByteArray):
+                    copy_instructions = self.copy_bytes_from_reg(r, op, t.size)
+                    instructions.extend(copy_instructions)
+                else:
+                    instructions.append(assembly.Mov(t, assembly.Register(register), op))
+                reg_index += 1
+
+            # Retrieve values returend in XMM registers
+            reg_index = 0
+            for op in double_dests:
+                register = double_return_registers[reg_index]
+                instructions.append(assembly.Mov(double, assembly.Register(register), op))
+                reg_index += 1
 
         return instructions
 
