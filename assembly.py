@@ -48,7 +48,7 @@ class ObjEntry(AsmSymbol, namedtuple('ObjEntry', ['assembly_type', 'is_static', 
     pass
 
 
-class FunEntry(AsmSymbol, namedtuple('FunEntry', ['is_defined'])):
+class FunEntry(AsmSymbol, namedtuple('FunEntry', ['is_defined', 'return_on_stack'])):
     pass
 
 

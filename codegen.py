@@ -69,7 +69,8 @@ class Codegen:
         attrs = sym.attrs
         match attrs:
             case symbol.FuncAttr(is_defined, is_global):
-                return assembly.FunEntry(is_defined)
+                return_on_stack = self.function_returns_in_memory(function.name)
+                return assembly.FunEntry(is_defined, return_on_stack)
             case symbol.StaticAttr(init, is_global):
                 a_type = self.sym_type_to_a_type(sym.type)
                 return assembly.ObjEntry(a_type, True, False)
