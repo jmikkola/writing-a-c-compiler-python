@@ -675,7 +675,7 @@ class Codegen:
             src_byte = src_op.add_offset(offset)
             instructions.append(assembly.Mov(
                 byte,
-                src_type,
+                src_byte,
                 assembly.Register(dst_reg),
             ))
             if offset > 0:
@@ -1187,7 +1187,7 @@ class Codegen:
             for (t, op) in int_dests:
                 register = int_return_registers[reg_index]
                 if isinstance(t, assembly.ByteArray):
-                    copy_instructions = self.copy_bytes_from_reg(r, op, t.size)
+                    copy_instructions = self.copy_bytes_from_reg(register, op, t.size)
                     instructions.extend(copy_instructions)
                 else:
                     instructions.append(assembly.Mov(t, assembly.Register(register), op))
@@ -1230,7 +1230,7 @@ class Codegen:
                 register = int_return_registers[reg_index]
                 if isinstance(t, assembly.ByteArray):
                     instructions.extend(
-                        self.copy_bytes_to_reg(op, register, size)
+                        self.copy_bytes_to_reg(op, register, t.size)
                     )
                 else:
                     instructions.append(assembly.Mov(t, op, assembly.Register(register)))

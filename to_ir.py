@@ -406,7 +406,7 @@ class ToTacky:
                 return instructions, dst
             case SubObject(base, offset):
                 dst = self.make_tacky_variable(expr.expr_type)
-                instructions.append(tacky.CopyFromOffset(base, offset, dst))
+                instructions.append(tacky.CopyFromOffset(tacky.Identifier(base), offset, dst))
                 return instructions, dst
             case _:
                 raise Exception(f'Unhandled type of result: {result}')
@@ -645,7 +645,7 @@ class ToTacky:
                 instructions.append(tacky.Store(rval, ptr))
                 return (instructions, PlainOperand(rval))
             case SubObject(base, offset):
-                instructions.append(tacky.CopyToOffset(rval, base, offset))
+                instructions.append(tacky.CopyToOffset(rval, tacky.Identifier(base), offset))
                 return (instructions, PlainOperand(rval))
 
     def convert_operator_assignment(self, expr: syntax.Assignment):

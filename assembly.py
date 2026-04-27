@@ -237,7 +237,9 @@ class Indexed(Operand, namedtuple('Indexed', ['base', 'index', 'scale'])):
 
 
 class Pseudo(Operand, namedtuple('Pseudo', ['name'])):
-    pass
+    def add_offset(self, offset):
+        # Convert to PseudoMem to get the ability to handle offsets
+        return PseudoMem(self.name, offset)
 
 
 class PseudoMem(Operand, namedtuple('PseudoMem', ['name', 'offset'])):
