@@ -125,7 +125,7 @@ class Codegen:
         instructions += self.gen_instructions(function.body)
 
         # Replace pseudo registers with stack locations
-        instructions, stack_size = self.replace_pseudo_registers(instructions)
+        instructions, stack_size = self.replace_pseudo_registers(instructions, return_in_memory)
         if stack_size % 16 != 0:
             stack_size += 16 - (stack_size % 16)
 
@@ -154,6 +154,7 @@ class Codegen:
 
         reg_index = 0
         if return_in_memory:
+            # Save the pointer to the return value
             instructions.append(assembly.Mov(
                 quadword,
                 assembly.Register('DI'),
@@ -188,8 +189,8 @@ class Codegen:
 
         return instructions
 
-    def replace_pseudo_registers(self, instructions):
-        stack_map = StackMap(self.asm_symbols)
+    def replace_pseudo_registers(self, instructions, return_in_memory):
+        stack_map = StackMap(self.asm_symbols, return_in_memory)
 
         updated_instructions = []
         for instr in instructions:
@@ -1560,9 +1561,12 @@ def is_register(operand: assembly.Operand):
 class StackMap:
     '''This is used to figure out where each pseudo register gets stored in a
     function's stack frame'''
-    def __init__(self, asm_symbols):
+    def __init__(self, asm_symbols, return_in_memory):
         self.asm_symbols = asm_symbols
         self.size_used = 0
+        if return_in_memory:
+            # Reserve space for the pointer to the return value that is saved to -8(%rbp)
+            self.size_used += 8
         self.pseudo_registers = {}
 
     def convert_pseudo_register(self, operand: assembly.Operand):
@@ -1589,8 +1593,7 @@ class StackMap:
                 assert(isinstance(entry, assembly.ObjEntry))
 
                 if entry.is_static:
-                    assert(offset == 0)
-                    return assembly.Data(name, 0)
+                    return assembly.Data(name, offset)
 
                 location = self._get_next_location(entry)
                 self.pseudo_registers[name] = location
