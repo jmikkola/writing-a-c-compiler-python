@@ -700,44 +700,28 @@ class Codegen:
         return instructions
 
     def copy_bytes(self, a_type, src, dst):
-        assert(isinstance(a_type, assembly.ByteArray))
         src = self.convert_operand(src)
-        assert(isinstance(src, assembly.PseudoMem))
-        src_name = src.name
-        assert(isinstance(dst, assembly.Memory))
-        dst_reg = dst.reg
 
-        # It might be useful to generalize this with .add_offset methods on the
-        # Memory and PseudoMem types
         mov_instruction = lambda size, bytes_copied: assembly.Mov(
             size,
-            assembly.PseudoMem(src_name, bytes_copied),
-            assembly.Memory(dst_reg, bytes_copied)
+            src.add_offset(bytes_copied),
+            dst.add_offset(bytes_copied),
         )
         return self._make_copy_movs(a_type, [], mov_instruction)
 
     def copy_byte_array(self, a_type, src, dst, src_offset=0, dst_offset=0):
-        assert(isinstance(a_type, assembly.ByteArray))
         src = self.convert_operand(src)
         dst = self.convert_operand(dst)
-        assert(isinstance(src, assembly.PseudoMem))
-        assert(isinstance(dst, assembly.PseudoMem))
-        src_name = src.name
-        dst_name = dst.name
 
         mov_instruction = lambda size, bytes_copied: assembly.Mov(
             size,
-            assembly.PseudoMem(src_name, bytes_copied + src_offset),
-            assembly.PseudoMem(dst_name, bytes_copied + dst_offset)
+            src.add_offset(bytes_copied + src_offset),
+            dst.add_offset(bytes_copied + dst_offset),
         )
         return self._make_copy_movs(a_type, [], mov_instruction)
 
     def load_byte_array(self, a_type, src_ptr, dst):
-        assert(isinstance(a_type, assembly.ByteArray))
-        src = self.convert_operand(src)
         dst = self.convert_operand(dst)
-        assert(isinstance(dst, assembly.PseudoMem))
-        dst_name = dst.name
 
         instructions = [
             assembly.Mov(quadword, self.convert_operand(src_ptr), rax),
@@ -746,17 +730,13 @@ class Codegen:
         mov_instruction = lambda size, bytes_copied: assembly.Mov(
             size,
             assembly.Memory('AX', bytes_copied),
-            assembly.PseudoMem(dst_name, bytes_copied)
+            dst.add_offset(bytes_copied),
         )
 
         return self._make_copy_movs(a_type, instructions, mov_instruction)
 
     def store_byte_array(self, a_type, src, dst_ptr):
-        assert(isinstance(a_type, assembly.ByteArray))
         src = self.convert_operand(src)
-        dst = self.convert_operand(dst)
-        assert(isinstance(src, assembly.PseudoMem))
-        src_name = src.name
 
         instructions = [
             assembly.Mov(quadword, self.convert_operand(dst_ptr), rax),
@@ -764,13 +744,14 @@ class Codegen:
 
         mov_instruction = lambda size, bytes_copied: assembly.Mov(
             size,
-            assembly.PseudoMem(src_name, bytes_copied),
+            src.add_offset(bytes_copied),
             assembly.Memory('AX', bytes_copied),
         )
 
         return self._make_copy_movs(a_type, instructions, mov_instruction)
 
     def _make_copy_movs(self, a_type, instructions, mov_instruction):
+        assert(isinstance(a_type, assembly.ByteArray))
         bytes_copied = 0
         remaining_bytes = a_type.size
         while remaining_bytes >= 8:
