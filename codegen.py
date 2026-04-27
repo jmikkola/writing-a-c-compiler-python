@@ -701,7 +701,7 @@ class Codegen:
             ))
             if offset < byte_count - 1:
                 instructions.append(assembly.Binary(
-                    assembly.ShiftRight,
+                    assembly.ShiftRight(),
                     quadword,
                     assembly.Immediate(8),
                     assembly.Register(src_reg),
@@ -921,9 +921,10 @@ class Codegen:
 
         for v in values:
             operand = self.convert_operand(v)
-            t = self.a_type_of(v)
-            typed_operand = (t, operand)
-            if t == double:
+            t = self.value_type(v)
+            a_type = self.sym_type_to_a_type(t)
+            typed_operand = (a_type, operand)
+            if t == syntax.Double():
                 if len(double_reg_args) < 8:
                     double_reg_args.append(operand)
                 else:
@@ -970,14 +971,15 @@ class Codegen:
 
     def classify_return_value(self, retval):
         ''' returns ([int args], [double args], in_memory) '''
-        t = self.a_type_of(retval)
+        t = self.value_type(retval)
+        a_type = self.sym_type_to_a_type(t)
 
         if t == syntax.Double():
             operand = self.convert_operand(retval)
             return ([], [operand], False)
 
         elif is_scalar(t):
-            typed_operand = (t, self.convert_operand(retval))
+            typed_operand = (a_type, self.convert_operand(retval))
             return ([typed_operand], [], False)
 
         else:
