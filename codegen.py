@@ -109,9 +109,15 @@ class Codegen:
             inits=inits,
         )
 
+    def function_returns_in_memory(self, function_name):
+        ret_a_type = self.sym_type_to_a_type(self.value_type(function_name).ret)
+        _, _, return_in_memory = self.classify_return_type(ret_a_type)
+        return return_in_memory
+
     def gen_function(self, function: tacky.Function) -> assembly.Function:
         # Generate the basic assembly
-        instructions = self.save_arguments([tacky.Identifier(p) for p in function.params])
+        return_in_memory = self.function_returns_in_memory(function.name)
+        instructions = self.save_arguments([tacky.Identifier(p) for p in function.params], return_in_memory)
         instructions += self.gen_instructions(function.body)
 
         # Replace pseudo registers with stack locations
@@ -964,7 +970,10 @@ class Codegen:
     def classify_return_value(self, retval):
         ''' returns ([int args], [double args], in_memory) '''
         t = self.a_type_of(retval)
+        return self.classify_return_type(t)
 
+    def classify_return_type(self, t):
+        ''' returns ([int args], [double args], in_memory) '''
         if t == syntax.Double():
             operand = self.convert_operand(retval)
             return ([], [operand], False)
