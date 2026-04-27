@@ -1184,17 +1184,46 @@ class Codegen:
         return instructions
 
     def gen_return(self, instr: tacky.Return) -> list:
-        if instr.val is None:
-            # handle a void return
+        retval = instr.val
+        if retval is None:
             return [assembly.Ret()]
 
-        src = self.convert_operand(instr.val)
-        a_type = self.a_type_of(instr.val)
+        int_retvals, double_retvals, return_in_memory = classify_return_value(retval)
+
         instructions = []
-        if a_type == double:
-            instructions.append(assembly.Mov(a_type, src, assembly.Register('XMM0')))
+        if return_in_memory:
+            # Grab the pointer we saved before and put it in RAX
+            instructions.append(assembly.Mov(quadword, assembly.Memory('BP', -8), rax))
+            # Copy the bytes of the struct to the pointed location
+            return_storage = assembly.Memory('AX', 0)
+            ret_operand = self.convert_operand(retval)
+            a_type = self.a_type_of(retval)
+            instructions.extend(
+                self.copy_bytes(a_type, ret_operand, return_storage)
+            )
         else:
-            instructions.append(assembly.Mov(a_type, src, assembly.Register('AX')))
+            int_return_registers = ['AX', 'DX']
+            double_return_registers = ['XMM0', 'XMM1']
+
+            # Copy the (up to) two integer class values in registers
+            reg_index = 0
+            for (t, op) in int_retvals:
+                register = int_return_registers[reg_index]
+                if isinstance(t, assembly.ByteArray):
+                    instructions.extend(
+                        self.copy_bytes_to_reg(op, register, size)
+                    )
+                else:
+                    instructions.append(assembly.Mov(t, op, assembly.Register(register)))
+                reg_index += 1
+
+            # Copy the (up to) two sse class values in xmm registers
+            reg_index = 0
+            for op in double_retvals:
+                register = double_return_registers[reg_index]
+                instructions.append(assembly.Mov(double, op, assembly.Register(register)))
+                reg_index += 1
+
         instructions.append(assembly.Ret())
         return instructions
 
