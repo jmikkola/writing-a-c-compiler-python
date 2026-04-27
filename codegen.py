@@ -639,6 +639,23 @@ class Codegen:
             case _:
                 raise Exception(f'unhandled instruction type, {instr}')
 
+    def copy_bytes(self, a_type, src, dst):
+        assert(isinstance(a_type, assembly.ByteArray))
+        src = self.convert_operand(src)
+        assert(isinstance(src, assembly.PseudoMem))
+        src_name = src.name
+        assert(isinstance(dst, assembly.Memory))
+        dst_reg = dst.reg
+
+        # It might be useful to generalize this with .add_offset methods on the
+        # Memory and PseudoMem types
+        mov_instruction = lambda size, bytes_copied: assembly.Mov(
+            size,
+            assembly.PseudoMem(src_name, bytes_copied),
+            assembly.Memory(dst_reg, bytes_copied)
+        )
+        return self._make_copy_movs(a_type, [], mov_instruction)
+
     def copy_byte_array(self, a_type, src, dst, src_offset=0, dst_offset=0):
         assert(isinstance(a_type, assembly.ByteArray))
         src = self.convert_operand(src)
@@ -1069,7 +1086,7 @@ class Codegen:
                     assembly.Immediate(8),
                     assembly.Register('SP'),
                 ))
-                copy_instructions = self.copy_bytes(arg, assembly.Memory('SP', 0), a_type.size)
+                copy_instructions = self.copy_bytes(a_type, arg, assembly.Memory('SP', 0))
                 instructions.extend(copy_instructions)
             elif is_register or is_immediate or a_type == quadword or a_type == double:
                 instructions.append(assembly.Push(arg))
