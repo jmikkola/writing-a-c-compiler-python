@@ -899,6 +899,44 @@ class Codegen:
 
         return (int_reg_args, double_reg_args, stack_args)
 
+    def classify_return_value(self, retval):
+        ''' returns ([int args], [double args], in_memory) '''
+        t = self.a_type_of(retval)
+
+        if t == syntax.Double():
+            operand = self.convert_operand(retval)
+            return ([], [operand], False)
+
+        elif is_scalar(t):
+            typed_operand = (t, self.convert_operand(retval))
+            return ([typed_operand], [], False)
+
+        else:
+            # the return value is a struct
+            classes = self.classify_structure_by_tag(t.tag)
+            struct_size = self.types[t.tag].size
+            if classes[0] == MemClass.MEMORY:
+                # Return the entire structure in memory
+                return ([], [], True)
+            else:
+                # Partition the returned structure by class
+                int_retvals = []
+                double_retvals = []
+                offset = 0
+                for c in classes:
+                    operand = assembly.PseudoMem(retval.name, offset)
+                    match c:
+                        case MemClass.SSE:
+                            double_retvals.append(operand)
+                        case MemClass.INTEGER:
+                            eightbyte_type = self.get_eightbyte_type(offset, struct_size)
+                            int_retvals.append((eightbyte_type, operand))
+                        case _:
+                            raise Exception(f"bug, didn't expect to see mem class {c}")
+                    offset += 8
+
+                return (int_retvals, double_retvals, False)
+
     def get_eightbyte_type(self, offset: int, struct_size: int) -> assembly.AssemblyType:
         bytes_from_end = struct_size - offset
         if bytes_from_end >= 8:
