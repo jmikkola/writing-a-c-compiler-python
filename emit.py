@@ -293,6 +293,7 @@ class Emit:
             case assembly.BitXor():
                 return 'xor'
             case assembly.ShiftLeft():
+                # AKA shl
                 return 'sal'
             case assembly.ShiftRight():
                 return 'sar'
@@ -325,10 +326,13 @@ class Emit:
                 if offset == 0:
                     return f'({register})'
                 return f'{offset}({register})'
-            case assembly.Data(name):
+            case assembly.Data(name, offset):
                 if self.asm_symbols[name].is_constant:
                     name = 'L' + name
-                return f'{name}(%rip)'
+                offset_part = ''
+                if offset != 0:
+                    offset_part = f'+{offset}'
+                return f'{name}{offset_part}(%rip)'
             case assembly.Indexed(base_reg, index_reg, scale):
                 base = REGISTERS[base_reg].qword
                 index = REGISTERS[index_reg].qword
