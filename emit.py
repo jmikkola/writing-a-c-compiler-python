@@ -106,7 +106,7 @@ class Emit:
                 else:
                     self.indented(f'.ascii "{escaped}"')
             case symbol.PointerInit(name):
-                self.indented(f'.quad {name}')
+                self.indented(f'.quad L{name}')
             case _:
                 raise Exception(f'unhandled type of init: {init}')
 
