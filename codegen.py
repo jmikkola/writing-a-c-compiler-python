@@ -549,7 +549,7 @@ class Codegen:
                     assembly.Mov(a_type, asm_src, asm_dst),
                 ]
             case tacky.CopyFromOffset(src, offset, dst):
-                a_type = self.a_type_of(src)
+                a_type = self.a_type_of(dst)
                 if isinstance(a_type, assembly.ByteArray):
                     return self.copy_byte_array(a_type, src, dst, src_offset=offset)
                 match src:
