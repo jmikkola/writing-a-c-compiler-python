@@ -123,6 +123,11 @@ class Struct(Type, namedtuple('Struct', ['tag'])):
         return f'Struct({self.tag})'
 
 
+class Union(Type, namedtuple('Union', ['tag'])):
+    def __str__(self):
+        return f'Union({self.tag})'
+
+
 ##
 ## Type declarator
 ##
@@ -252,6 +257,23 @@ class StructDeclaration(Declaration, namedtuple('StructDeclaration',  ['tag', 'f
 
 
 class StructField(namedtuple('StructField', ['type', 'name'])):
+    def pretty_print(self):
+        type = self.type.pretty_print()
+        return f'{type} {self.name};'
+
+
+class UnionDeclaration(Declaration, namedtuple('UnionDeclaration',  ['tag', 'fields'])):
+    def pretty_print(self):
+        header = f'union {self.tag}'
+        if self.fields:
+            fields = [f.pretty_print() for f in self.fields]
+            body = ['{'] + indent(fields) + ['}']
+            return headed(header, body)
+        else:
+            return [header + ';']
+
+
+class UnionField(namedtuple('UnionField', ['type', 'name'])):
     def pretty_print(self):
         type = self.type.pretty_print()
         return f'{type} {self.name};'

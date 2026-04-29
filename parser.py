@@ -8,7 +8,7 @@ from errors import SyntaxError
 ASSIGNMENT_OPS = ['=', '>>=', '<<=', '+=', '-=', '*=', '/=', '%=', '&=', '|=', '^=']
 POSTFIX_OPS = ['++', '--', '[', '.', '->']
 
-TYPE_SPECIFIERS = ['int', 'long', 'signed', 'unsigned', 'double', 'char', 'void', 'struct']
+TYPE_SPECIFIERS = ['int', 'long', 'signed', 'unsigned', 'double', 'char', 'void', 'struct', 'union']
 STORAGE_CLASSES = ['static', 'extern']
 
 DIGITS = re.compile(r'\d+')
@@ -61,7 +61,7 @@ class Parser:
         while self.peek_type_specifier():
             keyword = self.expect('keyword').text
             specifier_list.append(keyword)
-            if keyword == 'struct':
+            if keyword == 'struct' or keyword == 'union':
                 tag = self.expect('identifier').text
                 specifier_list.append(tag)
         return self.type_from_specifiers(specifier_list)
@@ -83,6 +83,11 @@ class Parser:
             if len(specifier_list) != 2:
                 self.fail(f'invalid struct type specifier: {specifier_list}')
             return syntax.Struct(specifier_list[1])
+
+        if specifier_list[0] == 'union':
+            if len(specifier_list) != 2:
+                self.fail(f'invalid union type specifier: {specifier_list}')
+            return syntax.Union(specifier_list[1])
 
         if specifier_list == ['void']:
             return syntax.Void()
@@ -287,6 +292,25 @@ class Parser:
                 # rewind the struct keyword and tag so that
                 # parse_storage_class_and_type can read them
                 self.rewind(2)
+        elif self.peek('keyword', 'union'):
+            self.expect('keyword', 'union')
+            tag = self.expect('identifier').text
+            # Union declarations/definitions work the same way as structures
+            if self.peek(';'):
+                self.expect(';')
+                return syntax.UnionDeclaration(tag, None)
+            elif self.peek('{'):
+                self.expect('{')
+                fields = []
+                fields.append(self.parse_union_field())
+                while not self.peek('}'):
+                    fields.append(self.parse_union_field())
+                self.expect('}')
+                self.expect(';')
+                return syntax.UnionDeclaration(tag, fields)
+            else:
+                # Rewind the union keyword and the tag
+                self.rewind(2)
 
         base_type, storage_class = self.parse_storage_class_and_type()
         declarator = self.parse_declarator()
@@ -316,6 +340,16 @@ class Parser:
         self.expect(';')
         return syntax.StructField(type, name)
 
+    def parse_union_field(self) -> syntax.UnionField:
+        base_type, storage_class = self.parse_storage_class_and_type()
+        assert(storage_class is None)
+        declarator = self.parse_declarator()
+        (name, type, _arg_names) = self.process_declarator(declarator, base_type)
+        if isinstance(type, syntax.Func):
+            self.fail('union members cannot be functions')
+        self.expect(';')
+        return syntax.UnionField(type, name)
+
     def parse_var_declaration(self) -> syntax.VarDeclaration:
         base_type, storage_class = self.parse_storage_class_and_type()
         declarator = self.parse_declarator()
@@ -344,7 +378,7 @@ class Parser:
             if self.is_type_specifier(token.text):
                 self.consume()
                 type_specifiers.append(token.text)
-                if token.text == 'struct':
+                if token.text == 'struct' or token.text == 'union':
                     tag = self.expect('identifier').text
                     type_specifiers.append(tag)
             elif token.text in STORAGE_CLASSES:

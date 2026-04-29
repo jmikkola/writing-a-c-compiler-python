@@ -16,7 +16,7 @@ LINE_COMMENT = re.compile(r'//[^\n]*\n?')
 MULTILINE_COMENT = re.compile(r'/\*.*?\*/')
 
 KEYWORDS = [
-    'int', 'void', 'long', 'signed', 'unsigned', 'double', 'char', 'struct',
+    'int', 'void', 'long', 'signed', 'unsigned', 'double', 'char', 'struct', 'union',
     'return', 'if', 'else', 'goto',
     'do', 'while', 'break', 'continue', 'for',
     'switch', 'case', 'default',
