@@ -1266,8 +1266,8 @@ class Codegen:
             return [
                 assembly.Binary(assembly.BitXor(), double, xmm1, xmm1),
                 assembly.Cmp(double, src, xmm1),
-                assembly.Mov(self.a_type_of(instr.dst), assembly.Immediate(0), dst),
-                assembly.Mov(self.a_type_of(instr.dst), assembly.Immediate(0), rdx),
+                assembly.Mov(longword, assembly.Immediate(0), dst),
+                assembly.Mov(longword, assembly.Immediate(0), rdx),
                 assembly.SetCC('E', dst),
                 assembly.SetCC('NP', rdx),
                 assembly.Binary(assembly.BitAnd(), self.a_type_of(instr.dst), rdx, dst),
@@ -1278,7 +1278,7 @@ class Codegen:
                 assembly.Cmp(a_type, assembly.Immediate(0), src),
                 # Zero the destination because the 'set' instruction only
                 # updates the lowest 8 bits.
-                assembly.Mov(a_type, assembly.Immediate(0), dst),
+                assembly.Mov(longword, assembly.Immediate(0), dst),
                 assembly.SetCC('E', dst),
             ]
 
@@ -1337,26 +1337,26 @@ class Codegen:
                     # If either value is NaN, != evaluates to true
                     return [
                         assembly.Cmp(a_type, right, left),
-                        assembly.Mov(self.a_type_of(instr.dst), assembly.Immediate(0), dst),
-                        assembly.Mov(self.a_type_of(instr.dst), assembly.Immediate(0), rdx),
+                        assembly.Mov(longword, assembly.Immediate(0), dst),
+                        assembly.Mov(longword, assembly.Immediate(0), rdx),
                         assembly.SetCC('P', rdx),
                         assembly.SetCC(comparison, dst),
-                        assembly.Binary(assembly.BitOr(), self.a_type_of(instr.dst), rdx, dst),
+                        assembly.Binary(assembly.BitOr(), longword, rdx, dst),
                     ]
                 if a_type == double:
                     # If either value is NaN, all other comparisons evaluate to false
                     return [
                         assembly.Cmp(a_type, right, left),
-                        assembly.Mov(self.a_type_of(instr.dst), assembly.Immediate(0), dst),
-                        assembly.Mov(self.a_type_of(instr.dst), assembly.Immediate(0), rdx),
+                        assembly.Mov(longword, assembly.Immediate(0), dst),
+                        assembly.Mov(longword, assembly.Immediate(0), rdx),
                         # Check the parity bit to see if either of the values was NaN
                         assembly.SetCC('NP', rdx),
                         assembly.SetCC(comparison, dst),
-                        assembly.Binary(assembly.BitAnd(), self.a_type_of(instr.dst), rdx, dst),
+                        assembly.Binary(assembly.BitAnd(), longword, rdx, dst),
                     ]
                 return [
                     assembly.Cmp(a_type, right, left),
-                    assembly.Mov(self.a_type_of(instr.dst), assembly.Immediate(0), dst),
+                    assembly.Mov(longword, assembly.Immediate(0), dst),
                     assembly.SetCC(comparison, dst),
                 ]
             case _:
