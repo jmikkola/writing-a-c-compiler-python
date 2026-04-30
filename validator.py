@@ -694,8 +694,9 @@ class UnionType(namedtuple('UnionType', ['alignment', 'size', 'members'])):
                 return m
 
 
-class UnionMember(namedtuple('UnionMember', ['name', 'type'])):
+class UnionMember(namedtuple('UnionMember', ['name', 'type', 'offset'])):
     ''' a field in a union type '''
+    # Offset is always zero, but is here just to make code in the next pass simpler
     pass
 
 
@@ -780,7 +781,7 @@ class Typecheck:
             union_size = max(union_size, member_size)
             member_alignment = self.get_alignment(field.type)
             union_alignment = max(union_alignment, member_alignment)
-            entry = UnionMember(field.name, field.type)
+            entry = UnionMember(field.name, field.type, 0)
             member_entries.append(entry)
 
         union_size = round_up(union_size, union_alignment)

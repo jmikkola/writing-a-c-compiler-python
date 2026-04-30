@@ -73,6 +73,8 @@ class ToTacky:
                     pass
                 case syntax.StructDeclaration():
                     pass
+                case syntax.UnionDeclaration():
+                    pass
                 case _:
                     raise Exception(f'unhandled {decl}')
 
@@ -174,6 +176,8 @@ class ToTacky:
                 return self.convert_default(body)
             case syntax.StructDeclaration():
                 return []
+            case syntax.UnionDeclaration():
+                return []
             case _:
                 raise Exception(f'unhandled statement type, {body}')
 
@@ -218,6 +222,13 @@ class ToTacky:
                 for (mem_init, member) in zip(initializers, struct_members):
                     mem_offset = offset + member.offset
                     instructions.extend(self.emit_initializer(name, mem_init, mem_offset))
+                return instructions
+
+            case syntax.CompoundInit(initializers) if isinstance(init.expr_type, syntax.Union):
+                assert(len(initializers) == 1)
+                if offset is None:
+                    offset = 0
+                instructions = self.emit_initializer(name, initializers[0], 0)
                 return instructions
 
             case _:
@@ -472,6 +483,8 @@ class ToTacky:
                                     tacky.Store(result_var, ptr)
                                 ]
                                 return (instructions, PlainOperand(result_var))
+                            case SubObject(base, offset):
+                                raise Exception(f'not implemented yet')
                     case _:
                         instructions, val = self.emit_tacky_and_convert(inner)
                         op = self.convert_unary_op(operator)
@@ -594,7 +607,9 @@ class ToTacky:
 
     def convert_dot(self, expr: sytnax.Dot):
         tag = expr.structure.expr_type.tag
+        # This could be a StructType or a UnionType
         struct_type = self.types[tag]
+        # This could be a StructMember or a UnionMember
         member = struct_type.get_member(expr.member)
 
         instructions, inner_object = self.convert_expression(expr.structure)
@@ -611,12 +626,14 @@ class ToTacky:
                 add_ptr = tacky.AddPtr(ptr, index, 1, dst_ptr)
                 instructions.append(add_ptr)
                 return instructions, DereferencedPointer(dst_ptr)
+            case _:
+                raise Exception(f'unhandled inner object result: {inner_object}')
 
     def convert_arrow(self, expr: syntax.Arrow):
         structure_type = expr.pointer.expr_type
         assert(isinstance(structure_type, syntax.Pointer))
         referenced = structure_type.referenced
-        assert(isinstance(referenced, syntax.Struct))
+        assert(isinstance(referenced, syntax.Struct) or isinstance(referenced, syntax.Union))
         tag = referenced.tag
         struct_type = self.types[tag]
         member = struct_type.get_member(expr.member)
