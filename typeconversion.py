@@ -17,6 +17,8 @@ def type_size(t, types):
             return size * type_size(elem_t, types)
         case syntax.Struct(tag):
             return types[tag].size
+        case syntax.Union(tag):
+            return types[tag].size
         case syntax.Func():
             raise Exception('cannot determine size of a function type')
         case _:
@@ -51,6 +53,8 @@ def alignment_of(var_type: syntax.Type, types) -> int:
                 scalar = find_scalar(elem_t)
                 return alignment_of(scalar, types)
         case syntax.Struct(tag):
+            return types[tag].alignment
+        case syntax.Union(tag):
             return types[tag].alignment
         case _:
             raise Exception(f'Unexpected type to find alignment of {var_type}')

@@ -34,10 +34,18 @@ def copy_identifier_map(identifier_map: dict) -> dict:
     }
 
 
-class StructEntry(namedtuple('StructEntry', ['new_tag', 'from_current_scope'])):
-    ''' for IdentifierResolution to track structure names '''
+class StructEntry(namedtuple('StructEntry', ['new_tag', 'is_struct', 'from_current_scope'])):
+    ''' for IdentifierResolution to track structure and union names '''
     def mark_old(self):
-        return StructEntry(self.new_tag, False)
+        return StructEntry(self.new_tag, self.is_struct, False)
+
+    @classmethod
+    def struct(cls, new_tag):
+        return StructEntry(new_tag, True, True)
+
+    @classmethod
+    def union(cls, new_tag):
+        return StructEntry(new_tag, False, True)
 
 
 def copy_struct_map(struct_map: dict) -> dict:
@@ -78,6 +86,8 @@ class IdentifierResolution:
                 return self.validate_variable(decl, struct_map)
             case syntax.StructDeclaration():
                 return self.validate_struct(decl, struct_map)
+            case syntax.UnionDeclaration():
+                return self.validate_union(decl, struct_map)
             case _:
                 raise Exception(f'unhandled kind of declaration {decl}')
 
@@ -94,8 +104,10 @@ class IdentifierResolution:
         prev_entry = struct_map.get(struct.tag)
         if prev_entry is None or not prev_entry.from_current_scope:
             unique_tag = self.make_unique(struct.tag)
-            struct_map[struct.tag] = StructEntry(unique_tag, True)
+            struct_map[struct.tag] = StructEntry.struct(unique_tag)
         else:
+            if not prev_entry.is_struct:
+                self.error(f'cannot redeclare a union as a struct: {struct.tag}')
             unique_tag = prev_entry.new_tag
 
         processed_members = []
@@ -105,14 +117,41 @@ class IdentifierResolution:
             processed_members.append(processed_member)
         return syntax.StructDeclaration(unique_tag, processed_members)
 
+    def validate_union(self, union: syntax.UnionDeclaration, struct_map):
+        prev_entry = struct_map.get(union.tag)
+        if prev_entry is None or not prev_entry.from_current_scope:
+            unique_tag = self.make_unique(union.tag)
+            struct_map[union.tag] = StructEntry.union(unique_tag)
+        else:
+            if prev_entry.is_struct:
+                self.error(f'cannot redeclare a struct as a union: {union.tag}')
+            unique_tag = prev_entry.new_tag
+
+        processed_members = []
+        for member in (union.fields or []):
+            processed_type = self.resolve_type(member.type, struct_map)
+            processed_member = syntax.UnionField(processed_type, member.name)
+            processed_members.append(processed_member)
+        return syntax.UnionDeclaration(unique_tag, processed_members)
+
     def resolve_type(self, type_spec: syntax.Type, struct_map):
         match type_spec:
             case syntax.Struct(tag):
                 if tag in struct_map:
-                    unique_tag = struct_map[tag].new_tag
-                    return syntax.Struct(unique_tag)
+                    entry = struct_map[tag]
+                    if not entry.is_struct:
+                        self.error(f'cannot refer to a union type as a struct: {tag}')
+                    return syntax.Struct(entry.new_tag)
                 else:
                     self.error(f'no struct declared with tag: {tag}')
+            case syntax.Union(tag):
+                if tag in struct_map:
+                    entry = struct_map[tag]
+                    if entry.is_struct:
+                        self.error(f'cannot refer to a struct type as a union: {tag}')
+                    return syntax.Union(entry.new_tag)
+                else:
+                    self.error(f'no union declared with tag: {tag}')
             case syntax.Pointer(pointed):
                 resolved = self.resolve_type(pointed, struct_map)
                 return syntax.Pointer(resolved)
@@ -191,6 +230,8 @@ class IdentifierResolution:
                 return self.validate_function(block_item, identifier_map, struct_map)
             case syntax.StructDeclaration():
                 return self.validate_struct(block_item, struct_map)
+            case syntax.UnionDeclaration():
+                return self.validate_union(block_item, struct_map)
             case syntax.Return(expr):
                 if expr is not None:
                     expr = self.resolve_expr(expr, identifier_map, struct_map)
@@ -402,6 +443,8 @@ class LabelValidator:
                 return decl
             case syntax.StructDeclaration():
                 return decl
+            case syntax.UnionDeclaration():
+                return decl
             case _:
                 raise Exception(f'unhandled kind of declaration {decl}')
 
@@ -441,6 +484,7 @@ class LabelValidator:
                  syntax.Break(_) | \
                  syntax.ExprStmt(_) | \
                  syntax.StructDeclaration() | \
+                 syntax.UnionDeclaration() | \
                  syntax.NullStatement():
                 return block_item
             case syntax.IfStatement(test, t, e):
@@ -523,6 +567,8 @@ class LoopLabels:
                 return decl
             case syntax.StructDeclaration():
                 return decl
+            case syntax.UnionDeclaration():
+                return decl
             case _:
                 raise Exception(f'unhandled kind of declaration {decl}')
 
@@ -554,6 +600,7 @@ class LoopLabels:
                  syntax.ExprStmt(_) | \
                  syntax.Goto(_) | \
                  syntax.StructDeclaration() | \
+                 syntax.UnionDeclaration() | \
                  syntax.NullStatement():
                 return block_item
             case syntax.IfStatement(test, t, e):
@@ -639,6 +686,19 @@ class StructMember(namedtuple('StructMember', ['name', 'type', 'offset'])):
     pass
 
 
+class UnionType(namedtuple('UnionType', ['alignment', 'size', 'members'])):
+    ''' a defined union type '''
+    def get_member(self, name):
+        for m in self.members:
+            if m.name == name:
+                return m
+
+
+class UnionMember(namedtuple('UnionMember', ['name', 'type'])):
+    ''' a field in a union type '''
+    pass
+
+
 class Typecheck:
     def __init__(self):
         self.symbols = {}
@@ -677,6 +737,9 @@ class Typecheck:
             case syntax.StructDeclaration():
                 self.check_struct_decl(decl)
                 return decl
+            case syntax.UnionDeclaration():
+                self.check_union_decl(decl)
+                return decl
             case _:
                 raise Exception(f'unhandled kind of declaration {decl}')
 
@@ -702,6 +765,28 @@ class Typecheck:
         struct_entry = StructType(struct_alignment, struct_size, member_entries)
         self.types[decl.tag] = struct_entry
 
+    def check_union_decl(self, decl: syntax.UnionDeclaration):
+        if not decl.fields:
+            # This is a declaration not a definition, so ignore it
+            return
+
+        self.validate_union_decl(decl)
+
+        member_entries = []
+        union_size = 0
+        union_alignment = 1
+        for field in decl.fields:
+            member_size = self.get_size(field.type)
+            union_size = max(union_size, member_size)
+            member_alignment = self.get_alignment(field.type)
+            union_alignment = max(union_alignment, member_alignment)
+            entry = UnionMember(field.name, field.type)
+            member_entries.append(entry)
+
+        union_size = round_up(union_size, union_alignment)
+        union_entry = UnionType(union_alignment, union_size, member_entries)
+        self.types[decl.tag] = union_entry
+
     def get_alignment(self, type: syntax.Type) -> int:
         ''' this is specifically for the alignment of types, not variables '''
         match type:
@@ -724,6 +809,18 @@ class Typecheck:
         for field in decl.fields:
             if field.name in field_names_used:
                 self.error(f'duplicate struct field {field.name} in struct {tag}')
+            field_names_used.add(field.name)
+            self.validate_type_specifier(field.type)
+
+    def validate_union_decl(self, decl: syntax.UnionDeclaration):
+        tag = decl.tag
+        if tag in self.types:
+            self.error(f'multiple definitions in the same scope of union: {tag}')
+
+        field_names_used = set()
+        for field in decl.fields:
+            if field.name in field_names_used:
+                self.error(f'duplicate union field {field.name} in union {tag}')
             field_names_used.add(field.name)
             self.validate_type_specifier(field.type)
 
@@ -898,6 +995,16 @@ class Typecheck:
                     i += 1
                 return syntax.CompoundInit(typechecked_list).set_type(target_type)
 
+            case (syntax.Union(tag), syntax.CompoundInit(inits)):
+                union_def = self.types.get(tag)
+                assert(union_def)
+                if len(inits) != 1:
+                    self.error('can only initialize a union with one initializer')
+                union_member = union_def.members[0]
+                init = inits[0]
+                typechecked_elem = self.typecheck_var_init(union_member.type, init)
+                return syntax.CompoundInit([typechecked_elem]).set_type(target_type)
+
             case (syntax.Array(elem_t, size), syntax.SingleInit(syntax.String(bytes))):
                 if not self.is_character(elem_t):
                     self.error("can't initialize a non-character type with a string literal")
@@ -938,6 +1045,11 @@ class Typecheck:
                     for member in struct_def.members
                 ]
                 return syntax.CompoundInit(values).set_type(target_type)
+            case syntax.Union(tag):
+                union_def = self.types.get(tag)
+                assert(union_def)
+                value = self.zero_initializer(union_def.members[0].type)
+                return syntax.CompoundInit([value]).set_type(target_type)
             case syntax.Char() | syntax.SChar():
                 value = syntax.ConstInt(0)
             case syntax.UChar():
@@ -972,6 +1084,8 @@ class Typecheck:
                 self.error(f'cannot use a single initializers for an array')
             case (syntax.Struct(), syntax.SingleInit(syntax.Constant())):
                 self.error(f'cannot use a single initializers for a struct')
+            case (syntax.Union(), syntax.SingleInit(syntax.Constant())):
+                self.error(f'cannot use a single initializers for a union')
             case (_, syntax.SingleInit(syntax.Constant(const))):
                 return [self.to_static_init(const.value, target_type)]
 
@@ -1039,6 +1153,19 @@ class Typecheck:
                     i += 1
                 if current_offset != struct_def.size:
                     static_values.append(symbol.ZeroInit(struct_def.size - current_offset))
+                return static_values
+
+            case (syntax.Union(tag), syntax.CompoundInit(initializers)):
+                union_def = self.types.get(tag)
+                assert(union_def)
+                if len(initializers) != 1:
+                    self.error('can only use one initializer for a union')
+                member = union_def.members[0]
+                init_elem = initializers[0]
+                static_values = self.make_static_values(member.type, init_elem)
+                remaining_bytes = union_def.size - self.get_size(member.type)
+                if remaining_bytes > 0:
+                    static_values.append(symbol.ZeroInit(remaining_bytes))
                 return static_values
 
             case (_, syntax.CompoundInit()):
@@ -1199,6 +1326,9 @@ class Typecheck:
             case syntax.StructDeclaration():
                 self.check_struct_decl(block_item)
                 return block_item
+            case syntax.UnionDeclaration():
+                self.check_union_decl(block_item)
+                return block_item
             case _:
                 raise Exception(f'unhandled type of block item {block_item}')
 
@@ -1268,6 +1398,10 @@ class Typecheck:
             case syntax.Struct(tag):
                 if tag not in self.types:
                     self.error(f'invalid use of incomplete structure type: {tag}')
+                return typed
+            case syntax.Union(tag):
+                if tag not in self.types:
+                    self.error(f'invalid use of incomplete union type: {tag}')
                 return typed
             case _:
                 return typed
@@ -1477,7 +1611,7 @@ class Typecheck:
                 else:
                     common_type = self.get_common_type(t_type, e_type)
 
-                if is_struct(common_type) or is_void(common_type):
+                if is_struct_or_union(common_type) or is_void(common_type):
                     converted_t = t
                     converted_e = e
                 else:
@@ -1547,30 +1681,44 @@ class Typecheck:
             case syntax.Dot(expr, member):
                 expr = self.typecheck_and_convert(expr)
                 expr_type = expr.expr_type
-                if not isinstance(expr_type, syntax.Struct):
-                    self.error(f'cannot access member of non-struct type: {member} {expr_type}')
-                tag = expr_type.tag
-                struct_type = self.types.get(tag)
-                assert(struct_type)
-                struct_member = struct_type.get_member(member)
-                if struct_member is None:
-                    self.error(f'structure has no member with this name: {member} {tag}')
-                return syntax.Dot(expr, member).set_type(struct_member.type)
+                match expr_type:
+                    case syntax.Struct(tag):
+                        struct_type = self.types.get(tag)
+                        assert(isinstance(struct_type, StructType))
+                        struct_member = struct_type.get_member(member)
+                        if struct_member is None:
+                            self.error(f'structure has no member with this name: {member} struct: {tag}')
+                        return syntax.Dot(expr, member).set_type(struct_member.type)
+                    case syntax.Union(tag):
+                        union_type = self.types.get(tag)
+                        assert(isinstance(union_type, UnionType))
+                        union_member = union_type.get_member(member)
+                        if union_member is None:
+                            self.error(f'union has no member with this name: {member} union: {tag}')
+                        return syntax.Dot(expr, member).set_type(union_member.type)
+                    case _:
+                        self.error(f'cannot access member of non-struct type: {member} {expr_type}')
 
             case syntax.Arrow(expr, member):
                 expr = self.typecheck_and_convert(expr)
                 expr_type = expr.expr_type
                 match expr_type:
-                    case syntax.Pointer(syntax.Struct(struct_tag)):
-                        tag = struct_tag
+                    case syntax.Pointer(syntax.Struct(tag)):
+                        struct_type = self.types.get(tag)
+                        assert(isinstance(struct_type, StructType))
+                        struct_member = struct_type.get_member(member)
+                        if struct_member is None:
+                            self.error(f'structure has no member with this name: {member} struct: {tag}')
+                        return syntax.Arrow(expr, member).set_type(struct_member.type)
+                    case syntax.Pointer(syntax.Union(tag)):
+                        union_type = self.types.get(tag)
+                        assert(isinstance(union_type, UnionType))
+                        union_member = union_type.get_member(member)
+                        if union_member is None:
+                            self.error(f'union has no member with this name: {member} union: {tag}')
+                        return syntax.Arrow(expr, member).set_type(union_member.type)
                     case _:
                         self.error(f'invalid type for the -> operator: {expr_type}')
-                struct_type = self.types.get(tag)
-                assert(struct_type)
-                struct_member = struct_type.get_member(member)
-                if struct_member is None:
-                    self.error(f'structure has no member with this name: {member} {tag}')
-                return syntax.Arrow(expr, member).set_type(struct_member.type)
 
             case syntax.SizeOf(expr):
                 # Don't turn arrays into pointers, so this calls typecheck_expr
@@ -1896,7 +2044,7 @@ class Typecheck:
                     self.error(f'Illegal array of incomplete type {elem_type}')
                 self.validate_type_specifier(elem_type)
             case syntax.Pointer(referenced_type):
-                if not is_void(referenced_type) and not is_struct(referenced_type):
+                if not is_void(referenced_type) and not is_struct_or_union(referenced_type):
                     self.validate_type_specifier(referenced_type)
             case syntax.Func(params, ret):
                 for param_t in params:
@@ -1912,6 +2060,8 @@ class Typecheck:
             case syntax.Void():
                 return False
             case syntax.Struct(tag):
+                return tag in self.types
+            case syntax.Union(tag):
                 return tag in self.types
             case _:
                 return True
@@ -1953,13 +2103,17 @@ def is_scalar(type: syntax.Type) -> bool:
             return False
         case syntax.Struct():
             return False
+        case syntax.Union():
+            return False
         case _:
             return True
 
 
-def is_struct(type: syntax.Type) -> bool:
+def is_struct_or_union(type: syntax.Type) -> bool:
     match type:
         case syntax.Struct():
+            return True
+        case syntax.Union():
             return True
         case _:
             return False
