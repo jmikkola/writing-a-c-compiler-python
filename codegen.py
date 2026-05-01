@@ -1,4 +1,5 @@
 from __future__ import annotations
+from dataclasses import dataclass
 from enum import Enum
 import functools
 import struct
@@ -936,7 +937,7 @@ class Codegen:
                     stack_args.append(typed_operand)
             else:
                 # A struct value
-                classes = self.classify_structure_by_tag(t.tag)
+                classes = self.classify_type(t)
                 use_stack = True
                 struct_size = self.types[t.tag].size
                 if classes[0] != MemClass.MEMORY:
@@ -983,8 +984,8 @@ class Codegen:
             return ([typed_operand], [], False)
 
         else:
-            # the return value is a struct
-            classes = self.classify_structure_by_tag(t.tag)
+            # the return value is a struct or a union
+            classes = self.classify_type(t)
             struct_size = self.types[t.tag].size
             if classes[0] == MemClass.MEMORY:
                 # Return the entire structure in memory
@@ -1015,8 +1016,8 @@ class Codegen:
         if t == syntax.Void():
             return False
 
-        assert(isinstance(t, syntax.Struct))
-        classes = self.classify_structure_by_tag(t.tag)
+        assert(isinstance(t, syntax.Struct) or isinstance(t, syntax.Union))
+        classes = self.classify_type(t)
         return classes[0] == MemClass.MEMORY
 
     def get_eightbyte_type(self, offset: int, struct_size: int) -> assembly.AssemblyType:
@@ -1031,63 +1032,48 @@ class Codegen:
             return assembly.ByteArray(bytes_from_end, 8)
 
     @functools.cache
-    def classify_structure_by_tag(self, tag) -> typing.List[MemClass]:
-        struct_entry = self.types[tag]
-        return self.classify_structure(struct_entry)
-
-    def classify_structure(self, struct_entry) -> typing.List[MemClass]:
-        # struct_entry is a StructType
+    def classify_type(self, type: syntax.Type) -> typing.List[MemClass]:
+        # type must be either a syntax.Union or a syntax.Struct
+        # type_entry is either a StructType or a UnionType
+        type_entry = self.types[type.tag]
 
         # Large structs are passed only in memory
-        if struct_entry.size > 16:
+        if type_entry.size > 16:
             result = []
-            size = struct_entry.size
+            size = type_entry.size
             while size > 0:
                 result.append(MemClass.MEMORY)
                 size -= 8
             return result
 
-        # Given that the type is 16 or fewer bytes, flattening it out can't be a
-        # list with more than 16 elements.
-        scalar_types = self.flatten_struct(struct_entry)
-        first_is_double = scalar_types[0] == syntax.Double()
-        last_is_double = scalar_types[-1] == syntax.Double()
+        # Record what types are found in each eightbyte
+        mem_use = [MemUse(), MemUse()]
+        self.classify_fields(mem_use, type, 0)
+        return [m.to_mem_type() for m in mem_use]
 
-        if struct_entry.size > 8:
-            result = []
-            if first_is_double:
-                result.append(MemClass.SSE)
-            else:
-                result.append(MemClass.INTEGER)
-            if last_is_double:
-                result.append(MemClass.SSE)
-            else:
-                result.append(MemClass.INTEGER)
-            return result
-        elif first_is_double:
-            return [MemClass.SSE]
-        else:
-            return [MemClass.INTEGER]
+    def classify_fields(self, mem_use, type, offset):
+        # This scheme of mapping the starting offset of each field to the
+        # eightbyte relies on the fact that no scalar type should be able to
+        # straddle an eightbyte.
+        idx = offset // 8
 
-    def flatten_struct(self, struct_entry):
-        result = []
-        for member in struct_entry.members:
-            result.extend(self.flatten_type(member.type))
-        return result
-
-    def flatten_type(self, type: syntax.Type):
         match type:
             case syntax.Array(elem_t, size):
-                elem_flattened = self.flatten_type(elem_t)
-                result = []
-                for _ in range(size):
-                    result.extend(elem_flattened)
-                return result
+                elem_size = typeconversion.type_size(elem_t, self.types)
+                for i in range(size):
+                    self.classify_fields(mem_use, elem_t, offset + i * elem_size)
             case syntax.Struct(tag):
-                struct_entry = self.types[tag]
-                return self.flatten_struct(struct_entry)
+                struct_type = self.types[tag]
+                for member in struct_type.members:
+                    self.classify_fields(mem_use, member.type, offset + member.offset)
+            case syntax.Union(tag):
+                union_type = self.types[tag]
+                for member in union_type.members:
+                    self.classify_fields(mem_use, member.type, offset)
+            case syntax.Double():
+                mem_use[idx].double_seen = True
             case _:
-                return [type]
+                mem_use[idx].int_seen = True
 
     def gen_call(self, instr: tacky.Call) -> list:
         instructions = []
@@ -1437,6 +1423,12 @@ class Codegen:
                 else:
                     # Return a dummy value for incomplete structure declarations
                     return assembly.ByteArray(8, 8)
+            case syntax.Union(tag):
+                union_def = self.types.get(tag)
+                if union_def is not None:
+                    return assembly.ByteArray(union_def.size, union_def.alignment)
+                else:
+                    return assembly.ByteArray(8, 8) # dummy value
             case _:
                 raise Exception(f'unexpected type {sym_type}')
 
@@ -1504,6 +1496,8 @@ class Codegen:
                     case syntax.Array():
                         return assembly.PseudoMem(name, 0)
                     case syntax.Struct():
+                        return assembly.PseudoMem(name, 0)
+                    case syntax.Union():
                         return assembly.PseudoMem(name, 0)
                     case _:
                         return assembly.Pseudo(name)
@@ -1619,6 +1613,22 @@ class StackMap:
         return -1 * self.size_used
 
 
+@dataclass
+class MemUse:
+    int_seen: bool
+    double_seen: bool
+
+    def __init__(self):
+        self.int_seen = False
+        self.double_seen = False
+
+    def to_mem_type(self):
+        if self.double_seen and not self.int_seen:
+            return MemClass.SSE
+        else:
+            return MemClass.INTEGER
+
+
 class MemClass(Enum):
     INTEGER = 1
     SSE = 2
@@ -1634,6 +1644,8 @@ def is_scalar(type: syntax.Type) -> bool:
         case syntax.Func():
             return False
         case syntax.Struct():
+            return False
+        case syntax.Union():
             return False
         case _:
             return True

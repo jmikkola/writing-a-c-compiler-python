@@ -53,6 +53,9 @@ class Type:
     def __ne__(self, other):
         return not (self == other)
 
+    def __hash__(self):
+        return hash(str(self))
+
 
 class Int(Type, namedtuple('Int', [])):
     def __str__(self):
