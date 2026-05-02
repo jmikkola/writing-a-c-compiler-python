@@ -1047,7 +1047,10 @@ class Codegen:
             return result
 
         # Record what types are found in each eightbyte
-        mem_use = [MemUse(), MemUse()]
+        mem_use = [MemUse()]
+        if type_entry.size > 8:
+            mem_use.append(MemUse())
+
         self.classify_fields(mem_use, type, 0)
         return [m.to_mem_type() for m in mem_use]
 
