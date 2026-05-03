@@ -228,7 +228,7 @@ class ToTacky:
                 assert(len(initializers) == 1)
                 if offset is None:
                     offset = 0
-                instructions = self.emit_initializer(name, initializers[0], 0)
+                instructions = self.emit_initializer(name, initializers[0], offset)
                 return instructions
 
             case _:
