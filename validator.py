@@ -1592,6 +1592,62 @@ class Typecheck:
                         # Return one expression that performs both statements
                         expr = syntax.Sequence(get_ptr, assign)
                         return expr.set_type(left_type)
+                    case syntax.Dot():
+                        # E.g. a.b <op>= <expr>
+                        # Convert it to:
+                        #   tmp.ptr.0 = &a.b
+                        #   *tmp.ptr.0 = *tmp.ptr.0 <op> <expr>
+
+                        # `&a.b`
+                        field_ptr = syntax.AddrOf(lhs).set_type(syntax.Pointer(lhs.expr_type))
+                        ptr_type = field_ptr.expr_type
+
+                        # `tmp.ptr.0`
+                        ptr_value_name = self.new_temp_var('ptr')
+                        ptr_var = syntax.Variable(ptr_value_name)
+                        ptr_var.set_type(ptr_type)
+                        self.symbols[ptr_value_name] = symbol.Symbol(ptr_type, symbol.LocalAttr())
+
+                        # `tmp.ptr.0 = &a.b`
+                        get_ptr = syntax.Assignment(ptr_var, field_ptr, None).set_type(ptr_type)
+
+                        # `*tmp.ptr.0 = *tmp.ptr.0 <op> <expr>`
+                        dereference = syntax.Dereference(ptr_var)
+                        new_rhs = syntax.Binary(op, dereference, rhs)
+                        assign = syntax.Assignment(dereference, new_rhs, None)
+                        assign = self.typecheck_and_convert(assign)
+
+                        # Sequence the two statements together
+                        expr = syntax.Sequence(get_ptr, assign)
+                        return expr.set_type(left_type)
+                    case syntax.Arrow():
+                        # E.g. a->b <op>= <expr>
+                        # Convert it to:
+                        #   tmp.ptr.0 = &a->b
+                        #   *tmp.ptr.0 = *tmp.ptr.0 <op> <expr>
+
+                        # `&a->b`
+                        field_ptr = syntax.AddrOf(lhs).set_type(syntax.Pointer(lhs.expr_type))
+                        ptr_type = field_ptr.expr_type
+
+                        # `tmp.ptr.0`
+                        ptr_value_name = self.new_temp_var('ptr')
+                        ptr_var = syntax.Variable(ptr_value_name)
+                        ptr_var.set_type(ptr_type)
+                        self.symbols[ptr_value_name] = symbol.Symbol(ptr_type, symbol.LocalAttr())
+
+                        # `tmp.ptr.0 = &a->b`
+                        get_ptr = syntax.Assignment(ptr_var, field_ptr, None).set_type(ptr_type)
+
+                        # `*tmp.ptr.0 = *tmp.ptr.0 <op> <expr>`
+                        dereference = syntax.Dereference(ptr_var)
+                        new_rhs = syntax.Binary(op, dereference, rhs)
+                        assign = syntax.Assignment(dereference, new_rhs, None)
+                        assign = self.typecheck_and_convert(assign)
+
+                        # Sequence the two statements together
+                        expr = syntax.Sequence(get_ptr, assign)
+                        return expr.set_type(left_type)
                     case _:
                         self.error(f'invalid left hand side for assignment: {lhs}')
 
