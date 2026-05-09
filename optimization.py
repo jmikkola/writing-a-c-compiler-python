@@ -47,8 +47,93 @@ def optimize_function(f: tacky.Function, args):
 
 
 def constant_folding(body):
-    # TODO
-    return body
+    optimized = []
+    for instr in body:
+        match instr:
+            case tacky.Unary(op, tacky.Constant(const), dst):
+                new_const = evaluate_unary_op(op, const)
+                optimized.append(tacky.Copy(new_const, dst))
+            case tacky.Binary(op, tacky.Constant(left), tacky.Constant(right), dst):
+                new_const = evaluate_binary_op(op, left, right)
+                optimized.append(tacky.Copy(new_const, dst))
+            case tacky.JumpIfZero(tacky.Constant(const), target):
+                if is_zero(const):
+                    optimized.append(tacky.Jump(target))
+            case tacky.JumpIfNotZero(tacky.Constant(const), target):
+                if not is_zero(const):
+                    optimized.append(tacky.Jump(target))
+            case tacky.Truncate(tacky.Constant(const), dst):
+                pass # TODO: this probably requires the symbol table to know the size of `dst`
+            case tacky.SignExtend(tacky.Constant(const), dst):
+                pass
+            case tacky.ZeroExtend(tacky.Constant(const), dst):
+                pass
+            case tacky.DoubleToInt(tacky.Constant(const), dst):
+                pass
+            case tacky.DoubleToUInt(tacky.Constant(const), dst):
+                pass
+            case tacky.IntToDouble(tacky.Constant(const), dst):
+                pass
+            case tacky.UIntToDouble(tacky.Constant(const), dst):
+                pass
+            case _:
+                optimized.append(instr)
+    return optimized
+
+
+def evaluate_unary_op(op: tacky.UnaryOp, const: tacky.Const):
+    match op:
+        case tacky.UnaryNegate():
+            pass
+        case tacky.UnaryInvert():
+            pass
+        case tacky.UnaryNot():
+            pass
+        case _:
+            raise Exception(f'unhandled unary operator {op}')
+
+
+def evaluate_binary_op(op: tacky.BinaryOp, left: tacky.Const, right: tacky.Const):
+    match op:
+        case tacky.BinaryAdd():
+            pass
+        case tacky.BinarySubtract():
+            pass
+        case tacky.BinaryMultiply():
+            pass
+        case tacky.BinaryDivide():
+            pass
+        case tacky.BinaryRemainder():
+            pass
+        case tacky.BitAnd():
+            pass
+        case tacky.BitOr():
+            pass
+        case tacky.BitXor():
+            pass
+        case tacky.ShiftLeft():
+            pass
+        case tacky.ShiftRight():
+            pass
+        case tacky.Less():
+            pass
+        case tacky.LessEqual():
+            pass
+        case tacky.Greater():
+            pass
+        case tacky.GreaterEqual():
+            pass
+        case tacky.Equals():
+            pass
+        case tacky.NotEquals():
+            pass
+        case _:
+            raise Exception(f'unhandled binary operator {op}')
+
+
+def is_zero(const: tacky.Const):
+    ''' this should treat 0.0 and -0.0 as zero '''
+    return const.value == 0
 
 
 def make_control_flow_graph(body):
