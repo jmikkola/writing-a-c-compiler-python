@@ -9,6 +9,7 @@ class Args:
     print_output: bool
     object: bool
     libraries: list
+    emit_assembly: bool
 
     @classmethod
     def parse(cls, args):
@@ -17,6 +18,7 @@ class Args:
 
         parser.add_argument('-c', dest='object', action='store_true', help='compile to object file')
         parser.add_argument('-l', dest='libraries', action='append', default=[], metavar='library')
+        parser.add_argument('-S', dest='emit_assembly', action='store_true', help='emit assembly (a .s file)')
 
         stage_group = parser.add_mutually_exclusive_group()
         stage_group.add_argument('--lex', dest='stage', action='store_const', const='lex')
@@ -31,4 +33,11 @@ class Args:
         parsed = parser.parse_args(args)
         stage = parsed.stage if parsed.stage else 'all'
 
-        return Args(parsed.name, stage, parsed.print_output, parsed.object, parsed.libraries)
+        return Args(
+            name=parsed.name,
+            stage=stage,
+            print_output=parsed.print_output,
+            object=parsed.object,
+            libraries=parsed.libraries,
+            emit_assembly=parsed.emit_assembly,
+        )
