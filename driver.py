@@ -28,7 +28,7 @@ def run_compiler(args: options.Args):
         compiled_file = name.replace('.c', '')
 
     to_clean_up = [preprocessed_file]
-    if stage == 'all':
+    if stage == 'all' and not args.emit_assembly:
         to_clean_up.append(assembly_file)
 
     with timed('preprocess'):
@@ -40,7 +40,7 @@ def run_compiler(args: options.Args):
         print(e, file=sys.stderr)
         sys.exit(1)
 
-    if stage == 'all':
+    if stage == 'all' and not args.emit_assembly:
         with timed('assemble_and_link'):
             assemble_and_link(assembly_file, compiled_file, args.object, args.libraries)
 
