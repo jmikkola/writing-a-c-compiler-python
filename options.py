@@ -11,6 +11,11 @@ class Args:
     libraries: list
     emit_assembly: bool
 
+    fold_constants: bool
+    propagate_copies: bool
+    eliminate_unreachable_code: bool
+    eliminate_dead_stores: bool
+
     @classmethod
     def parse(cls, args):
         parser = argparse.ArgumentParser(description='C compiler')
@@ -30,6 +35,12 @@ class Args:
 
         parser.add_argument('--print', dest='print_output', action='store_true', help='print output')
 
+        parser.add_argument('--fold-constants', dest='fold_constants', action='store_true')
+        parser.add_argument('--propagate-copies', dest='propagate_copies', action='store_true')
+        parser.add_argument('--eliminate-unreachable-code', dest='eliminate_unreachable_code', action='store_true')
+        parser.add_argument('--eliminate-dead-stores', dest='eliminate_dead_stores', action='store_true')
+        parser.add_argument('--optimize', dest='optimize', action='store_true', help='enable optimizations')
+
         parsed = parser.parse_args(args)
         stage = parsed.stage if parsed.stage else 'all'
 
@@ -40,4 +51,8 @@ class Args:
             object=parsed.object,
             libraries=parsed.libraries,
             emit_assembly=parsed.emit_assembly,
+            fold_constants=parsed.fold_constants or parsed.optimize,
+            propagate_copies=parsed.propagate_copies or parsed.optimize,
+            eliminate_unreachable_code=parsed.eliminate_unreachable_code or parsed.optimize,
+            eliminate_dead_stores=parsed.eliminate_dead_stores or parsed.optimize,
         )
