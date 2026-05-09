@@ -1,8 +1,15 @@
 import argparse
-from collections import namedtuple
+from dataclasses import dataclass
 
 
-class Args(namedtuple('Args', ['name', 'stage', 'print_output', 'object', 'libraries'])):
+@dataclass
+class Args:
+    name: str
+    stage: str
+    print_output: bool
+    object: bool
+    libraries: list
+
     @classmethod
     def parse(cls, args):
         parser = argparse.ArgumentParser(description='C compiler')
