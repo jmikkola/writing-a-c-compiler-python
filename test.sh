@@ -2,4 +2,4 @@
 
 set -e
 
-../writing-a-c-compiler-tests/test_compiler ./compiler.sh --chapter 18 "$@"
+../writing-a-c-compiler-tests/test_compiler ./compiler.sh --chapter 19 "$@"

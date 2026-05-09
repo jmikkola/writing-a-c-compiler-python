@@ -11,6 +11,7 @@ import lexer
 import parser
 import validator
 import to_ir
+import optimization
 import codegen
 import emit
 from errors import WACCException
@@ -35,7 +36,7 @@ def run_compiler(args: options.Args):
         preprocess(name, preprocessed_file)
     try:
         with timed('compile'):
-            compile(stage, preprocessed_file, assembly_file, args.print_output)
+            compile(stage, preprocessed_file, assembly_file, args)
     except WACCException as e:
         print(e, file=sys.stderr)
         sys.exit(1)
@@ -55,7 +56,9 @@ def preprocess(c_file, preprocessed_file):
     subprocess.run(['gcc', '-E', '-P', c_file, '-o', preprocessed_file], check=True)
 
 
-def compile(stage, preprocessed_file, assembly_file, print_output):
+def compile(stage, preprocessed_file, assembly_file, args: options.Args):
+    print_output = args.print_output
+
     with open(preprocessed_file) as inf:
         text = inf.read()
 
@@ -87,6 +90,10 @@ def compile(stage, preprocessed_file, assembly_file, print_output):
     label_gen = labels.Labels()
     with timed('tacky'):
         ir = to_ir.to_ir(syntax, symbols, types, label_gen)
+
+    with timed('optimize'):
+        ir = optimization.optimize(ir, args)
+
     if stage == 'tacky':
         if print_output:
             print(ir.pretty_print())
