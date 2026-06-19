@@ -62,11 +62,15 @@ class Optimizer:
         for instr in body:
             match instr:
                 case tacky.Unary(op, tacky.Constant(const), dst):
-                    new_const = self.evaluate_unary_op(op, const)
+                    dst_type = self.value_type(dst)
+                    result = self.evaluate_unary_op(op, const, dst_type)
+                    new_const = tacky.Constant(result)
                     optimized.append(tacky.Copy(new_const, dst))
 
                 case tacky.Binary(op, tacky.Constant(left), tacky.Constant(right), dst):
-                    new_const = self.evaluate_binary_op(op, left, right)
+                    dst_type = self.value_type(dst)
+                    result = self.evaluate_binary_op(op, left, right, dst_type)
+                    new_const = tacky.Constant(result)
                     optimized.append(tacky.Copy(new_const, dst))
 
                 case tacky.JumpIfZero(tacky.Constant(const), target):
@@ -136,10 +140,7 @@ class Optimizer:
                 raise Exception(f'unexpected value {value}')
 
     def truncate_constant(self, const: tacky.Const, dst_type: syntax.Type) -> tacky.Constant:
-        size_bytes = typeconversion.type_size(dst_type, None)
-        n_bits = 8 * size_bytes
-        mask = 2**n_bits - 1
-        truncated = const.value & mask
+        truncated = const.value & make_mask(dst_type)
         result = self.as_type(truncated, dst_type)
         return tacky.Constant(result)
 
@@ -151,10 +152,7 @@ class Optimizer:
 
     def zero_extend(self, const: tacky.Const, dst_type: syntax.Type) -> tacky.Constant:
         src_type = self.value_type(tacky.Constant(const))
-        size_bytes = typeconversion.type_size(src_type, None)
-        n_bits = 8 * size_bytes
-        mask = 2**n_bits - 1
-        extended = const.value & mask
+        extended = const.value & make_mask(src_type)
         result = self.as_type(extended, dst_type)
         return tacky.Constant(result)
 
@@ -187,67 +185,78 @@ class Optimizer:
     def as_type(self, value, ctype: syntax.Type) -> tacky.Const:
         match ctype:
             case syntax.Char():
-                return tacky.ConstChar(value)
+                return tacky.ConstChar(value & mask_for_bytes(1))
             case syntax.Int():
-                return tacky.ConstInt(value)
+                return tacky.ConstInt(value & mask_for_bytes(4))
             case syntax.Long():
-                return tacky.ConstLong(value)
+                return tacky.ConstLong(value & mask_for_bytes(4))
             case syntax.UInt():
-                return tacky.ConstUInt(value)
+                return tacky.ConstUInt(value & mask_for_bytes(8))
             case syntax.ULong():
-                return tacky.ConstULong(value)
+                return tacky.ConstULong(value & mask_for_bytes(8))
             case syntax.Double():
-                return tacky.Double(value)
+                return tacky.ConstDouble(value)
             case _:
                 raise Exception(f'unhandled type for as_type: {ctype}')
 
-    def evaluate_unary_op(self, op: tacky.UnaryOp, const: tacky.Const):
+    def evaluate_unary_op(self, op: tacky.UnaryOp, const: tacky.Const, dst_type: syntax.Type):
         match op:
             case tacky.UnaryNegate():
-                pass
+                value = -const.value
             case tacky.UnaryInvert():
-                pass
+                value = const.value ^ make_mask(dst_type)
             case tacky.UnaryNot():
-                pass
+                value = int(not const.value)
             case _:
                 raise Exception(f'unhandled unary operator {op}')
+        return self.as_type(value, dst_type)
 
-    def evaluate_binary_op(self, op: tacky.BinaryOp, left: tacky.Const, right: tacky.Const):
+    def evaluate_binary_op(self, op: tacky.BinaryOp, left: tacky.Const, right: tacky.Const, dst_type: syntax.Type):
         match op:
             case tacky.BinaryAdd():
-                pass
+                value = left.value + right.value
             case tacky.BinarySubtract():
-                pass
+                value = left.value - right.value
             case tacky.BinaryMultiply():
-                pass
+                value = left.value * right.value
             case tacky.BinaryDivide():
-                pass
+                if is_zero(right):
+                    value = 0
+                else:
+                    if dst_type == syntax.Double():
+                        value = left.value / right.value
+                    else:
+                        value = left.value // right.value
             case tacky.BinaryRemainder():
-                pass
+                if is_zero(right):
+                    value = 0
+                else:
+                    value = left.value % right.value
             case tacky.BitAnd():
-                pass
+                value = left.value & right.value
             case tacky.BitOr():
-                pass
+                value = left.value | right.value
             case tacky.BitXor():
-                pass
+                value = left.value ^ right.value
             case tacky.ShiftLeft():
-                pass
+                value = left.value << right.value
             case tacky.ShiftRight():
-                pass
+                value = left.value >> right.value
             case tacky.Less():
-                pass
+                value = int(left.value < right.value)
             case tacky.LessEqual():
-                pass
+                value = int(left.value <= right.value)
             case tacky.Greater():
-                pass
+                value = int(left.value > right.value)
             case tacky.GreaterEqual():
-                pass
+                value = int(left.value >= right.value)
             case tacky.Equals():
-                pass
+                value = int(left.value == right.value)
             case tacky.NotEquals():
-                pass
+                value = int(left.value != right.value)
             case _:
                 raise Exception(f'unhandled binary operator {op}')
+        return self.as_type(value, dst_type)
 
     def make_control_flow_graph(self, body):
         # TODO
@@ -274,3 +283,13 @@ class Optimizer:
 def is_zero(const: tacky.Const):
     ''' this should treat 0.0 and -0.0 as zero '''
     return const.value in (0, 0.0, -0.0)
+
+
+def make_mask(t: syntax.Type):
+    size_bytes = typeconversion.type_size(t, None)
+    return mask_for_bytes(size_bytes)
+
+
+def mask_for_bytes(size_bytes):
+    n_bits = size_bytes * 8
+    return (1 << n_bits) - 1
