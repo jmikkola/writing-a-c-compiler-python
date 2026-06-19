@@ -1,3 +1,5 @@
+import math
+
 import syntax
 import tacky
 import typeconversion
@@ -91,13 +93,23 @@ class Optimizer:
                     optimized.append(tacky.Copy(extended, dst))
 
                 case tacky.DoubleToInt(tacky.Constant(const), dst):
-                    pass
+                    dst_type = self.value_type(dst)
+                    new_const = self.double_to_int(const, dst_type)
+                    optimized.append(tacky.Copy(new_const, dst))
+
                 case tacky.DoubleToUInt(tacky.Constant(const), dst):
-                    pass
+                    dst_type = self.value_type(dst)
+                    new_const = self.double_to_uint(const, dst_type)
+                    optimized.append(tacky.Copy(new_const, dst))
+
                 case tacky.IntToDouble(tacky.Constant(const), dst):
-                    pass
+                    new_const = self.int_to_double(const)
+                    optimized.append(tacky.Copy(new_const, dst))
+
                 case tacky.UIntToDouble(tacky.Constant(const), dst):
-                    pass
+                    new_const = self.uint_to_double(const)
+                    optimized.append(tacky.Copy(new_const, dst))
+
                 case _:
                     optimized.append(instr)
         return optimized
@@ -144,6 +156,32 @@ class Optimizer:
         mask = 2**n_bits - 1
         extended = const.value & mask
         result = self.as_type(extended, dst_type)
+        return tacky.Constant(result)
+
+    def double_to_int(self, const: tacky.Const, dst_type: syntax.Type) -> tacky.Constant:
+        d = const.value
+        # Doesn't handle NaN or out of bounds values
+        value = int(d)
+        result = self.as_type(value, dst_type)
+        return tacky.Constant(result)
+
+    def double_to_uint(self, const: tacky.Const, dst_type: syntax.Type) -> tacky.Constant:
+        d = const.value
+        if d < 0:
+            d = 0
+        # Doesn't handle NaN or out of bounds values
+        value = int(d)
+        result = self.as_type(value, dst_type)
+        return tacky.Constant(result)
+
+    def int_to_double(self, const: tacky.Const) -> tacky.Constant:
+        value = double(const.value)
+        result = tacky.ConstDouble(value)
+        return tacky.Constant(result)
+
+    def uint_to_double(self, const: tacky.Const) -> tacky.Constant:
+        value = double(const.value)
+        result = tacky.ConstDouble(value)
         return tacky.Constant(result)
 
     def as_type(self, value, ctype: syntax.Type) -> tacky.Const:
@@ -236,4 +274,3 @@ class Optimizer:
 def is_zero(const: tacky.Const):
     ''' this should treat 0.0 and -0.0 as zero '''
     return const.value in (0, 0.0, -0.0)
-
