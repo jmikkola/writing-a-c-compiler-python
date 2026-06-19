@@ -62,23 +62,34 @@ class Optimizer:
                 case tacky.Unary(op, tacky.Constant(const), dst):
                     new_const = evaluate_unary_op(op, const)
                     optimized.append(tacky.Copy(new_const, dst))
+
                 case tacky.Binary(op, tacky.Constant(left), tacky.Constant(right), dst):
                     new_const = evaluate_binary_op(op, left, right)
                     optimized.append(tacky.Copy(new_const, dst))
+
                 case tacky.JumpIfZero(tacky.Constant(const), target):
                     if is_zero(const):
                         optimized.append(tacky.Jump(target))
+
                 case tacky.JumpIfNotZero(tacky.Constant(const), target):
                     if not is_zero(const):
                         optimized.append(tacky.Jump(target))
+
                 case tacky.Truncate(tacky.Constant(const), dst):
-                    const_type = self.value_type(dst)
-                    truncated = truncate_constant(const, const_type)
+                    dst_type = self.value_type(dst)
+                    truncated = self.truncate_constant(const, dst_type)
                     optimized.append(tacky.Copy(truncated, dst))
+
                 case tacky.SignExtend(tacky.Constant(const), dst):
-                    pass
+                    dst_type = self.value_type(dst)
+                    extended = self.sign_extend(const)
+                    optimized.append(tacky.Copy(extended, dst))
+
                 case tacky.ZeroExtend(tacky.Constant(const), dst):
-                    pass
+                    dst_type = self.value_type(dst)
+                    extended = self.zero_extend(const, dst_type)
+                    optimized.append(tacky.Copy(extended, dst))
+
                 case tacky.DoubleToInt(tacky.Constant(const), dst):
                     pass
                 case tacky.DoubleToUInt(tacky.Constant(const), dst):
@@ -112,12 +123,27 @@ class Optimizer:
             case _:
                 raise Exception(f'unexpected value {value}')
 
-    def truncate_constant(self, const: tacky.Const, ctype: syntax.Type) -> tacky.Constant:
-        size_bytes = typeconversion.type_size(ctype, None)
+    def truncate_constant(self, const: tacky.Const, dst_type: syntax.Type) -> tacky.Constant:
+        size_bytes = typeconversion.type_size(dst_type, None)
         n_bits = 8 * size_bytes
         mask = 2**n_bits - 1
         truncated = const.value & mask
-        result = self.as_type(truncated, ctype)
+        result = self.as_type(truncated, dst_type)
+        return tacky.Constant(result)
+
+    def sign_extend(self, const: tacky.Const, dst_type: syntax.Type) -> tacky.Constant:
+        # no actual change needed in the python representation
+        extended = const.value
+        result = self.as_type(extended, dst_type)
+        return tacky.Constant(result)
+
+    def zero_extend(self, const: tacky.Const, dst_type: syntax.Type) -> tacky.Constant:
+        src_type = self.value_type(tacky.Constant(const))
+        size_bytes = typeconversion.type_size(src_type, None)
+        n_bits = 8 * size_bytes
+        mask = 2**n_bits - 1
+        extended = const.value & mask
+        result = self.as_type(extended, dst_type)
         return tacky.Constant(result)
 
     def as_type(self, value, ctype: syntax.Type) -> tacky.Const:
