@@ -62,11 +62,11 @@ class Optimizer:
         for instr in body:
             match instr:
                 case tacky.Unary(op, tacky.Constant(const), dst):
-                    new_const = evaluate_unary_op(op, const)
+                    new_const = self.evaluate_unary_op(op, const)
                     optimized.append(tacky.Copy(new_const, dst))
 
                 case tacky.Binary(op, tacky.Constant(left), tacky.Constant(right), dst):
-                    new_const = evaluate_binary_op(op, left, right)
+                    new_const = self.evaluate_binary_op(op, left, right)
                     optimized.append(tacky.Copy(new_const, dst))
 
                 case tacky.JumpIfZero(tacky.Constant(const), target):
