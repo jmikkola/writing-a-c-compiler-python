@@ -92,7 +92,7 @@ def compile(stage, preprocessed_file, assembly_file, args: options.Args):
         ir = to_ir.to_ir(syntax, symbols, types, label_gen)
 
     with timed('optimize'):
-        ir = optimization.optimize(ir, args)
+        ir = optimization.optimize(ir, args, symbols)
 
     if stage == 'tacky':
         if print_output:

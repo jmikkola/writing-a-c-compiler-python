@@ -6,3 +6,4 @@ TAGS
 __pycache__
 uv.lock
 .gdb_history
+cexamples

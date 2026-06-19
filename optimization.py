@@ -1,161 +1,213 @@
+import syntax
 import tacky
+import typeconversion
 
 
-def optimize(ir: tacky.Program, args):
-    optimized = []
-    for decl in ir.top_level:
-        match decl:
-            case tacky.Function():
-                optimized.append(optimize_function(decl, args))
+def optimize(ir: tacky.Program, args, symbols):
+    optimizer = Optimizer(symbols)
+    return optimizer.optimize(ir, args)
+
+
+class Optimizer:
+    def __init__(self, symbols):
+        self.symbols = symbols
+
+    def optimize(self, ir: tacky.Program, args) -> tacky.Program:
+        optimized = []
+        for decl in ir.top_level:
+            match decl:
+                case tacky.Function():
+                    optimized.append(self.optimize_function(decl, args))
+                case _:
+                    optimized.append(decl)
+        return tacky.Program(optimized)
+
+    def optimize_function(self, f: tacky.Function, args):
+        body = f.body
+        if not body:
+            return f
+
+        while True:
+            if args.fold_constants:
+                post_constant_folding = self.constant_folding(body)
+            else:
+                post_constant_folding = body
+
+            cfg = self.make_control_flow_graph(post_constant_folding)
+
+            if args.eliminate_unreachable_code:
+                cfg = self.unreachable_code_elimination(cfg)
+
+            if args.propagate_copies:
+                cfg = self.copy_propagation(cfg)
+
+            if args.eliminate_dead_stores:
+                cfg = self.dead_store_elimination(cfg)
+
+            optimized_function_body = self.cfg_to_instructions(cfg)
+
+            if optimized_function_body == body:
+                break
+            if not optimized_function_body:
+                break
+
+            body = optimized_function_body
+
+        return tacky.Function(f.name, f.is_global, f.params, body)
+
+    def constant_folding(self, body):
+        optimized = []
+        for instr in body:
+            match instr:
+                case tacky.Unary(op, tacky.Constant(const), dst):
+                    new_const = evaluate_unary_op(op, const)
+                    optimized.append(tacky.Copy(new_const, dst))
+                case tacky.Binary(op, tacky.Constant(left), tacky.Constant(right), dst):
+                    new_const = evaluate_binary_op(op, left, right)
+                    optimized.append(tacky.Copy(new_const, dst))
+                case tacky.JumpIfZero(tacky.Constant(const), target):
+                    if is_zero(const):
+                        optimized.append(tacky.Jump(target))
+                case tacky.JumpIfNotZero(tacky.Constant(const), target):
+                    if not is_zero(const):
+                        optimized.append(tacky.Jump(target))
+                case tacky.Truncate(tacky.Constant(const), dst):
+                    const_type = self.value_type(dst)
+                    truncated = truncate_constant(const, const_type)
+                    optimized.append(tacky.Copy(truncated, dst))
+                case tacky.SignExtend(tacky.Constant(const), dst):
+                    pass
+                case tacky.ZeroExtend(tacky.Constant(const), dst):
+                    pass
+                case tacky.DoubleToInt(tacky.Constant(const), dst):
+                    pass
+                case tacky.DoubleToUInt(tacky.Constant(const), dst):
+                    pass
+                case tacky.IntToDouble(tacky.Constant(const), dst):
+                    pass
+                case tacky.UIntToDouble(tacky.Constant(const), dst):
+                    pass
+                case _:
+                    optimized.append(instr)
+        return optimized
+
+    def value_type(self, value: tacky.Value) -> syntax.Type:
+        match value:
+            case tacky.Constant(tacky.ConstChar(value)):
+                return syntax.Char()
+            case tacky.Constant(tacky.ConstInt(value)):
+                return syntax.Int()
+            case tacky.Constant(tacky.ConstLong(value)):
+                return syntax.Long()
+            case tacky.Constant(tacky.ConstUInt(value)):
+                return syntax.UInt()
+            case tacky.Constant(tacky.ConstULong(value)):
+                return syntax.ULong()
+            case tacky.Constant(tacky.ConstDouble(value)):
+                return syntax.Double()
+            case tacky.Constant(c):
+                raise Exception(f'unhandled type of constant {c}')
+            case tacky.Identifier(name):
+                return self.symbols[name].type
             case _:
-                optimized.append(decl)
-    return tacky.Program(optimized)
+                raise Exception(f'unexpected value {value}')
 
+    def truncate_constant(self, const: tacky.Const, ctype: syntax.Type) -> tacky.Constant:
+        size_bytes = typeconversion.type_size(ctype, None)
+        n_bits = 8 * size_bytes
+        mask = 2**n_bits - 1
+        truncated = const.value & mask
+        result = self.as_type(truncated, ctype)
+        return tacky.Constant(result)
 
-def optimize_function(f: tacky.Function, args):
-    body = f.body
-    if not body:
-        return f
+    def as_type(self, value, ctype: syntax.Type) -> tacky.Const:
+        match ctype:
+            case syntax.Char():
+                return tacky.ConstChar(value)
+            case syntax.Int():
+                return tacky.ConstInt(value)
+            case syntax.Long():
+                return tacky.ConstLong(value)
+            case syntax.UInt():
+                return tacky.ConstUInt(value)
+            case syntax.ULong():
+                return tacky.ConstULong(value)
+            case syntax.Double():
+                return tacky.Double(value)
+            case _:
+                raise Exception(f'unhandled type for as_type: {ctype}')
 
-    while True:
-        if args.fold_constants:
-            post_constant_folding = constant_folding(body)
-        else:
-            post_constant_folding = body
-
-        cfg = make_control_flow_graph(post_constant_folding)
-
-        if args.eliminate_unreachable_code:
-            cfg = unreachable_code_elimination(cfg)
-
-        if args.propagate_copies:
-            cfg = copy_propagation(cfg)
-
-        if args.eliminate_dead_stores:
-            cfg = dead_store_elimination(cfg)
-
-        optimized_function_body = cfg_to_instructions(cfg)
-
-        if optimized_function_body == body:
-            break
-        if not optimized_function_body:
-            break
-
-        body = optimized_function_body
-
-    return tacky.Function(f.name, f.is_global, f.params, body)
-
-
-def constant_folding(body):
-    optimized = []
-    for instr in body:
-        match instr:
-            case tacky.Unary(op, tacky.Constant(const), dst):
-                new_const = evaluate_unary_op(op, const)
-                optimized.append(tacky.Copy(new_const, dst))
-            case tacky.Binary(op, tacky.Constant(left), tacky.Constant(right), dst):
-                new_const = evaluate_binary_op(op, left, right)
-                optimized.append(tacky.Copy(new_const, dst))
-            case tacky.JumpIfZero(tacky.Constant(const), target):
-                if is_zero(const):
-                    optimized.append(tacky.Jump(target))
-            case tacky.JumpIfNotZero(tacky.Constant(const), target):
-                if not is_zero(const):
-                    optimized.append(tacky.Jump(target))
-            case tacky.Truncate(tacky.Constant(const), dst):
-                pass # TODO: this probably requires the symbol table to know the size of `dst`
-            case tacky.SignExtend(tacky.Constant(const), dst):
+    def evaluate_unary_op(self, op: tacky.UnaryOp, const: tacky.Const):
+        match op:
+            case tacky.UnaryNegate():
                 pass
-            case tacky.ZeroExtend(tacky.Constant(const), dst):
+            case tacky.UnaryInvert():
                 pass
-            case tacky.DoubleToInt(tacky.Constant(const), dst):
-                pass
-            case tacky.DoubleToUInt(tacky.Constant(const), dst):
-                pass
-            case tacky.IntToDouble(tacky.Constant(const), dst):
-                pass
-            case tacky.UIntToDouble(tacky.Constant(const), dst):
+            case tacky.UnaryNot():
                 pass
             case _:
-                optimized.append(instr)
-    return optimized
+                raise Exception(f'unhandled unary operator {op}')
 
+    def evaluate_binary_op(self, op: tacky.BinaryOp, left: tacky.Const, right: tacky.Const):
+        match op:
+            case tacky.BinaryAdd():
+                pass
+            case tacky.BinarySubtract():
+                pass
+            case tacky.BinaryMultiply():
+                pass
+            case tacky.BinaryDivide():
+                pass
+            case tacky.BinaryRemainder():
+                pass
+            case tacky.BitAnd():
+                pass
+            case tacky.BitOr():
+                pass
+            case tacky.BitXor():
+                pass
+            case tacky.ShiftLeft():
+                pass
+            case tacky.ShiftRight():
+                pass
+            case tacky.Less():
+                pass
+            case tacky.LessEqual():
+                pass
+            case tacky.Greater():
+                pass
+            case tacky.GreaterEqual():
+                pass
+            case tacky.Equals():
+                pass
+            case tacky.NotEquals():
+                pass
+            case _:
+                raise Exception(f'unhandled binary operator {op}')
 
-def evaluate_unary_op(op: tacky.UnaryOp, const: tacky.Const):
-    match op:
-        case tacky.UnaryNegate():
-            pass
-        case tacky.UnaryInvert():
-            pass
-        case tacky.UnaryNot():
-            pass
-        case _:
-            raise Exception(f'unhandled unary operator {op}')
+    def make_control_flow_graph(self, body):
+        # TODO
+        return body
 
+    def unreachable_code_elimination(self, cfg):
+        # TODO
+        return cfg
 
-def evaluate_binary_op(op: tacky.BinaryOp, left: tacky.Const, right: tacky.Const):
-    match op:
-        case tacky.BinaryAdd():
-            pass
-        case tacky.BinarySubtract():
-            pass
-        case tacky.BinaryMultiply():
-            pass
-        case tacky.BinaryDivide():
-            pass
-        case tacky.BinaryRemainder():
-            pass
-        case tacky.BitAnd():
-            pass
-        case tacky.BitOr():
-            pass
-        case tacky.BitXor():
-            pass
-        case tacky.ShiftLeft():
-            pass
-        case tacky.ShiftRight():
-            pass
-        case tacky.Less():
-            pass
-        case tacky.LessEqual():
-            pass
-        case tacky.Greater():
-            pass
-        case tacky.GreaterEqual():
-            pass
-        case tacky.Equals():
-            pass
-        case tacky.NotEquals():
-            pass
-        case _:
-            raise Exception(f'unhandled binary operator {op}')
+    def copy_propagation(self, cfg):
+        # TODO
+        return cfg
+
+    def dead_store_elimination(self, cfg):
+        # TODO
+        return cfg
+
+    def cfg_to_instructions(self, cfg):
+        # TODO
+        return cfg
+
 
 
 def is_zero(const: tacky.Const):
     ''' this should treat 0.0 and -0.0 as zero '''
-    return const.value == 0
+    return const.value in (0, 0.0, -0.0)
 
-
-def make_control_flow_graph(body):
-    # TODO
-    return body
-
-
-def unreachable_code_elimination(cfg):
-    # TODO
-    return cfg
-
-
-def copy_propagation(cfg):
-    # TODO
-    return cfg
-
-
-def dead_store_elimination(cfg):
-    # TODO
-    return cfg
-
-
-def cfg_to_instructions(cfg):
-    # TODO
-    return cfg
