@@ -32,6 +32,8 @@ class Optimizer:
             return f
 
         while True:
+            aliased_vars = self.address_taken_analysis(body)
+
             if args.fold_constants:
                 post_constant_folding = self.constant_folding(body)
             else:
@@ -45,10 +47,10 @@ class Optimizer:
                 graph = self.unreachable_code_elimination(graph)
 
             if args.propagate_copies:
-                graph = self.copy_propagation(graph)
+                graph = self.copy_propagation(graph, aliased_vars)
 
             if args.eliminate_dead_stores:
-                graph = self.dead_store_elimination(graph)
+                graph = self.dead_store_elimination(graph, aliased_vars)
 
             optimized_function_body = self.cfg_to_instructions(graph)
 
@@ -60,6 +62,83 @@ class Optimizer:
             body = optimized_function_body
 
         return tacky.Function(f.name, f.is_global, f.params, body)
+
+    def address_taken_analysis(self, body):
+        alised_vars = set()
+
+        def add_if_static(var):
+            if isinstance(var, tacky.Identifier):
+                sym = self.symbols[var.name]
+                if isinstance(sym.attrs, symbol.StaticAttr):
+                    alised_vars.add(var.name)
+
+        for instr in body:
+            match instr:
+                case tacky.GetAddress(src, dst):
+                    assert(isinstance(src, tacky.Identifier))
+                    alised_vars.add(src.name)
+                    add_if_static(dst)
+                case tacky.Return(val):
+                    add_if_static(val)
+                case tacky.Truncate(src, dst):
+                    add_if_static(src)
+                    add_if_static(dst)
+                case tacky.ZeroExtend(src, dst):
+                    add_if_static(src)
+                    add_if_static(dst)
+                case tacky.DoubleToInt(src, dst):
+                    add_if_static(src)
+                    add_if_static(dst)
+                case tacky.DoubleToUInt(src, dst):
+                    add_if_static(src)
+                    add_if_static(dst)
+                case tacky.IntToDouble(src, dst):
+                    add_if_static(src)
+                    add_if_static(dst)
+                case tacky.UIntToDouble(src, dst):
+                    add_if_static(src)
+                    add_if_static(dst)
+                case tacky.Unary(_operator, src, dst):
+                    add_if_static(src)
+                    add_if_static(dst)
+                case tacky.Binary(_operator, left, right, dst):
+                    add_if_static(left)
+                    add_if_static(right)
+                    add_if_static(dst)
+                case tacky.Copy(src, dst):
+                    add_if_static(src)
+                    add_if_static(dst)
+                case tacky.Load(src, dst):
+                    add_if_static(src)
+                    add_if_static(dst)
+                case tacky.Store(src, dst):
+                    add_if_static(src)
+                    add_if_static(dst)
+                case tacky.AddPtr(ptr, _index, _scale, dst):
+                    add_if_static(ptr)
+                    add_if_static(dst)
+                case tacky.CopyToOffset(src, dst, _offset):
+                    add_if_static(src)
+                    add_if_static(dst)
+                case tacky.CopyFromOffset(src, _offset, dst):
+                    add_if_static(src)
+                    add_if_static(dst)
+                case tacky.Jump(_target):
+                    pass
+                case tacky.JumpIfZero(condition, _target):
+                    add_if_static(condition)
+                case tacky.JumpIfNotZero(condition, _target):
+                    add_if_static(condition)
+                case tacky.Label(_name):
+                    pass
+                case tacky.Call(_func_name, arg_vals, dst):
+                    for a in arg_vals:
+                        add_if_static(a)
+                    add_if_static(dst)
+                case _:
+                    raise Exception(f'unhandled instruction {instr}')
+
+        return alised_vars
 
     def constant_folding(self, body):
         optimized = []
@@ -415,11 +494,11 @@ class Optimizer:
                 continue
             graph.remove_empty_node(node.node_id)
 
-    def copy_propagation(self, graph):
-        CopyPropagation(self.symbols).optimize(graph)
+    def copy_propagation(self, graph, aliased_vars):
+        CopyPropagation(self.symbols, aliased_vars).optimize(graph)
         return graph
 
-    def dead_store_elimination(self, graph):
+    def dead_store_elimination(self, graph, aliased_vars):
         # TODO
         return graph
 
@@ -431,8 +510,9 @@ class Optimizer:
 
 
 class CopyPropagation:
-    def __init__(self, symbols):
+    def __init__(self, symbols, aliased_vars):
         self.symbols = symbols
+        self.aliased_vars = aliased_vars
 
     def optimize(self, graph: cfg.Graph):
         ''' this modifies the graph in place '''
