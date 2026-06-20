@@ -823,6 +823,7 @@ class Codegen:
             assembly.Label(out_of_range_label),
             assembly.Mov(double, src, xmm1),
             assembly.Binary(assembly.Sub(), double, upper_bound, xmm1),
+            assembly.Cvttsd2si(a_type, xmm1, dst),
             assembly.Mov(quadword, upper_bound_long, rdx),
             assembly.Binary(assembly.Add(), quadword, rdx, dst),
             assembly.Label(end_label),
