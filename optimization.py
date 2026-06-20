@@ -37,7 +37,6 @@ class Optimizer:
                 post_constant_folding = body
 
             graph = self.make_control_flow_graph(post_constant_folding)
-            print(graph.pretty_print())
 
             if args.eliminate_unreachable_code:
                 graph = self.unreachable_code_elimination(graph)
@@ -331,7 +330,24 @@ class Optimizer:
                     graph.add_edge(node_id, next_id)
 
     def unreachable_code_elimination(self, graph):
-        # TODO
+        # Remove unreachable nodes
+        ids_seen = set([cfg.Entry()])
+        search = [graph.nodes_by_id[cfg.Entry()]]
+        while search:
+            node = search.pop()
+            if isinstance(node, cfg.ExitNode):
+                continue
+            for id in node.successors:
+                if id in ids_seen:
+                    continue
+                ids_seen.add(id)
+                search.append(graph.nodes_by_id[id])
+
+        all_ids = set([n.get_node_id() for n in graph.nodes])
+        to_remove = all_ids - ids_seen
+        for id in to_remove:
+            graph.remove_node(id)
+
         return graph
 
     def copy_propagation(self, graph):

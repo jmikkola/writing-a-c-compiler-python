@@ -49,6 +49,9 @@ class BasicBlock:
             lines.append('        ' + instr.pretty_print())
         return '\n'.join(lines)
 
+    def get_node_id(self):
+        return self.node_id
+
 
 @dataclass
 class EntryNode:
@@ -61,6 +64,9 @@ class EntryNode:
         ]
         return '\n'.join(lines)
 
+    def get_node_id(self):
+        return Entry()
+
 
 @dataclass
 class ExitNode:
@@ -72,6 +78,9 @@ class ExitNode:
             f'    predecessors: {self.predecessors}',
         ]
         return '\n'.join(lines)
+
+    def get_node_id(self):
+        return Exit()
 
 
 Node = Union[BasicBlock, EntryNode, ExitNode]
@@ -86,7 +95,6 @@ class Graph:
             Entry(): entry_node,
             Exit(): exit_node,
         }
-        self.edges = {}
         self.id_by_label = {}
 
         for (i, block) in enumerate(blocks):
@@ -104,11 +112,19 @@ class Graph:
                 self.id_by_label[block[0].name] = node_id
 
     def add_edge(self, start, end):
-        if start not in self.edges:
-            self.edges[start] = []
-        self.edges[start].append(end)
         self.nodes_by_id[start].successors.append(end)
         self.nodes_by_id[end].predecessors.append(start)
+
+    def remove_node(self, id):
+        # This may leave dangling data in id_by_label, but that shouldn't matter
+        node = self.nodes_by_id[id]
+        for sid in node.successors:
+            successor = self.nodes_by_id[sid]
+            successor.predecessors.remove(id)
+        del self.nodes_by_id[id]
+        self.nodes = [n for n in self.nodes if n.get_node_id() != id]
+        if id == self.max_node_id:
+            self.max_node_id = self.nodes[-1].node_id
 
     def get_id_by_label(self, label):
         return self.id_by_label[label]
