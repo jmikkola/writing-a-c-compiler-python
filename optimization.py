@@ -1,5 +1,6 @@
 import math
 
+import cfg
 import syntax
 import tacky
 import typeconversion
@@ -35,18 +36,19 @@ class Optimizer:
             else:
                 post_constant_folding = body
 
-            cfg = self.make_control_flow_graph(post_constant_folding)
+            graph = self.make_control_flow_graph(post_constant_folding)
+            print(graph.pretty_print())
 
             if args.eliminate_unreachable_code:
-                cfg = self.unreachable_code_elimination(cfg)
+                graph = self.unreachable_code_elimination(graph)
 
             if args.propagate_copies:
-                cfg = self.copy_propagation(cfg)
+                graph = self.copy_propagation(graph)
 
             if args.eliminate_dead_stores:
-                cfg = self.dead_store_elimination(cfg)
+                graph = self.dead_store_elimination(graph)
 
-            optimized_function_body = self.cfg_to_instructions(cfg)
+            optimized_function_body = self.cfg_to_instructions(graph)
 
             if optimized_function_body == body:
                 break
@@ -264,24 +266,87 @@ class Optimizer:
         return self.as_type(value, dst_type)
 
     def make_control_flow_graph(self, body):
-        # TODO
-        return body
+        blocks = self._parition_blocks(body)
+        graph = cfg.Graph(blocks)
+        self._add_all_edges(graph)
+        return graph
 
-    def unreachable_code_elimination(self, cfg):
-        # TODO
-        return cfg
+    def _parition_blocks(self, body):
+        blocks = []
+        current_block = []
 
-    def copy_propagation(self, cfg):
-        # TODO
-        return cfg
+        for instruction in body:
+            match instruction:
+                case tacky.Label():
+                    # Start a new block at each label
+                    if current_block:
+                        blocks.append(current_block)
+                    current_block = [instruction]
 
-    def dead_store_elimination(self, cfg):
-        # TODO
-        return cfg
+                case tacky.Jump() | tacky.JumpIfZero() | tacky.JumpIfNotZero() | tacky.Return():
+                    # End a block at a control flow instruction
+                    current_block.append(instruction)
+                    blocks.append(current_block)
+                    current_block = []
 
-    def cfg_to_instructions(self, cfg):
+                case _:
+                    current_block.append(instruction)
+
+        if current_block:
+            blocks.append(current_block)
+
+        return blocks
+
+    def _add_all_edges(self, graph):
+        graph.add_edge(cfg.Entry(), cfg.BlockID(0))
+
+        for node in graph.nodes:
+            if isinstance(node, cfg.EntryNode):
+                continue
+            if isinstance(node, cfg.ExitNode):
+                continue
+
+            node_id = node.node_id
+            if node_id == graph.max_node_id:
+                next_id = cfg.Exit()
+            else:
+                next_id = cfg.BlockID(node_id.id + 1)
+
+            last_instr = node.instructions[-1]
+            match last_instr:
+                case tacky.Return():
+                    graph.add_edge(node_id, cfg.Exit())
+                case tacky.Jump(target):
+                    target_id = graph.get_id_by_label(target)
+                    graph.add_edge(node_id, target_id)
+                case tacky.JumpIfZero(_, target):
+                    target_id = graph.get_id_by_label(target)
+                    graph.add_edge(node_id, target_id)
+                    graph.add_edge(node_id, next_id)
+                case tacky.JumpIfNotZero(_, target):
+                    target_id = graph.get_id_by_label(target)
+                    graph.add_edge(node_id, target_id)
+                    graph.add_edge(node_id, next_id)
+                case _:
+                    graph.add_edge(node_id, next_id)
+
+    def unreachable_code_elimination(self, graph):
         # TODO
-        return cfg
+        return graph
+
+    def copy_propagation(self, graph):
+        # TODO
+        return graph
+
+    def dead_store_elimination(self, graph):
+        # TODO
+        return graph
+
+    def cfg_to_instructions(self, graph):
+        instructions = []
+        for node in graph.nodes_in_order():
+            instructions.extend(node.instructions)
+        return instructions
 
 
 def is_zero(const: tacky.Const):
