@@ -88,7 +88,7 @@ class Optimizer:
 
                 case tacky.SignExtend(tacky.Constant(const), dst):
                     dst_type = self.value_type(dst)
-                    extended = self.sign_extend(const)
+                    extended = self.sign_extend(const, dst_type)
                     optimized.append(tacky.Copy(extended, dst))
 
                 case tacky.ZeroExtend(tacky.Constant(const), dst):
@@ -173,25 +173,25 @@ class Optimizer:
         return tacky.Constant(result)
 
     def int_to_double(self, const: tacky.Const) -> tacky.Constant:
-        value = double(const.value)
+        value = float(const.value)
         result = tacky.ConstDouble(value)
         return tacky.Constant(result)
 
     def uint_to_double(self, const: tacky.Const) -> tacky.Constant:
-        value = double(const.value)
+        value = float(const.value)
         result = tacky.ConstDouble(value)
         return tacky.Constant(result)
 
     def as_type(self, value, ctype: syntax.Type) -> tacky.Const:
         match ctype:
-            case syntax.Char():
+            case syntax.Char() | syntax.SChar() | syntax.UChar():
                 return tacky.ConstChar(value & mask_for_bytes(1))
             case syntax.Int():
                 return tacky.ConstInt(value & mask_for_bytes(4))
             case syntax.Long():
-                return tacky.ConstLong(value & mask_for_bytes(4))
+                return tacky.ConstLong(value & mask_for_bytes(8))
             case syntax.UInt():
-                return tacky.ConstUInt(value & mask_for_bytes(8))
+                return tacky.ConstUInt(value & mask_for_bytes(4))
             case syntax.ULong():
                 return tacky.ConstULong(value & mask_for_bytes(8))
             case syntax.Double():
