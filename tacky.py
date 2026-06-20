@@ -42,6 +42,9 @@ class Instruction:
         # Super lazy
         return str(self) == str(other)
 
+    def __hash__(self):
+        return hash(str(self))
+
 
 class Return(Instruction, namedtuple('Return', ['val'])):
     # val is optional

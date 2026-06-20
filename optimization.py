@@ -1,6 +1,7 @@
 import math
 
 import cfg
+import symbol
 import syntax
 import tacky
 import typeconversion
@@ -415,7 +416,7 @@ class Optimizer:
             graph.remove_empty_node(node.node_id)
 
     def copy_propagation(self, graph):
-        # TODO
+        CopyPropagation(self.symbols).optimize(graph)
         return graph
 
     def dead_store_elimination(self, graph):
@@ -427,6 +428,184 @@ class Optimizer:
         for node in graph.nodes_in_order():
             instructions.extend(node.instructions)
         return instructions
+
+
+class CopyPropagation:
+    def __init__(self, symbols):
+        self.symbols = symbols
+
+    def optimize(self, graph: cfg.Graph):
+        ''' this modifies the graph in place '''
+        self.find_reaching_copies(graph)
+        for block in graph.nodes_in_order():
+            self.rewrite_block(block)
+
+    def find_reaching_copies(self, graph: cfg.Graph):
+        all_copies = self.find_all_copies(graph)
+
+        # Set up provisional annotations
+        nodes_in_order = graph.nodes_in_order()
+        for block in nodes_in_order:
+            block.block_annotation = all_copies
+
+        worklist = [n.node_id for n in nodes_in_order]
+        while worklist:
+            block_id = worklist.pop(0)
+            block = graph.nodes_by_id[block_id]
+            old_annotation = block.block_annotation
+            incoming_copies = self.meet(graph, block, all_copies)
+            self.transfer(block, incoming_copies)
+            if block.block_annotation != old_annotation:
+                for successor_id in block.successors:
+                    match successor_id:
+                        case cfg.Entry():
+                            raise Exception('blocks cannot have Entry as a successor')
+                        case cfg.BlockID():
+                            if successor_id not in worklist:
+                                worklist.append(successor_id)
+                        case cfg.Exit():
+                            continue
+
+    def rewrite_block(self, block):
+        new_instructions = []
+        new_annotations = []
+        for (instruction, annotation) in zip(block.instructions, block.annotations):
+            rewritten = self.rewrite_instruction(instruction, annotation)
+            if rewritten is not None:
+                new_instructions.append(rewritten)
+                new_annotations.append(annotation)
+        block.instructions = new_instructions
+        # Update annotations just to fix any gaps left by deleting a Copy instruction
+        block.annotation = new_annotations
+
+    def rewrite_instruction(self, instr, reaching_copies):
+        match instr:
+            case tacky.Copy(src, dst):
+                for copy in reaching_copies:
+                    if instr == copy or (copy.src == dst and copy.dst == src):
+                        return None
+                new_src = self.replace_operand(src, reaching_copies)
+                return tacky.Copy(new_src, dst)
+            case tacky.Unary(operator, src, dst):
+                new_src = self.replace_operand(src, reaching_copies)
+                return tacky.Unary(operator, new_src, dst)
+            case tacky.Binary(operator, left, right, dst):
+                new_left = self.replace_operand(left, reaching_copies)
+                new_right = self.replace_operand(right, reaching_copies)
+                return tacky.Binary(operator, new_left, new_right, dst)
+            case tacky.Return(None):
+                return instr
+            case tacky.Return(val):
+                new_val = self.replace_operand(val, reaching_copies)
+                return tacky.Return(new_val)
+            case tacky.Jump():
+                return instr
+            case tacky.JumpIfZero(condition, target):
+                new_condition = self.replace_operand(condition, reaching_copies)
+                return tacky.JumpIfZero(new_condition, target)
+            case tacky.JumpIfNotZero(condition, target):
+                new_condition = self.replace_operand(condition, reaching_copies)
+                return tacky.JumpIfNotZero(new_condition, target)
+            case tacky.Label():
+                return instr
+            case tacky.Call(func_name, arg_vals, dst):
+                new_arg_vals = [
+                    self.replace_operand(arg, reaching_copies)
+                    for arg in arg_vals
+                ]
+                return tacky.Call(func_name, new_arg_vals, dst)
+            case _:
+                raise Exception(f'TODO: handle rewrite_instruction for {instr}')
+
+    def replace_operand(self, op, reaching_copies):
+        match op:
+            case tacky.Constant():
+                return op
+            case tacky.Identifier(_):
+                for copy in reaching_copies:
+                    if copy.dst == op:
+                        return copy.src
+        return op
+
+    def transfer(self, block: cfg.BasicBlock, initial_reaching_copies: set):
+        current_reaching_copies = initial_reaching_copies
+
+        for (i, instruction) in enumerate(block.instructions):
+            block.annotate(i, current_reaching_copies)
+
+            match instruction:
+                case tacky.Copy(src, dst):
+                    if tacky.Copy(dst, src) in current_reaching_copies:
+                        continue
+
+                    current_reaching_copies = self.kill_copies(dst, current_reaching_copies)
+                    current_reaching_copies.add(instruction)
+
+                case tacky.Call(_, _, dst):
+                    current_reaching_copies = set(
+                        copy for copy in current_reaching_copies
+                        if self.survives_func_call(copy, dst)
+                    )
+
+                case tacky.Unary(_, _, dst):
+                    current_reaching_copies = self.kill_copies(dst, current_reaching_copies)
+
+                case tacky.Binary(_, _, _, dst):
+                    current_reaching_copies = self.kill_copies(dst, current_reaching_copies)
+
+                case _:
+                    pass
+
+        block.block_annotation = current_reaching_copies
+
+    def meet(self, graph: cfg.Graph, block: cfg.BasicBlock, all_copies: set) -> set:
+        ''' all_copies: all copy instructions in the entire function '''
+        incoming_copies = all_copies
+
+        for pred_id in block.predecessors:
+            match pred_id:
+                case cfg.Entry():
+                    return set()
+                case cfg.BlockID(_):
+                    pred_out_copies = graph.nodes_by_id[pred_id].block_annotation
+                    incoming_copies = incoming_copies & pred_out_copies
+                case cfg.Exit():
+                    raise Exception('Exit cannot be a predecessor of a block')
+
+        return incoming_copies
+
+    def find_all_copies(self, graph: cfg.Graph) -> set:
+        all_copies = set()
+        for block in graph.nodes_in_order():
+            for instruction in block.instructions:
+                if isinstance(instruction, tacky.Copy):
+                    all_copies.add(instruction)
+        return all_copies
+
+    def kill_copies(self, dst, current_reaching_copies):
+        return set(
+            copy for copy in current_reaching_copies
+            if copy.src != dst and copy.dst != dst
+        )
+
+    def survives_func_call(self, copy, dst):
+        if copy.src == dst or copy.dst == dst:
+            return False
+        # Without tracing through everything that the function can call, just
+        # assume any function call could update any static variable.
+        if self.is_static(copy.src) or self.is_static(copy.dst):
+            return False
+        return True
+
+    def is_static(self, value):
+        match value:
+            case tacky.Constant():
+                return False
+            case tacky.Identifier(name):
+                sym = self.symbols[name]
+                return isinstance(sym.attrs, symbol.StaticAttr)
+            case _:
+                raise Exception(f'unhandled value type {value}')
 
 
 def is_zero(const: tacky.Const):

@@ -34,7 +34,9 @@ NodeID = Union[Entry, Exit, BlockID]
 @dataclass
 class BasicBlock:
     node_id: int
+    block_annotation: set
     instructions: list
+    annotations: List[set]
     predecessors: Set[NodeID]
     successors: Set[NodeID]
 
@@ -51,6 +53,9 @@ class BasicBlock:
 
     def get_node_id(self):
         return self.node_id
+
+    def annotate(self, i, annotation):
+        self.annotations[i] = annotation
 
 
 @dataclass
@@ -101,7 +106,9 @@ class Graph:
             node_id = BlockID(i)
             node = BasicBlock(
                 node_id=node_id,
+                block_annotation=set(),
                 instructions=block,
+                annotations=[set() for _ in block],
                 predecessors=set(),
                 successors=set(),
             )
