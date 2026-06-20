@@ -196,6 +196,8 @@ class Optimizer:
                 return tacky.ConstULong(value & mask_for_bytes(8))
             case syntax.Double():
                 return tacky.ConstDouble(value)
+            case syntax.Pointer():
+                return tacky.ConstULong(value & mask_for_bytes(8))
             case _:
                 raise Exception(f'unhandled type for as_type: {ctype}')
 
