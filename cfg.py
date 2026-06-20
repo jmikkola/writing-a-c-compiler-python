@@ -115,11 +115,16 @@ class Graph:
         self.nodes_by_id[start].successors.add(end)
         self.nodes_by_id[end].predecessors.add(start)
 
-    def remove_node(self, id):
+    def remove_unreachable_node(self, id):
         ''' remove an unreachable node '''
         # This may leave dangling data in id_by_label, but that shouldn't matter
         node = self.nodes_by_id[id]
-        assert(not node.predecessors or node.predecessors == set([id]))
+        # When multiple nodes are unreachable, they may not be removed in
+        # topological order, so node.predecessors may not be empty (it also
+        # might not be empty because of loops that cannot be entered)
+        for pid in node.predecessors:
+            predecessor = self.nodes_by_id[pid]
+            predecessor.successors.remove(id)
         for sid in node.successors:
             successor = self.nodes_by_id[sid]
             successor.predecessors.remove(id)

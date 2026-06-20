@@ -37,6 +37,7 @@ class Optimizer:
                 post_constant_folding = body
 
             graph = self.make_control_flow_graph(post_constant_folding)
+            # print('\n\n\n')
             # print(graph.pretty_print())
 
             if args.eliminate_unreachable_code:
@@ -355,7 +356,7 @@ class Optimizer:
         to_remove = all_ids - ids_seen
         for id in to_remove:
             if id != cfg.Exit():
-                graph.remove_node(id)
+                graph.remove_unreachable_node(id)
 
     def _remove_useless_jumps(self, graph):
         # Remove jumps that always go to the next block and thus have no effect
