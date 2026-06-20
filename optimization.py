@@ -332,6 +332,7 @@ class Optimizer:
     def unreachable_code_elimination(self, graph):
         self._remove_unreachable_blocks(graph)
         self._remove_useless_jumps(graph)
+        self._remove_useless_labels(graph)
         return graph
 
     def _remove_unreachable_blocks(self, graph):
@@ -376,6 +377,30 @@ class Optimizer:
             )
             if not keep_jump:
                 node.instructions.pop()
+
+    def _remove_useless_labels(self, graph):
+        # Remove labels that no jump instruction points to.
+        #
+        # This depends on _remove_useless_jumps having removed jumps that are
+        # from the prior node.
+        sorted_nodes = graph.nodes_in_order()
+        for (i, node) in enumerate(sorted_nodes):
+            instructions = node.instructions
+            if not instructions:
+                continue
+            starts_with_label = isinstance(instructions[0], tacky.Label)
+            if not starts_with_label:
+                continue
+            if i == 0:
+                default_predecessor_id = cfg.Entry()
+            else:
+                default_predecessor_id = sorted_nodes[i - 1].node_id
+            label_used = any(
+                pred_id != default_predecessor_id
+                for pred_id in node.predecessors
+            )
+            if not label_used:
+                node.instructions.pop(0)
 
     def copy_propagation(self, graph):
         # TODO
