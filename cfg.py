@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Union, List
+from typing import Union, List, Set
 
 
 import tacky
@@ -35,8 +35,8 @@ NodeID = Union[Entry, Exit, BlockID]
 class BasicBlock:
     node_id: int
     instructions: list
-    predecessors: List[NodeID]
-    successors: List[NodeID]
+    predecessors: Set[NodeID]
+    successors: Set[NodeID]
 
     def pretty_print(self):
         lines = [
@@ -55,7 +55,7 @@ class BasicBlock:
 
 @dataclass
 class EntryNode:
-    successors: List[NodeID]
+    successors: Set[NodeID]
 
     def pretty_print(self):
         lines = [
@@ -70,7 +70,7 @@ class EntryNode:
 
 @dataclass
 class ExitNode:
-    predecessors: List[NodeID]
+    predecessors: Set[NodeID]
 
     def pretty_print(self):
         lines = [
@@ -88,8 +88,8 @@ Node = Union[BasicBlock, EntryNode, ExitNode]
 
 class Graph:
     def __init__(self, blocks):
-        entry_node = EntryNode([])
-        exit_node = ExitNode([])
+        entry_node = EntryNode(set())
+        exit_node = ExitNode(set())
         self.nodes = [entry_node, exit_node]
         self.nodes_by_id = {
             Entry(): entry_node,
@@ -102,8 +102,8 @@ class Graph:
             node = BasicBlock(
                 node_id=node_id,
                 instructions=block,
-                predecessors=[],
-                successors=[],
+                predecessors=set(),
+                successors=set(),
             )
             self.nodes.append(node)
             self.nodes_by_id[node_id] = node
@@ -112,14 +112,14 @@ class Graph:
                 self.id_by_label[block[0].name] = node_id
 
     def add_edge(self, start, end):
-        self.nodes_by_id[start].successors.append(end)
-        self.nodes_by_id[end].predecessors.append(start)
+        self.nodes_by_id[start].successors.add(end)
+        self.nodes_by_id[end].predecessors.add(start)
 
     def remove_node(self, id):
         ''' remove an unreachable node '''
         # This may leave dangling data in id_by_label, but that shouldn't matter
         node = self.nodes_by_id[id]
-        assert(not node.predecessors)
+        assert(not node.predecessors or node.predecessors == set([id]))
         for sid in node.successors:
             successor = self.nodes_by_id[sid]
             successor.predecessors.remove(id)
@@ -131,12 +131,18 @@ class Graph:
         assert(not node.instructions)
         assert(len(node.successors) == 1)
 
-        successor_id = node.successors[0]
+        # Point the successor to the nodes before this
+        successor_id = list(node.successors)[0]
+        successor = self.nodes_by_id[successor_id]
+        successor.predecessors.remove(id)
+        for pred_id in node.predecessors:
+            successor.predecessors.add(pred_id)
+
         # Point predecessors to the next node after this
         for pred_id in node.predecessors:
             predecessor = self.nodes_by_id[pred_id]
             predecessor.successors.remove(id)
-            predecessor.successors.append(successor_id)
+            predecessor.successors.add(successor_id)
 
         self._delete_node(id)
 
