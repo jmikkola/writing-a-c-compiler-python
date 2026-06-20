@@ -330,7 +330,12 @@ class Optimizer:
                     graph.add_edge(node_id, next_id)
 
     def unreachable_code_elimination(self, graph):
-        # Remove unreachable nodes
+        self._remove_unreachable_blocks(graph)
+        self._remove_useless_jumps(graph)
+        return graph
+
+    def _remove_unreachable_blocks(self, graph):
+        # Remove unreachable nodes by visiting all reachable nodes
         ids_seen = set([cfg.Entry()])
         search = [graph.nodes_by_id[cfg.Entry()]]
         while search:
@@ -348,7 +353,29 @@ class Optimizer:
         for id in to_remove:
             graph.remove_node(id)
 
-        return graph
+    def _remove_useless_jumps(self, graph):
+        # Remove jumps that always go to the next block and thus have no effect
+        sorted_nodes = graph.nodes_in_order()
+        for i in range(len(sorted_nodes) - 1):
+            node = sorted_nodes[i]
+            instructions = node.instructions
+            if not instructions:
+                continue
+            last = instructions[-1]
+            ends_in_jump = (
+                isinstance(last, tacky.Jump) or
+                isinstance(last, tacky.JumpIfZero) or
+                isinstance(last, tacky.JumpIfNotZero)
+            )
+            if not ends_in_jump:
+                continue
+            default_successor = sorted_nodes[i + 1]
+            keep_jump = any(
+                succ_id != default_successor.node_id
+                for succ_id in node.successors
+            )
+            if not keep_jump:
+                node.instructions.pop()
 
     def copy_propagation(self, graph):
         # TODO
