@@ -116,11 +116,31 @@ class Graph:
         self.nodes_by_id[end].predecessors.append(start)
 
     def remove_node(self, id):
+        ''' remove an unreachable node '''
         # This may leave dangling data in id_by_label, but that shouldn't matter
         node = self.nodes_by_id[id]
+        assert(not node.predecessors)
         for sid in node.successors:
             successor = self.nodes_by_id[sid]
             successor.predecessors.remove(id)
+        self._delete_node(id)
+
+    def remove_empty_node(self, id):
+        ''' remove a reachable, but empty node '''
+        node = self.nodes_by_id[id]
+        assert(not node.instructions)
+        assert(len(node.successors) == 1)
+
+        successor_id = node.successors[0]
+        # Point predecessors to the next node after this
+        for pred_id in node.predecessors:
+            predecessor = self.nodes_by_id[pred_id]
+            predecessor.successors.remove(id)
+            predecessor.successors.append(successor_id)
+
+        self._delete_node(id)
+
+    def _delete_node(self, id):
         del self.nodes_by_id[id]
         self.nodes = [n for n in self.nodes if n.get_node_id() != id]
         if id == self.max_node_id:

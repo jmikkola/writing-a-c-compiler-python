@@ -333,6 +333,7 @@ class Optimizer:
         self._remove_unreachable_blocks(graph)
         self._remove_useless_jumps(graph)
         self._remove_useless_labels(graph)
+        self._remove_empty_nodes(graph)
         return graph
 
     def _remove_unreachable_blocks(self, graph):
@@ -401,6 +402,14 @@ class Optimizer:
             )
             if not label_used:
                 node.instructions.pop(0)
+
+    def _remove_empty_nodes(self, graph):
+        # Remove nodes that now have no instructions in them
+        sorted_nodes = graph.nodes_in_order()
+        for node in sorted_nodes:
+            if node.instructions:
+                continue
+            graph.remove_empty_node(node.node_id)
 
     def copy_propagation(self, graph):
         # TODO
