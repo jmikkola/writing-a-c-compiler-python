@@ -284,7 +284,6 @@ class Optimizer:
         return cfg
 
 
-
 def is_zero(const: tacky.Const):
     ''' this should treat 0.0 and -0.0 as zero '''
     return const.value in (0, 0.0, -0.0)
