@@ -222,13 +222,16 @@ class Optimizer:
             case tacky.BinaryMultiply():
                 value = left.value * right.value
             case tacky.BinaryDivide():
-                if is_zero(right):
-                    value = 0
-                else:
-                    if dst_type == syntax.Double():
-                        value = left.value / right.value
-                    else:
-                        value = left.value // right.value
+              if dst_type == syntax.Double():
+                  if is_zero(right):
+                      value = float('nan')
+                  else:
+                      value = left.value / right.value
+              else:
+                  if is_zero(right):
+                      value = 0
+                  else:
+                      value = left.value // right.value
             case tacky.BinaryRemainder():
                 if is_zero(right):
                     value = 0
