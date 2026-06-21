@@ -5,6 +5,7 @@ import symbol
 import syntax
 import tacky
 import typeconversion
+from typeconversion import is_signed
 
 
 def optimize(ir: tacky.Program, args, symbols):
@@ -83,6 +84,9 @@ class Optimizer:
                 case tacky.Truncate(src, dst):
                     add_if_static(src)
                     add_if_static(dst)
+                case tacky.SignExtend(src, dst):
+                    add_if_static(src)
+                    add_if_static(dst)
                 case tacky.ZeroExtend(src, dst):
                     add_if_static(src)
                     add_if_static(dst)
@@ -134,7 +138,8 @@ class Optimizer:
                 case tacky.Call(_func_name, arg_vals, dst):
                     for a in arg_vals:
                         add_if_static(a)
-                    add_if_static(dst)
+                    if dst is not None:
+                        add_if_static(dst)
                 case _:
                     raise Exception(f'unhandled instruction {instr}')
 
@@ -578,6 +583,42 @@ class CopyPropagation:
             case tacky.Return(val):
                 new_val = self.replace_operand(val, reaching_copies)
                 return tacky.Return(new_val)
+            case tacky.SignExtend(src, dst):
+                new_src = self.replace_operand(src, reaching_copies)
+                return tacky.SignExtend(new_src, dst)
+            case tacky.Truncate(src, dst):
+                new_src = self.replace_operand(src, reaching_copies)
+                return tacky.Truncate(new_src, dst)
+            case tacky.ZeroExtend(src, dst):
+                new_src = self.replace_operand(src, reaching_copies)
+                return tacky.ZeroExtend(new_src, dst)
+            case tacky.DoubleToInt(src, dst):
+                new_src = self.replace_operand(src, reaching_copies)
+                return tacky.DoubleToInt(new_src, dst)
+            case tacky.DoubleToUInt(src, dst):
+                new_src = self.replace_operand(src, reaching_copies)
+                return tacky.DoubleToUInt(new_src, dst)
+            case tacky.IntToDouble(src, dst):
+                new_src = self.replace_operand(src, reaching_copies)
+                return tacky.IntToDouble(new_src, dst)
+            case tacky.UIntToDouble(src, dst):
+                new_src = self.replace_operand(src, reaching_copies)
+                return tacky.UIntToDouble(new_src, dst)
+            case tacky.Load(src_ptr, dst):
+                new_src_ptr = self.replace_operand(src_ptr, reaching_copies)
+                return tacky.Load(new_src_ptr, dst)
+            case tacky.Store(src, dst_ptr):
+                new_src = self.replace_operand(src, reaching_copies)
+                return tacky.Store(new_src, dst_ptr)
+            case tacky.AddPtr(ptr, index, scale, dst):
+                new_ptr = self.replace_operand(ptr, reaching_copies)
+                return tacky.AddPtr(new_ptr, index, scale, dst)
+            case tacky.CopyToOffset(src, dst, offset):
+                new_src = self.replace_operand(src, reaching_copies)
+                return tacky.CopyToOffset(new_src, dst, offset)
+            case tacky.CopyFromOffset(src, offset, dst):
+                new_src = self.replace_operand(src, reaching_copies)
+                return tacky.CopyFromOffset(new_src, offset, dst)
             case tacky.Jump():
                 return instr
             case tacky.JumpIfZero(condition, target):
@@ -594,8 +635,10 @@ class CopyPropagation:
                     for arg in arg_vals
                 ]
                 return tacky.Call(func_name, new_arg_vals, dst)
+            case tacky.GetAddress():
+                return instr
             case _:
-                raise Exception(f'TODO: handle rewrite_instruction for {instr}')
+                raise Exception(f'unhandled instruction in rewrite_instruction: {instr}')
 
     def replace_operand(self, op, reaching_copies):
         match op:
@@ -619,12 +662,22 @@ class CopyPropagation:
                         continue
 
                     current_reaching_copies = self.kill_copies(dst, current_reaching_copies)
-                    current_reaching_copies.add(instruction)
+
+                    src_type = self.get_type(src)
+                    dst_type = self.get_type(dst)
+                    if src_type == dst_type or is_signed(src_type) == is_signed(dst_type):
+                        current_reaching_copies.add(instruction)
 
                 case tacky.Call(_, _, dst):
                     current_reaching_copies = set(
                         copy for copy in current_reaching_copies
                         if self.survives_func_call(copy, dst)
+                    )
+
+                case tacky.Store(src, dst_ptr):
+                    current_reaching_copies = set(
+                        copy for copy in current_reaching_copies
+                        if not (self.is_aliased(copy.src) or self.is_aliased(copy.dst))
                     )
 
                 case tacky.Unary(_, _, dst):
@@ -633,10 +686,73 @@ class CopyPropagation:
                 case tacky.Binary(_, _, _, dst):
                     current_reaching_copies = self.kill_copies(dst, current_reaching_copies)
 
-                case _:
+                case tacky.SignExtend(_, dst):
+                    current_reaching_copies = self.kill_copies(dst, current_reaching_copies)
+
+                case tacky.Truncate(_, dst):
+                    current_reaching_copies = self.kill_copies(dst, current_reaching_copies)
+
+                case tacky.ZeroExtend(_, dst):
+                    current_reaching_copies = self.kill_copies(dst, current_reaching_copies)
+
+                case tacky.DoubleToInt(_, dst):
+                    current_reaching_copies = self.kill_copies(dst, current_reaching_copies)
+
+                case tacky.DoubleToUInt(_, dst):
+                    current_reaching_copies = self.kill_copies(dst, current_reaching_copies)
+
+                case tacky.IntToDouble(_, dst):
+                    current_reaching_copies = self.kill_copies(dst, current_reaching_copies)
+
+                case tacky.UIntToDouble(_, dst):
+                    current_reaching_copies = self.kill_copies(dst, current_reaching_copies)
+
+                case tacky.GetAddress(_, dst):
+                    current_reaching_copies = self.kill_copies(dst, current_reaching_copies)
+
+                case tacky.Load(_, dst):
+                    current_reaching_copies = self.kill_copies(dst, current_reaching_copies)
+
+                case tacky.AddPtr(_, _, _, dst):
+                    current_reaching_copies = self.kill_copies(dst, current_reaching_copies)
+
+                case tacky.CopyToOffset(_, _, dst):
+                    current_reaching_copies = self.kill_copies(dst, current_reaching_copies)
+
+                case tacky.CopyFromOffset(_, _, dst):
+                    current_reaching_copies = self.kill_copies(dst, current_reaching_copies)
+
+                case tacky.Jump() | tacky.JumpIfZero() | tacky.JumpIfNotZero() | tacky.Label():
                     pass
 
+                case tacky.Return():
+                    pass
+
+                case _:
+                    raise Exception(f'unhandled instruction {instr}')
+
         block.block_annotation = current_reaching_copies
+
+    def get_type(self, value: tacky.Value) -> syntax.Type:
+        match value:
+            case tacky.Constant(tacky.ConstChar(value)):
+                return syntax.Char()
+            case tacky.Constant(tacky.ConstInt(value)):
+                return syntax.Int()
+            case tacky.Constant(tacky.ConstLong(value)):
+                return syntax.Long()
+            case tacky.Constant(tacky.ConstUInt(value)):
+                return syntax.UInt()
+            case tacky.Constant(tacky.ConstULong(value)):
+                return syntax.ULong()
+            case tacky.Constant(tacky.ConstDouble(value)):
+                return syntax.Double()
+            case tacky.Constant(c):
+                raise Exception(f'unhandled type of constant {c}')
+            case tacky.Identifier(name):
+                return self.symbols[name].type
+            case _:
+                raise Exception(f'unexpected value {value}')
 
     def meet(self, graph: cfg.Graph, block: cfg.BasicBlock, all_copies: set) -> set:
         ''' all_copies: all copy instructions in the entire function '''
@@ -669,21 +785,18 @@ class CopyPropagation:
         )
 
     def survives_func_call(self, copy, dst):
-        if copy.src == dst or copy.dst == dst:
+        if self.is_aliased(copy.src) or self.is_aliased(copy.dst):
             return False
-        # Without tracing through everything that the function can call, just
-        # assume any function call could update any static variable.
-        if self.is_static(copy.src) or self.is_static(copy.dst):
+        if dst is not None and (copy.src == dst or copy.dst == dst):
             return False
         return True
 
-    def is_static(self, value):
+    def is_aliased(self, value):
         match value:
             case tacky.Constant():
                 return False
             case tacky.Identifier(name):
-                sym = self.symbols[name]
-                return isinstance(sym.attrs, symbol.StaticAttr)
+                return name in self.aliased_vars
             case _:
                 raise Exception(f'unhandled value type {value}')
 

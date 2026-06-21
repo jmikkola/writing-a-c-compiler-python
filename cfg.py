@@ -47,8 +47,13 @@ class BasicBlock:
             f'    successors: {self.successors}',
             f'    instructions:',
         ]
-        for instr in self.instructions:
+        for (i, instr) in enumerate(self.instructions):
             lines.append('        ' + instr.pretty_print())
+            annotations = self.annotations[i]
+            if annotations:
+                ats = ' '.join(f'{c.src}->{c.dst}' for c in annotations)
+                lines.append('            copies: ' + ats)
+
         return '\n'.join(lines)
 
     def get_node_id(self):
