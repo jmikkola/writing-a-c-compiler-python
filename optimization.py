@@ -716,7 +716,7 @@ class CopyPropagation:
                 case tacky.AddPtr(_, _, _, dst):
                     current_reaching_copies = self.kill_copies(dst, current_reaching_copies)
 
-                case tacky.CopyToOffset(_, _, dst):
+                case tacky.CopyToOffset(_, dst, _):
                     current_reaching_copies = self.kill_copies(dst, current_reaching_copies)
 
                 case tacky.CopyFromOffset(_, _, dst):
@@ -779,6 +779,7 @@ class CopyPropagation:
         return all_copies
 
     def kill_copies(self, dst, current_reaching_copies):
+        assert(isinstance(dst, tacky.Value))
         return set(
             copy for copy in current_reaching_copies
             if copy.src != dst and copy.dst != dst
