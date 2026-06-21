@@ -274,20 +274,30 @@ class Optimizer:
 
     def as_type(self, value, ctype: syntax.Type) -> tacky.Const:
         match ctype:
-            case syntax.Char() | syntax.SChar() | syntax.UChar():
-                return tacky.ConstChar(value & mask_for_bytes(1))
+            case syntax.Char() | syntax.SChar():
+                value = typeconversion.constant_to_byte(value)
+                return tacky.ConstChar(value)
+            case syntax.UChar():
+                value = typeconversion.constant_to_byte(value, unsigned=True)
+                return tacky.ConstChar(value)
             case syntax.Int():
-                return tacky.ConstInt(value & mask_for_bytes(4))
+                value = typeconversion.constant_to_int(value)
+                return tacky.ConstInt(value)
             case syntax.Long():
-                return tacky.ConstLong(value & mask_for_bytes(8))
+                value = typeconversion.constant_to_long(value)
+                return tacky.ConstLong(value)
             case syntax.UInt():
-                return tacky.ConstUInt(value & mask_for_bytes(4))
+                value = typeconversion.constant_to_int(value, unsigned=True)
+                return tacky.ConstUInt(value)
             case syntax.ULong():
-                return tacky.ConstULong(value & mask_for_bytes(8))
+                value = typeconversion.constant_to_long(value, unsigned=True)
+                return tacky.ConstULong(value)
             case syntax.Double():
+                # No conversion needed
                 return tacky.ConstDouble(value)
             case syntax.Pointer():
-                return tacky.ConstULong(value & mask_for_bytes(8))
+                value = typeconversion.constant_to_long(value, unsigned=True)
+                return tacky.ConstULong(value)
             case _:
                 raise Exception(f'unhandled type for as_type: {ctype}')
 

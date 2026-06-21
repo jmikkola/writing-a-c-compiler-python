@@ -86,5 +86,5 @@ def constant_to_byte(n, unsigned=False):
 
 def _constant_to_size(n, n_bytes, unsigned):
     # This might not be right for large longs
-    b = n.to_bytes(8, byteorder='little', signed=False)
+    b = n.to_bytes(8, byteorder='little', signed=not unsigned)
     return int.from_bytes(b[:n_bytes], byteorder='little', signed=not unsigned)

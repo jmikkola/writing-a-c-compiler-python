@@ -6,7 +6,7 @@ FILENAME="$1"
 BINARY="${FILENAME/.c/}"
 
 cd "$(dirname "$0")"
-uv run main.py "$FILENAME"
+uv run main.py "$@"
 
 set +e
 
