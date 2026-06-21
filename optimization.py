@@ -32,6 +32,8 @@ class Optimizer:
         if not body:
             return f
 
+        # print(self.make_control_flow_graph(f.body).pretty_print())
+
         while True:
             aliased_vars = self.address_taken_analysis(body)
 
@@ -41,14 +43,14 @@ class Optimizer:
                 post_constant_folding = body
 
             graph = self.make_control_flow_graph(post_constant_folding)
-            # print('\n\n\n')
-            # print(graph.pretty_print())
 
             if args.eliminate_unreachable_code:
                 graph = self.unreachable_code_elimination(graph)
 
             if args.propagate_copies:
                 graph = self.copy_propagation(graph, aliased_vars)
+            # print('\n\n\n')
+            # print(graph.pretty_print())
 
             if args.eliminate_dead_stores:
                 graph = self.dead_store_elimination(graph, aliased_vars)

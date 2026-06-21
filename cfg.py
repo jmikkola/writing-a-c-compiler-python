@@ -51,10 +51,22 @@ class BasicBlock:
             lines.append('        ' + instr.pretty_print())
             annotations = self.annotations[i]
             if annotations:
-                ats = ' '.join(f'{c.src}->{c.dst}' for c in annotations)
+                ats = ', '.join(self.show_annotation(c) for c in annotations)
                 lines.append('            copies: ' + ats)
 
         return '\n'.join(lines)
+
+    def show_annotation(self, copy):
+        src = self.show_op(copy.src)
+        dst = self.show_op(copy.dst)
+        return f'{src}->{dst}'
+
+    def show_op(self, value):
+        match value:
+            case tacky.Identifier(name):
+                return name
+            case tacky.Constant(const):
+                return str(const)
 
     def get_node_id(self):
         return self.node_id
