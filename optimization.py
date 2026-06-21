@@ -331,7 +331,12 @@ class Optimizer:
                   if is_zero(right):
                       value = 0
                   else:
-                      value = left.value // right.value
+                      # Fix python rounding shenanigans
+                      if (left.value < 0) != (right.value < 0):
+                          left = -1 * left.value
+                          value = -1 * (left // right.value)
+                      else:
+                          value = left.value // right.value
             case tacky.BinaryRemainder():
                 if is_zero(right):
                     value = 0
