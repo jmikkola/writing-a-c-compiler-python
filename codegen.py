@@ -1546,7 +1546,7 @@ def is_immediate(operand: assembly.Operand):
 def is_large_imm(operand: assembly.Operand):
     match operand:
         case assembly.Immediate(n):
-            return n > (2**31 - 1)
+            return abs(n) > (2**31 - 1)
         case _:
             return False
 
