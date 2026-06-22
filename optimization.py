@@ -275,31 +275,42 @@ class Optimizer:
     def as_type(self, value, ctype: syntax.Type) -> tacky.Const:
         match ctype:
             case syntax.Char() | syntax.SChar():
-                value = typeconversion.constant_to_byte(value)
+                value = self.to_signed(value, 1)
                 return tacky.ConstChar(value)
             case syntax.UChar():
-                value = typeconversion.constant_to_byte(value, unsigned=True)
+                value = self.to_unsigned(value, 1)
                 return tacky.ConstChar(value)
             case syntax.Int():
-                value = typeconversion.constant_to_int(value)
+                value = self.to_signed(value, 4)
                 return tacky.ConstInt(value)
             case syntax.Long():
-                value = typeconversion.constant_to_long(value)
+                value = self.to_signed(value, 8)
                 return tacky.ConstLong(value)
             case syntax.UInt():
-                value = typeconversion.constant_to_int(value, unsigned=True)
+                value = self.to_unsigned(value, 4)
                 return tacky.ConstUInt(value)
             case syntax.ULong():
-                value = typeconversion.constant_to_long(value, unsigned=True)
+                value = self.to_unsigned(value, 8)
                 return tacky.ConstULong(value)
             case syntax.Double():
                 # No conversion needed
                 return tacky.ConstDouble(value)
             case syntax.Pointer():
-                value = typeconversion.constant_to_long(value, unsigned=True)
+                value = self.to_unsigned(value, 8)
                 return tacky.ConstULong(value)
             case _:
                 raise Exception(f'unhandled type for as_type: {ctype}')
+
+    def to_signed(self, value, n_bytes):
+        width = 8 * n_bytes
+        value &= (1 << width) - 1
+        if value >= (1 << (width - 1)):
+            value -= (1 << width)
+        return value
+
+    def to_unsigned(self, value, n_bytes):
+        width = 8 * n_bytes
+        return value & (1 << width) - 1
 
     def evaluate_unary_op(self, op: tacky.UnaryOp, const: tacky.Const, dst_type: syntax.Type):
         match op:
