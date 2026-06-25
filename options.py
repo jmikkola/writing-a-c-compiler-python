@@ -16,6 +16,8 @@ class Args:
     eliminate_unreachable_code: bool
     eliminate_dead_stores: bool
 
+    verbose: bool
+
     @classmethod
     def parse(cls, args):
         parser = argparse.ArgumentParser(description='C compiler')
@@ -41,6 +43,8 @@ class Args:
         parser.add_argument('--eliminate-dead-stores', dest='eliminate_dead_stores', action='store_true')
         parser.add_argument('--optimize', dest='optimize', action='store_true', help='enable optimizations')
 
+        parser.add_argument('-v', dest='verbose', action='store_true', help='verbose')
+
         parsed = parser.parse_args(args)
         stage = parsed.stage if parsed.stage else 'all'
 
@@ -55,4 +59,5 @@ class Args:
             propagate_copies=parsed.propagate_copies or parsed.optimize,
             eliminate_unreachable_code=parsed.eliminate_unreachable_code or parsed.optimize,
             eliminate_dead_stores=parsed.eliminate_dead_stores or parsed.optimize,
+            verbose=parsed.verbose,
         )

@@ -9,50 +9,53 @@ from typeconversion import is_signed
 
 
 def optimize(ir: tacky.Program, args, symbols):
-    optimizer = Optimizer(symbols)
-    return optimizer.optimize(ir, args)
+    optimizer = Optimizer(symbols, args)
+    return optimizer.optimize(ir)
 
 
 class Optimizer:
-    def __init__(self, symbols):
+    def __init__(self, symbols, args):
         self.symbols = symbols
+        self.args = args
 
-    def optimize(self, ir: tacky.Program, args) -> tacky.Program:
+    def optimize(self, ir: tacky.Program) -> tacky.Program:
         optimized = []
         for decl in ir.top_level:
             match decl:
                 case tacky.Function():
-                    optimized.append(self.optimize_function(decl, args))
+                    if self.args.verbose:
+                        print('\noptimizing', decl.name)
+                    optimized.append(self.optimize_function(decl))
                 case _:
                     optimized.append(decl)
         return tacky.Program(optimized)
 
-    def optimize_function(self, f: tacky.Function, args):
+    def optimize_function(self, f: tacky.Function):
         body = f.body
         if not body:
             return f
 
-        # print(self.make_control_flow_graph(f.body).pretty_print())
+        print(self.make_control_flow_graph(f.body).pretty_print())
 
         while True:
             aliased_vars = self.address_taken_analysis(body)
 
-            if args.fold_constants:
+            if self.args.fold_constants:
                 post_constant_folding = self.constant_folding(body)
             else:
                 post_constant_folding = body
 
             graph = self.make_control_flow_graph(post_constant_folding)
 
-            if args.eliminate_unreachable_code:
+            if self.args.eliminate_unreachable_code:
                 graph = self.unreachable_code_elimination(graph)
 
-            if args.propagate_copies:
+            if self.args.propagate_copies:
                 graph = self.copy_propagation(graph, aliased_vars)
             # print('\n\n\n')
             # print(graph.pretty_print())
 
-            if args.eliminate_dead_stores:
+            if self.args.eliminate_dead_stores:
                 graph = self.dead_store_elimination(graph, aliased_vars)
 
             optimized_function_body = self.cfg_to_instructions(graph)
@@ -64,6 +67,8 @@ class Optimizer:
 
             body = optimized_function_body
 
+        print('after optimization:')
+        print(self.make_control_flow_graph(body).pretty_print())
         return tacky.Function(f.name, f.is_global, f.params, body)
 
     def address_taken_analysis(self, body):
@@ -156,53 +161,81 @@ class Optimizer:
                     result = self.evaluate_unary_op(op, const, dst_type)
                     new_const = tacky.Constant(result)
                     optimized.append(tacky.Copy(new_const, dst))
+                    if self.args.verbose:
+                        print(f'folded {instr} to {optimized[-1]}')
 
                 case tacky.Binary(op, tacky.Constant(left), tacky.Constant(right), dst):
                     dst_type = self.value_type(dst)
                     result = self.evaluate_binary_op(op, left, right, dst_type)
                     new_const = tacky.Constant(result)
                     optimized.append(tacky.Copy(new_const, dst))
+                    if self.args.verbose:
+                        print(f'folded {instr} to {optimized[-1]}')
+
+                case tacky.AddPtr(ptr, tacky.Constant(index), _scale, dst) if is_zero(index):
+                    # If the index is zero, the scale doesn't matter, so optimize it out
+                    optimized.append(tacky.Copy(ptr, dst))
+                    if self.args.verbose:
+                        print(f'folded {instr} to {optimized[-1]}')
 
                 case tacky.JumpIfZero(tacky.Constant(const), target):
                     if is_zero(const):
                         optimized.append(tacky.Jump(target))
+                        if self.args.verbose:
+                            print(f'folded {instr} to {optimized[-1]}')
 
                 case tacky.JumpIfNotZero(tacky.Constant(const), target):
                     if not is_zero(const):
                         optimized.append(tacky.Jump(target))
+                        if self.args.verbose:
+                            print(f'folded {instr} to {optimized[-1]}')
 
                 case tacky.Truncate(tacky.Constant(const), dst):
                     dst_type = self.value_type(dst)
                     truncated = self.truncate_constant(const, dst_type)
                     optimized.append(tacky.Copy(truncated, dst))
+                    if self.args.verbose:
+                        print(f'folded {instr} to {optimized[-1]}')
 
                 case tacky.SignExtend(tacky.Constant(const), dst):
                     dst_type = self.value_type(dst)
                     extended = self.sign_extend(const, dst_type)
                     optimized.append(tacky.Copy(extended, dst))
+                    if self.args.verbose:
+                        print(f'folded {instr} to {optimized[-1]}')
 
                 case tacky.ZeroExtend(tacky.Constant(const), dst):
                     dst_type = self.value_type(dst)
                     extended = self.zero_extend(const, dst_type)
                     optimized.append(tacky.Copy(extended, dst))
+                    if self.args.verbose:
+                        print(f'folded {instr} to {optimized[-1]}')
 
                 case tacky.DoubleToInt(tacky.Constant(const), dst):
                     dst_type = self.value_type(dst)
                     new_const = self.double_to_int(const, dst_type)
                     optimized.append(tacky.Copy(new_const, dst))
+                    if self.args.verbose:
+                        print(f'folded {instr} to {optimized[-1]}')
 
                 case tacky.DoubleToUInt(tacky.Constant(const), dst):
                     dst_type = self.value_type(dst)
                     new_const = self.double_to_uint(const, dst_type)
                     optimized.append(tacky.Copy(new_const, dst))
+                    if self.args.verbose:
+                        print(f'folded {instr} to {optimized[-1]}')
 
                 case tacky.IntToDouble(tacky.Constant(const), dst):
                     new_const = self.int_to_double(const)
                     optimized.append(tacky.Copy(new_const, dst))
+                    if self.args.verbose:
+                        print(f'folded {instr} to {optimized[-1]}')
 
                 case tacky.UIntToDouble(tacky.Constant(const), dst):
                     new_const = self.uint_to_double(const)
                     optimized.append(tacky.Copy(new_const, dst))
+                    if self.args.verbose:
+                        print(f'folded {instr} to {optimized[-1]}')
 
                 case _:
                     optimized.append(instr)
@@ -474,6 +507,8 @@ class Optimizer:
         to_remove = all_ids - ids_seen
         for id in to_remove:
             if id != cfg.Exit():
+                if self.args.verbose:
+                    print('removing block', graph.nodes_by_id[id].pretty_print())
                 graph.remove_unreachable_node(id)
 
     def _remove_useless_jumps(self, graph):
@@ -498,6 +533,8 @@ class Optimizer:
                 for succ_id in node.successors
             )
             if not keep_jump:
+                if self.args.verbose:
+                    print('removing jump', node.instructions[-1])
                 node.instructions.pop()
 
     def _remove_useless_labels(self, graph):
@@ -522,6 +559,8 @@ class Optimizer:
                 for pred_id in node.predecessors
             )
             if not label_used:
+                if self.args.verbose:
+                    print('removing label', node.instructions[0])
                 node.instructions.pop(0)
 
     def _remove_empty_nodes(self, graph):
@@ -530,10 +569,12 @@ class Optimizer:
         for node in sorted_nodes:
             if node.instructions:
                 continue
+            if self.args.verbose:
+                print('removing empty node')
             graph.remove_empty_node(node.node_id)
 
     def copy_propagation(self, graph, aliased_vars):
-        CopyPropagation(self.symbols, aliased_vars).optimize(graph)
+        CopyPropagation(self.symbols, aliased_vars, self.args).propagate_copies(graph)
         return graph
 
     def dead_store_elimination(self, graph, aliased_vars):
@@ -548,11 +589,12 @@ class Optimizer:
 
 
 class CopyPropagation:
-    def __init__(self, symbols, aliased_vars):
+    def __init__(self, symbols, aliased_vars, args):
         self.symbols = symbols
         self.aliased_vars = aliased_vars
+        self.args = args
 
-    def optimize(self, graph: cfg.Graph):
+    def propagate_copies(self, graph: cfg.Graph):
         ''' this modifies the graph in place '''
         self.find_reaching_copies(graph)
         for block in graph.nodes_in_order():
@@ -589,6 +631,9 @@ class CopyPropagation:
         new_annotations = []
         for (instruction, annotation) in zip(block.instructions, block.annotations):
             rewritten = self.rewrite_instruction(instruction, annotation)
+            if self.args.verbose:
+                if rewritten != instruction:
+                    print(f'rewrote {instruction} as {rewritten}')
             if rewritten is not None:
                 new_instructions.append(rewritten)
                 new_annotations.append(annotation)
