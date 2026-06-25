@@ -445,26 +445,14 @@ class ToTacky:
                     case syntax.UnaryIncrement() | syntax.UnaryDecrement():
                         instructions, inner_result = self.convert_expression(inner)
 
-                        op = self.convert_modifying_op(operator)
                         result_var = self.make_tacky_variable(expr.expr_type)
-
-                        match expr.expr_type:
-                            case syntax.Pointer(inner):
-                                stride = self.get_size(inner)
-                                right = self.make_constant_of_type(stride, syntax.ULong())
-                            case _:
-                                right = self.make_constant_of_type(1, expr.expr_type)
+                        modify = self.make_modify_op(operator, expr.expr_type)
 
                         match inner_result:
                             case PlainOperand(val):
                                 # E.g. ++x
                                 instructions += [
-                                    tacky.Binary(
-                                        operator=op,
-                                        left=val,
-                                        right=right,
-                                        dst=val
-                                    ),
+                                    modify(val, val),
                                     tacky.Copy(val, result_var)
                                 ]
                                 return (instructions, PlainOperand(result_var))
@@ -474,12 +462,7 @@ class ToTacky:
                                 current_value = self.make_tacky_variable(expr.expr_type)
                                 instructions += [
                                     tacky.Load(ptr, current_value),
-                                    tacky.Binary(
-                                        operator=op,
-                                        left=current_value,
-                                        right=right,
-                                        dst=result_var
-                                    ),
+                                    modify(current_value, result_var),
                                     tacky.Store(result_var, ptr)
                                 ]
                                 return (instructions, PlainOperand(result_var))
@@ -488,12 +471,7 @@ class ToTacky:
                                 current_value = self.make_tacky_variable(expr.expr_type)
                                 instructions += [
                                     tacky.CopyFromOffset(tacky.Identifier(base), offset, current_value),
-                                    tacky.Binary(
-                                        operator=op,
-                                        left=current_value,
-                                        right=right,
-                                        dst=result_var
-                                    ),
+                                    modify(current_value, result_var),
                                     tacky.CopyToOffset(result_var, tacky.Identifier(base), offset),
                                 ]
                                 return (instructions, PlainOperand(result_var))
@@ -506,27 +484,15 @@ class ToTacky:
 
             case syntax.Postfix(expr, operator):
                 instructions, inner_result = self.convert_expression(expr)
-                op = self.convert_modifying_op(operator)
                 output_var = self.make_tacky_variable(expr.expr_type)
-
-                match expr.expr_type:
-                    case syntax.Pointer(inner):
-                        stride = self.get_size(inner)
-                        right = self.make_constant_of_type(stride, syntax.ULong())
-                    case _:
-                        right = self.make_constant_of_type(1, expr.expr_type)
+                modify = self.make_modify_op(operator, expr.expr_type)
 
                 match inner_result:
                     case PlainOperand(val):
                         # e.g. x++
                         instructions += [
                             tacky.Copy(val, output_var),
-                            tacky.Binary(
-                                operator=op,
-                                left=output_var,
-                                right=right,
-                                dst=val
-                            ),
+                            modify(output_var, val),
                         ]
                         return (instructions, PlainOperand(output_var))
                     case DereferencedPointer(ptr):
@@ -534,25 +500,16 @@ class ToTacky:
                         result_var = self.make_tacky_variable(expr.expr_type)
                         instructions += [
                             tacky.Load(ptr, output_var),
-                            tacky.Binary(
-                                operator=op,
-                                left=output_var,
-                                right=right,
-                                dst=result_var,
-                            ),
+                            modify(output_var, result_var),
                             tacky.Store(result_var, ptr)
                         ]
                         return (instructions, PlainOperand(output_var))
                     case SubObject(base, offset):
-                        # E.g. `++a.b` where `b` is an integer field inside a struct value `a`.
+                        # E.g. `a.b++` where `b` is an integer field inside a struct value `a`.
+                        result_var = self.make_tacky_variable(expr.expr_type)
                         instructions += [
                             tacky.CopyFromOffset(tacky.Identifier(base), offset, output_var),
-                            tacky.Binary(
-                                operator=op,
-                                left=current_value,
-                                right=right,
-                                dst=result_var
-                            ),
+                            modify(output_var, result_var),
                             tacky.CopyToOffset(result_var, tacky.Identifier(base), offset),
                         ]
                         return (instructions, PlainOperand(output_var))
@@ -976,6 +933,26 @@ class ToTacky:
                 return tacky.BinarySubtract()
             case _:
                 raise Exception(f'not a modifying operator {op}')
+
+    def make_modify_op(self, operator: syntax.UnaryOp, expr_type: syntax.Type):
+        """Build a factory for the increment/decrement step of ++/--.
+
+        For pointers we emit an AddPtr (with a constant index of +/-1) so that
+        the address arithmetic lowers to a single lea rather than an integer add.
+        For every other type we emit a plain Binary add/subtract of 1.
+        """
+        match expr_type:
+            case syntax.Pointer(referenced):
+                stride = self.get_size(referenced)
+                index = 1 if isinstance(operator, syntax.UnaryIncrement) else -1
+                ptr_index = tacky.Constant(tacky.ConstLong(index))
+                return lambda src, dst: tacky.AddPtr(src, ptr_index, stride, dst)
+            case _:
+                op = self.convert_modifying_op(operator)
+                right = self.make_constant_of_type(1, expr_type)
+                return lambda src, dst: tacky.Binary(
+                    operator=op, left=src, right=right, dst=dst
+                )
 
     def get_size(self, type: syntax.Type) -> int:
         return typeconversion.type_size(type, self.types)
