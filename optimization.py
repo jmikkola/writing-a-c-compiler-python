@@ -212,6 +212,8 @@ class Optimizer:
         match value:
             case tacky.Constant(tacky.ConstChar(value)):
                 return syntax.Char()
+            case tacky.Constant(tacky.ConstUChar(value)):
+                return syntax.UChar()
             case tacky.Constant(tacky.ConstInt(value)):
                 return syntax.Int()
             case tacky.Constant(tacky.ConstLong(value)):
@@ -279,7 +281,7 @@ class Optimizer:
                 return tacky.ConstChar(value)
             case syntax.UChar():
                 value = self.to_unsigned(value, 1)
-                return tacky.ConstChar(value)
+                return tacky.ConstUChar(value)
             case syntax.Int():
                 value = self.to_signed(value, 4)
                 return tacky.ConstInt(value)
@@ -768,6 +770,8 @@ class CopyPropagation:
         match value:
             case tacky.Constant(tacky.ConstChar(value)):
                 return syntax.Char()
+            case tacky.Constant(tacky.ConstUChar(value)):
+                return syntax.UChar()
             case tacky.Constant(tacky.ConstInt(value)):
                 return syntax.Int()
             case tacky.Constant(tacky.ConstLong(value)):

@@ -1389,6 +1389,8 @@ class Codegen:
         match value:
             case tacky.Constant(tacky.ConstChar(value)):
                 return syntax.Char()
+            case tacky.Constant(tacky.ConstUChar(value)):
+                return syntax.UChar()
             case tacky.Constant(tacky.ConstInt(value)):
                 return syntax.Int()
             case tacky.Constant(tacky.ConstLong(value)):

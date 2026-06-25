@@ -173,6 +173,10 @@ class ConstChar(Const, namedtuple('ConstChar', ['value'])):
     pass
 
 
+class ConstUChar(Const, namedtuple('ConstUChar', ['value'])):
+    pass
+
+
 class ConstInt(Const, namedtuple('ConstInt', ['value'])):
     pass
 
