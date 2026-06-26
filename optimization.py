@@ -991,8 +991,10 @@ class DeadStores:
                     current_live_variables = self.update(current_live_variables, dst, left, right)
                 case tacky.Copy(src, dst):
                     current_live_variables = self.update(current_live_variables, dst, src)
-                case tacky.GetAddress(src, dst):
-                    current_live_variables = self.update(current_live_variables, dst, src)
+                case tacky.GetAddress(_src, dst):
+                    # Getting the address of x doesn't make x live (only
+                    # potential writes to pointers do)
+                    current_live_variables = self.update(current_live_variables, dst)
                 case tacky.Load(src, dst):
                     current_live_variables = self.update(current_live_variables, dst, src)
                     # this reads the value at *src. We don't know what variable
