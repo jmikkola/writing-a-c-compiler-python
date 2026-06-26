@@ -1002,8 +1002,8 @@ class DeadStores:
                 case tacky.Store(src, dst):
                     # this generates dst because it reads the pointer out of dst
                     current_live_variables = self.add(current_live_variables, src, dst)
-                case tacky.AddPtr(ptr, _index, _scale, dst):
-                    current_live_variables = self.update(current_live_variables, dst, ptr)
+                case tacky.AddPtr(ptr, index, _scale, dst):
+                    current_live_variables = self.update(current_live_variables, dst, ptr, index)
                 case tacky.CopyToOffset(src, dst, _offset):
                     # this doesn't kill dst because other offsets in it are still live
                     current_live_variables = self.add(current_live_variables, src)
