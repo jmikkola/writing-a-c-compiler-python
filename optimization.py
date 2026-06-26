@@ -372,7 +372,12 @@ class Optimizer:
             case tacky.BinaryDivide():
               if dst_type == syntax.Double():
                   if is_zero(right):
-                      value = float('nan')
+                      if is_zero(left):
+                          value = float('-nan')
+                      elif (math.copysign(1, left.value) * math.copysign(1, right.value)) < 0:
+                          value = float('-inf')
+                      else:
+                          value = float('inf')
                   else:
                       value = left.value / right.value
               else:
@@ -393,6 +398,8 @@ class Optimizer:
                     # Python's % is mod, C's % is remainder
                     if value < 0:
                         value += abs(right.value)
+                    elif left.value < 0:
+                        value -= abs(right.value)
             case tacky.BitAnd():
                 value = left.value & right.value
             case tacky.BitOr():
