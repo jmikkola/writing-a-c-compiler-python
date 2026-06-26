@@ -114,7 +114,7 @@ class Load(Instruction, namedtuple('Load', ['src_ptr', 'dst'])):
 
 class Store(Instruction, namedtuple('Store', ['src', 'dst_ptr'])):
     def get_dst(self):
-        return self.dst
+        return self.dst_ptr
 
 
 class AddPtr(Instruction, namedtuple('AddPtr', ['ptr', 'index', 'scale', 'dst'])):

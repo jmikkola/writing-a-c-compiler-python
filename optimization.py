@@ -901,7 +901,6 @@ class DeadStores:
             if self.is_dead_store(block, i):
                 if self.args.verbose:
                     print('removing instruction', block.instructions[i], block.annotations[i])
-                    print('dst was', block.instructions[i].get_dst())
                 block.remove_instruction(i)
 
     def is_dead_store(self, block, i):
@@ -994,12 +993,18 @@ class DeadStores:
                     current_live_variables = self.update(current_live_variables, dst, src)
                 case tacky.Load(src, dst):
                     current_live_variables = self.update(current_live_variables, dst, src)
+                    # this reads the value at *src. We don't know what variable
+                    # that might be, so assume that any aliased var could have
+                    # been read.
+                    current_live_variables |= self.aliased_vars
                 case tacky.Store(src, dst):
-                    current_live_variables = self.update(current_live_variables, dst, src)
+                    # this generates dst because it reads the pointer out of dst
+                    current_live_variables = self.add(current_live_variables, src, dst)
                 case tacky.AddPtr(ptr, _index, _scale, dst):
                     current_live_variables = self.update(current_live_variables, dst, ptr)
                 case tacky.CopyToOffset(src, dst, _offset):
-                    current_live_variables = self.update(current_live_variables, dst, src)
+                    # this doesn't kill dst because other offsets in it are still live
+                    current_live_variables = self.add(current_live_variables, src)
                 case tacky.CopyFromOffset(src, _offset, dst):
                     current_live_variables = self.update(current_live_variables, dst, src)
                 case tacky.Jump(_target):
@@ -1022,10 +1027,11 @@ class DeadStores:
 
         block.block_annotation = current_live_variables
 
-    def add(self, current_live_variables, src):
+    def add(self, current_live_variables, *srcs):
         updated = current_live_variables.copy()
-        if isinstance(src, tacky.Identifier):
-            updated.add(src.name)
+        for src in srcs:
+            if isinstance(src, tacky.Identifier):
+                updated.add(src.name)
         return updated
 
     def update(self, current_live_variables, dst, *srcs):
