@@ -35,7 +35,8 @@ class Optimizer:
         if not body:
             return f
 
-        print(self.make_control_flow_graph(f.body).pretty_print())
+        if self.args.verbose:
+            print(self.make_control_flow_graph(f.body).pretty_print())
 
         while True:
             aliased_vars = self.address_taken_analysis(body)
@@ -67,8 +68,9 @@ class Optimizer:
 
             body = optimized_function_body
 
-        print('after optimization:')
-        print(self.make_control_flow_graph(body).pretty_print())
+        if self.args.verbose:
+            print('after optimization:')
+            print(self.make_control_flow_graph(body).pretty_print())
         return tacky.Function(f.name, f.is_global, f.params, body)
 
     def address_taken_analysis(self, body):
@@ -578,7 +580,7 @@ class Optimizer:
         return graph
 
     def dead_store_elimination(self, graph, aliased_vars):
-        # TODO
+        DeadStores(self.symbols, aliased_vars, self.args).eliminate_dead_stores(graph)
         return graph
 
     def cfg_to_instructions(self, graph):
@@ -880,6 +882,159 @@ class CopyPropagation:
                 return name in self.aliased_vars
             case _:
                 raise Exception(f'unhandled value type {value}')
+
+
+class DeadStores:
+    def __init__(self, symbols, aliased_vars, args):
+        self.symbols = symbols
+        self.aliased_vars = aliased_vars
+        self.args = args
+
+    def eliminate_dead_stores(self, graph):
+        self.compute_dead_stores(graph)
+        nodes_in_order = graph.nodes_in_order()
+        for block in nodes_in_order:
+            self.remove_dead_stores(block)
+
+    def remove_dead_stores(self, block):
+        for i in range(len(block.instructions)-1, -1, -1):
+            if self.is_dead_store(block, i):
+                if self.args.verbose:
+                    print('removing instruction', block.instructions[i], block.annotations[i])
+                    print('dst was', block.instructions[i].get_dst())
+                block.remove_instruction(i)
+
+    def is_dead_store(self, block, i):
+        instr = block.instructions[i]
+        live_variables = block.annotations[i]
+
+        match instr:
+            case tacky.Call():
+                return False
+            case _:
+                dst = instr.get_dst()
+                if dst is not None:
+                    return dst.name not in live_variables
+
+        return False
+
+    def compute_dead_stores(self, graph):
+        all_static_variables = set(
+            var for var in self.aliased_vars
+            if var in self.symbols and isinstance(self.symbols[var].attrs, symbol.StaticAttr)
+        )
+
+        # Set up provisional annotations
+        nodes_in_order = graph.nodes_in_order()
+        for block in nodes_in_order:
+            block.block_annotation = set()
+
+        worklist = [n.node_id for n in nodes_in_order]
+        while worklist:
+            block_id = worklist.pop(0)
+            block = graph.nodes_by_id[block_id]
+            old_annotation = block.block_annotation
+            end_live_variables = self.meet(graph, block, all_static_variables)
+            self.transfer(block, end_live_variables, all_static_variables)
+            if block.block_annotation != old_annotation:
+                for predecessor_id in block.predecessors:
+                    match predecessor_id:
+                        case cfg.Entry():
+                            continue
+                        case cfg.BlockID():
+                            if predecessor_id not in worklist:
+                                worklist.append(predecessor_id)
+                        case cfg.Exit():
+                            raise Exception('blocks cannot have Exit as a predeccessor')
+
+    def meet(self, graph, block, all_static_variables):
+        live_vars = set()
+
+        for succ_id in block.successors:
+            match succ_id:
+                case cfg.Exit():
+                    live_vars |= all_static_variables
+                case cfg.Entry():
+                    raise Exception('malformed cfg')
+                case cfg.BlockID():
+                    successor = graph.nodes_by_id[succ_id]
+                    live_vars |= successor.block_annotation
+
+        return live_vars
+
+    def transfer(self, block, end_live_variables: set, all_static_variables: set):
+        current_live_variables = end_live_variables
+
+        for i in range(len(block.instructions)-1, -1, -1):
+            block.annotations[i] = current_live_variables
+
+            instr = block.instructions[i]
+            match instr:
+                case tacky.SignExtend(src, dst):
+                    current_live_variables = self.update(current_live_variables, dst, src)
+                case tacky.Truncate(src, dst):
+                    current_live_variables = self.update(current_live_variables, dst, src)
+                case tacky.ZeroExtend(src, dst):
+                    current_live_variables = self.update(current_live_variables, dst, src)
+                case tacky.DoubleToInt(src, dst):
+                    current_live_variables = self.update(current_live_variables, dst, src)
+                case tacky.DoubleToUInt(src, dst):
+                    current_live_variables = self.update(current_live_variables, dst, src)
+                case tacky.IntToDouble(src, dst):
+                    current_live_variables = self.update(current_live_variables, dst, src)
+                case tacky.UIntToDouble(src, dst):
+                    current_live_variables = self.update(current_live_variables, dst, src)
+                case tacky.Unary(_op, src, dst):
+                    current_live_variables = self.update(current_live_variables, dst, src)
+                case tacky.Binary(_op, left, right, dst):
+                    current_live_variables = self.update(current_live_variables, dst, left, right)
+                case tacky.Copy(src, dst):
+                    current_live_variables = self.update(current_live_variables, dst, src)
+                case tacky.GetAddress(src, dst):
+                    current_live_variables = self.update(current_live_variables, dst, src)
+                case tacky.Load(src, dst):
+                    current_live_variables = self.update(current_live_variables, dst, src)
+                case tacky.Store(src, dst):
+                    current_live_variables = self.update(current_live_variables, dst, src)
+                case tacky.AddPtr(ptr, _index, _scale, dst):
+                    current_live_variables = self.update(current_live_variables, dst, ptr)
+                case tacky.CopyToOffset(src, dst, _offset):
+                    current_live_variables = self.update(current_live_variables, dst, src)
+                case tacky.CopyFromOffset(src, _offset, dst):
+                    current_live_variables = self.update(current_live_variables, dst, src)
+                case tacky.Jump(_target):
+                    pass
+                case tacky.JumpIfZero(condition, _target):
+                    current_live_variables = self.add(current_live_variables, condition)
+                case tacky.JumpIfNotZero(condition, _target):
+                    current_live_variables = self.add(current_live_variables, condition)
+                case tacky.Label(_name):
+                    pass
+                case tacky.Call(_func_name, arg_vals, dst):
+                    current_live_variables = self.update(current_live_variables, dst, *arg_vals)
+                    current_live_variables |= all_static_variables
+                case tacky.Return(None):
+                    pass
+                case tacky.Return(val):
+                    current_live_variables = self.add(current_live_variables, val)
+                case _:
+                    raise Exception(f'unhandled instruction {instr}')
+
+        block.block_annotation = current_live_variables
+
+    def add(self, current_live_variables, src):
+        updated = current_live_variables.copy()
+        if isinstance(src, tacky.Identifier):
+            updated.add(src.name)
+        return updated
+
+    def update(self, current_live_variables, dst, *srcs):
+        assert(isinstance(dst, tacky.Identifier))
+        updated = current_live_variables - set([dst.name])
+        for src in srcs:
+            if isinstance(src, tacky.Identifier):
+                updated.add(src.name)
+        return updated
 
 
 def is_zero(const: tacky.Const):

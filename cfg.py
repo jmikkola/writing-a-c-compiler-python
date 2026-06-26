@@ -74,6 +74,10 @@ class BasicBlock:
     def annotate(self, i, annotation):
         self.annotations[i] = annotation
 
+    def remove_instruction(self, idx):
+        self.instructions.pop(idx)
+        self.annotations.pop(idx)
+
 
 @dataclass
 class EntryNode:

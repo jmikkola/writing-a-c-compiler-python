@@ -48,59 +48,73 @@ class Instruction:
 
 class Return(Instruction, namedtuple('Return', ['val'])):
     # val is optional
-    pass
+    def get_dst(self):
+        return None
 
 
 class SignExtend(Instruction, namedtuple('SignExtend', ['src', 'dst'])):
-    pass
+    def get_dst(self):
+        return self.dst
 
 
 class Truncate(Instruction, namedtuple('Truncate', ['src', 'dst'])):
-    pass
+    def get_dst(self):
+        return self.dst
 
 
 class ZeroExtend(Instruction, namedtuple('ZeroExtend', ['src', 'dst'])):
-    pass
+    def get_dst(self):
+        return self.dst
 
 
 class DoubleToInt(Instruction, namedtuple('DoubleToInt', ['src', 'dst'])):
-    pass
+    def get_dst(self):
+        return self.dst
 
 
 class DoubleToUInt(Instruction, namedtuple('DoubleToUInt', ['src', 'dst'])):
-    pass
+    def get_dst(self):
+        return self.dst
 
 
 class IntToDouble(Instruction, namedtuple('IntToDouble', ['src', 'dst'])):
-    pass
+    def get_dst(self):
+        return self.dst
 
 
 class UIntToDouble(Instruction, namedtuple('UIntToDouble', ['src', 'dst'])):
-    pass
+    def get_dst(self):
+        return self.dst
 
 
 class Unary(Instruction, namedtuple('Unary', ['unary_operator', 'src', 'dst'])):
-    pass
+    def get_dst(self):
+        return self.dst
 
 
 class Binary(Instruction, namedtuple('Binary', ['operator', 'left', 'right', 'dst'])):
-    pass
+    def get_dst(self):
+        return self.dst
 
 
 class Copy(Instruction, namedtuple('Copy', ['src', 'dst'])):
-    pass
+    def get_dst(self):
+        return self.dst
 
 
 class GetAddress(Instruction, namedtuple('GetAddress', ['src', 'dst'])):
-    pass
+    def get_dst(self):
+        return self.dst
 
 
 class Load(Instruction, namedtuple('Load', ['src_ptr', 'dst'])):
-    pass
+    def get_dst(self):
+        return self.dst
 
 
 class Store(Instruction, namedtuple('Store', ['src', 'dst_ptr'])):
-    pass
+    def get_dst(self):
+        return self.dst
 
 
 class AddPtr(Instruction, namedtuple('AddPtr', ['ptr', 'index', 'scale', 'dst'])):
@@ -110,36 +124,44 @@ class AddPtr(Instruction, namedtuple('AddPtr', ['ptr', 'index', 'scale', 'dst'])
     scale: int
     dst: value
     '''
-    pass
+    def get_dst(self):
+        return self.dst
 
 
 class CopyToOffset(Instruction, namedtuple('CopyToOffset', ['src', 'dst', 'offset'])):
-    pass
+    def get_dst(self):
+        return self.dst
 
 
 class CopyFromOffset(Instruction, namedtuple('CopyFromOffset', ['src', 'offset', 'dst'])):
-    pass
+    def get_dst(self):
+        return self.dst
 
 
 class Jump(Instruction, namedtuple('Jump', ['target'])):
-    pass
+    def get_dst(self):
+        return None
 
 
 class JumpIfZero(Instruction, namedtuple('JumpIfZero', ['condition', 'target'])):
-    pass
+    def get_dst(self):
+        return None
 
 
 class JumpIfNotZero(Instruction, namedtuple('JumpIfNotZero', ['condition', 'target'])):
-    pass
+    def get_dst(self):
+        return None
 
 
 class Label(Instruction, namedtuple('Label', ['name'])):
-    pass
+    def get_dst(self):
+        return None
 
 
 class Call(Instruction, namedtuple('Call', ['func_name', 'arg_vals', 'dst'])):
     # dst is optional
-    pass
+    def get_dst(self):
+        return self.dst
 
 
 ##
