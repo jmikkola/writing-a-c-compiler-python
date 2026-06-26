@@ -936,7 +936,7 @@ class DeadStores:
             block = graph.nodes_by_id[block_id]
             old_annotation = block.block_annotation
             end_live_variables = self.meet(graph, block, all_static_variables)
-            self.transfer(block, end_live_variables, all_static_variables)
+            self.transfer(block, end_live_variables)
             if block.block_annotation != old_annotation:
                 for predecessor_id in block.predecessors:
                     match predecessor_id:
@@ -963,7 +963,7 @@ class DeadStores:
 
         return live_vars
 
-    def transfer(self, block, end_live_variables: set, all_static_variables: set):
+    def transfer(self, block, end_live_variables: set):
         current_live_variables = end_live_variables
 
         for i in range(len(block.instructions)-1, -1, -1):
@@ -1019,7 +1019,7 @@ class DeadStores:
                     pass
                 case tacky.Call(_func_name, arg_vals, dst):
                     current_live_variables = self.update(current_live_variables, dst, *arg_vals)
-                    current_live_variables |= all_static_variables
+                    current_live_variables |= self.aliased_vars
                 case tacky.Return(None):
                     pass
                 case tacky.Return(val):
