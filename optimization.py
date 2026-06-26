@@ -910,6 +910,8 @@ class DeadStores:
         match instr:
             case tacky.Call():
                 return False
+            case tacky.Store():
+                return False
             case _:
                 dst = instr.get_dst()
                 if dst is not None:
@@ -1035,8 +1037,14 @@ class DeadStores:
         return updated
 
     def update(self, current_live_variables, dst, *srcs):
-        assert(isinstance(dst, tacky.Identifier))
-        updated = current_live_variables - set([dst.name])
+        match dst:
+            case tacky.Identifier(name):
+                updated = current_live_variables - set([name])
+            case None:
+                updated = current_live_variables.copy()
+            case _:
+                raise Exception(f'dst must be a tacky.Identifier')
+
         for src in srcs:
             if isinstance(src, tacky.Identifier):
                 updated.add(src.name)
