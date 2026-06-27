@@ -192,6 +192,18 @@ class Optimizer:
                         if self.args.verbose:
                             print(f'folded {instr} to {optimized[-1]}')
 
+                case tacky.Copy(tacky.Constant(src), dst):
+                    # Treat copies that change the type (e.g. from signed to
+                    # unsigned) like the respective conversion operation
+                    src_type = self.value_type(tacky.Constant(src))
+                    dst_type = self.value_type(dst)
+                    if src_type == dst_type:
+                        # Don't change it, let copy propagation deal with it
+                        optimized.append(instr)
+                    else:
+                        converted = tacky.Constant(self.as_type(src.value, dst_type))
+                        optimized.append(tacky.Copy(converted, dst))
+
                 case tacky.Truncate(tacky.Constant(const), dst):
                     dst_type = self.value_type(dst)
                     truncated = self.truncate_constant(const, dst_type)
