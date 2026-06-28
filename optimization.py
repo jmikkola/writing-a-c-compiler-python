@@ -39,6 +39,8 @@ class Optimizer:
             print(self.make_control_flow_graph(f.body).pretty_print())
 
         while True:
+            if self.args.verbose:
+                print()
             aliased_vars = self.address_taken_analysis(body)
 
             if self.args.fold_constants:
@@ -53,11 +55,13 @@ class Optimizer:
 
             if self.args.propagate_copies:
                 graph = self.copy_propagation(graph, aliased_vars)
-            # print('\n\n\n')
-            # print(graph.pretty_print())
 
             if self.args.eliminate_dead_stores:
                 graph = self.dead_store_elimination(graph, aliased_vars)
+
+            if self.args.verbose:
+                print('\n\n\n')
+                print(graph.pretty_print())
 
             optimized_function_body = self.cfg_to_instructions(graph)
 

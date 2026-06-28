@@ -57,6 +57,8 @@ class BasicBlock:
         return '\n'.join(lines)
 
     def show_annotation(self, copy):
+        if isinstance(copy, str):
+            return copy
         src = self.show_op(copy.src)
         dst = self.show_op(copy.dst)
         return f'{src}->{dst}'
