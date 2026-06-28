@@ -297,17 +297,22 @@ class Optimizer:
 
     def double_to_int(self, const: tacky.Const, dst_type: syntax.Type) -> tacky.Constant:
         d = const.value
-        # Doesn't handle NaN or out of bounds values
-        value = int(d)
+        if math.isnan(d):
+            nbits = 8 * typeconversion.type_size(dst_type, None)
+            value = -1 * (1 << (nbits - 1))
+        else:
+            value = int(d)
         result = self.as_type(value, dst_type)
         return tacky.Constant(result)
 
     def double_to_uint(self, const: tacky.Const, dst_type: syntax.Type) -> tacky.Constant:
         d = const.value
-        if d < 0:
-            d = 0
-        # Doesn't handle NaN or out of bounds values
-        value = int(d)
+        if math.isnan(d):
+            value = 0
+        else:
+            if d < 0:
+                d = 0
+            value = int(d)
         result = self.as_type(value, dst_type)
         return tacky.Constant(result)
 
