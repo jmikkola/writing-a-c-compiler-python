@@ -415,11 +415,9 @@ class Optimizer:
                 if is_zero(right):
                     value = 0
                 else:
-                    value = left.value % right.value
                     # Python's % is mod, C's % is remainder
-                    if value < 0:
-                        value += abs(right.value)
-                    elif left.value < 0:
+                    value = left.value % abs(right.value)
+                    if left.value < 0:
                         value -= abs(right.value)
             case tacky.BitAnd():
                 value = left.value & right.value
