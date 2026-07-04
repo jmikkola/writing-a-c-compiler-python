@@ -781,6 +781,10 @@ class ToTacky:
 
     def convert_constant(self, constant: syntax.Const) -> tacky.Const:
         match constant:
+            case syntax.ConstChar(x):
+                return tacky.ConstChar(x)
+            case syntax.ConstUChar(x):
+                return tacky.ConstUChar(x)
             case syntax.ConstInt(x):
                 return tacky.ConstInt(x)
             case syntax.ConstLong(x):

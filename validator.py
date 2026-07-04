@@ -1052,9 +1052,9 @@ class Typecheck:
                 value = self.zero_initializer(union_def.members[0].type)
                 return syntax.CompoundInit([value]).set_type(target_type)
             case syntax.Char() | syntax.SChar():
-                value = syntax.ConstInt(0)
+                value = syntax.ConstChar(0)
             case syntax.UChar():
-                value = syntax.ConstUInt(0)
+                value = syntax.ConstUChar(0)
             case syntax.Int():
                 value = syntax.ConstInt(0)
             case syntax.UInt():
