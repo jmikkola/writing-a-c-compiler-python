@@ -1592,6 +1592,12 @@ class Typecheck:
                         # Return one expression that performs both statements
                         expr = syntax.Sequence(get_ptr, assign)
                         return expr.set_type(left_type)
+                    case syntax.Dot() if safe_to_duplicate_lhs(lhs):
+                        new_rhs = syntax.Binary(op, lhs, rhs)
+                        typed_rhs = self.typecheck_and_convert(new_rhs)
+                        converted_rhs = self.convert_by_assignment(typed_rhs, left_type)
+                        expr = syntax.Assignment(lhs, converted_rhs, None)
+                        return expr.set_type(left_type)
                     case syntax.Dot():
                         # E.g. a.b <op>= <expr>
                         # Convert it to:
@@ -2129,6 +2135,22 @@ class Typecheck:
                 return self.is_complete(t)
             case _:
                 return False
+
+
+def safe_to_duplicate_lhs(expression: syntax.Expression) -> bool:
+    match expression:
+        case syntax.Variable():
+            return True
+        case syntax.Dereference():
+            return False
+        case syntax.Subscript():
+            return False
+        case syntax.Arrow():
+            return False
+        case syntax.Dot(left, _):
+            return safe_to_duplicate_lhs(left)
+        case _:
+            raise Exception(f'unexpected expression for an lhs: {expression}')
 
 
 def is_lvalue(expr: syntax.Expression) -> bool:
