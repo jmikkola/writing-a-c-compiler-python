@@ -1,1 +1,0 @@
-Some tests break when a combination of optimizations are enabled, e.g. ./compiler.sh --fold-constants --propagate-copies /home/jeremy/Projects/pl/writing-a-c-compiler-tests/tests/chapter_6/valid/ternary.c
