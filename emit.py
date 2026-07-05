@@ -27,6 +27,10 @@ REGISTERS = {
     'R9': Register('%r9b', '%r9d', '%r9'),
     'R10': Register('%r10b', '%r10d', '%r10'),
     'R11': Register('%r11b', '%r11d', '%r11'),
+    'R12': Register('%r12b', '%r12d', '%r12'),
+    'R13': Register('%r13b', '%r13d', '%r13'),
+    'R14': Register('%r14b', '%r14d', '%r14'),
+    'R15': Register('%r15b', '%r15d', '%r14'),
 }
 
 
