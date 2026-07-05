@@ -45,6 +45,8 @@ class Codegen:
         self.double_registers = ['XMM0', 'XMM1', 'XMM2', 'XMM3', 'XMM4', 'XMM5', 'XMM6', 'XMM7']
 
         self._doubles = {}
+        # function_name: (arg registers, return registers)
+        self._function_classifications = self.classify_functions()
 
     def new_const_label(self, name):
         return self.label_gen.new_label('_const_' + name)
@@ -904,6 +906,97 @@ class Codegen:
             src = assembly.Immediate(truncated)
         dst = self.convert_operand(instr.dst)
         return [assembly.Mov(dst_type, src, dst)]
+
+    def classify_functions(self):
+        classifications = {}
+        for (name, sym) in self.symbols.items():
+            attrs = sym.attrs
+            match attrs:
+                case symbol.FuncAttr():
+                    classifications[name] = self.classify_function(sym.type)
+                    print(f'classified function {name}')
+                    print('  ', classifications[name])
+                case _:
+                    # Ignore non-functions
+                    pass
+        return classifications
+
+    def classify_function(self, t):
+        assert(isinstance(t, syntax.Func))
+        ret_registers, in_memory = self.classify_return_type(t.ret)
+        arg_registers = self.classify_param_types(t.params, in_memory)
+        return (arg_registers, ret_registers)
+
+    def classify_return_type(self, ret_t):
+        # Handle scalar types
+        if ret_t == syntax.Double():
+            return (['XMM0'], False)
+        elif is_scalar(ret_t):
+            return (['AX'], False)
+
+        # handle structs and unions
+        classes = self.classify_type(ret_t)
+        struct_size = self.types[ret_t.tag].size
+        if classes[0] == MemClass.MEMORY:
+            return ([], True)
+
+        ret_registers = []
+        ints_used = 0
+        doubles_used = 0
+        for c in classes:
+            match c:
+                case MemClass.INTEGER:
+                    ret_registers.append(['AX', 'DX'][ints_used])
+                    ints_used += 1
+                case MemClass.SSE:
+                    ret_registers.append(['XMM0', 'XMM1'][doubles_used])
+                    doubles_used += 1
+                case _:
+                    raise Exception('bug')
+        return (ret_registers, False)
+
+    def classify_param_types(self, types, return_in_memory):
+        arg_registers = []
+
+        ints_used = 1 if return_in_memory else 0
+        doubles_used = 0
+        for t in types:
+            if t == syntax.Double():
+                if doubles_used < len(self.double_registers):
+                    arg_registers.append(self.double_registers[doubles_used])
+                doubles_used += 1
+            elif is_scalar(t):
+                if ints_used < len(self.arg_registers):
+                    arg_registers.append(self.arg_registers[ints_used])
+                ints_used += 1
+            else:
+                # A struct or union type
+                classes = self.classify_type(t)
+                if classes[0] != MemClass.MEMORY:
+                    tentative_registers = []
+                    tentative_ints = 0
+                    tentative_doubles = 0
+                    for c in classes:
+                        if c == MemClass.SSE:
+                            tentative_registers.append(
+                                self.double_registers[doubles_used + tentative_doubles]
+                            )
+                            tentative_doubles += 1
+                        elif c == MemClass.INTEGER:
+                            tentative_registers.append(
+                                self.arg_registers[ints_used + tentative_ints]
+                            )
+                            tentative_ints += 1
+                        else:
+                            raise Exception('bug')
+                    has_space_for_doubles = (doubles_used + tentative_doubles) < len(self.double_registers)
+                    has_space_for_ints = (ints_used + tentative_ints) < len(self.arg_registers)
+                    if space_for_ints and space_for_doubles:
+                        doubles_used += tentative_doubles
+                        ints_used += tentative_ints
+                        arg_registers.extend(tentative_registers)
+
+        return arg_registers
 
     def classify_parameters(self, values: list, return_in_memory):
         '''Decide whether each value passed to a function goes in an integer
