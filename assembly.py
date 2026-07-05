@@ -103,6 +103,10 @@ class Push(Instruction, namedtuple('Push', ['operand'])):
     pass
 
 
+class Pop(Instruction, namedtuple('Pop', ['reg'])):
+    pass
+
+
 class Call(Instruction, namedtuple('Call', ['identifier'])):
     pass
 
