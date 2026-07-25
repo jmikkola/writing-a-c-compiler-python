@@ -28,7 +28,33 @@ class AllocateRegisters:
         return interference_graph
 
     def base_graph(self) -> intf_graph.Graph:
-        pass
+        # Add all registers besides RSP and RBP (which aren't used for expressions) and R10 and R11
+        # (which are used in spilling to the stack).
+        all_registers = [
+            'RAX', 'RBX', 'RCX', 'RDX', 'RDI', 'RSI',
+            'R8', 'R9', 'R12', 'R13', 'R14', 'R15',
+        ]
+
+        interference_graph = intf_graph.Graph(nodes=[])
+        for (i, reg) in enumerate(all_registers):
+            # Add the node for the current register
+            node = intf_graph.Node(
+                operand_id=reg,
+                neighbors=[],
+                spill_cost=0.0,
+                color=None,
+                pruned=False,
+            )
+            interference_graph.add_node(node)
+
+            # Add neighbors
+            for j in range(i):
+                neighbor = all_registers[j]
+                # Add edges in both directions
+                node.add_neighbor(neighbor)
+                interference_graph.get_node(neighbor).add_neighbor(reg)
+
+        return interference_graph
 
     def add_pseudoregisters(self, interference_graph: intf_graph.Graph, instructions):
         pass
