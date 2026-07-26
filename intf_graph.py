@@ -11,6 +11,8 @@ class Node:
     pruned: bool
 
     def add_neighbor(self, neighbor):
+        if neighbor in self.neighbors:
+            return
         self.neighbors.append(neighbor)
 
 
@@ -18,13 +20,24 @@ class Node:
 class Graph:
     nodes: list
 
-    def add_node(self, node):
+    def add_node(self, operand_id):
+        node = Node(
+            operand_id=operand_id,
+            neighbors=[],
+            spill_cost=0.0,
+            color=None,
+            pruned=False,
+        )
         self.nodes.append(node)
 
     def get_node(self, operand_id):
         for node in self.nodes:
             if node.operand_id == operand_id:
                 return node
+
+    def add_edge(self, a, b):
+        self.get_node(a).add_neighbor(b)
+        self.get_node(b).add_neighbor(a)
 
     def color_graph(self):
         pass

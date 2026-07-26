@@ -38,21 +38,12 @@ class AllocateRegisters:
         interference_graph = intf_graph.Graph(nodes=[])
         for (i, reg) in enumerate(all_registers):
             # Add the node for the current register
-            node = intf_graph.Node(
-                operand_id=reg,
-                neighbors=[],
-                spill_cost=0.0,
-                color=None,
-                pruned=False,
-            )
-            interference_graph.add_node(node)
+            interference_graph.add_node(reg)
 
             # Add neighbors
             for j in range(i):
                 neighbor = all_registers[j]
-                # Add edges in both directions
-                node.add_neighbor(neighbor)
-                interference_graph.get_node(neighbor).add_neighbor(reg)
+                interference_graph.add_edge(reg, neighbor)
 
         return interference_graph
 
