@@ -48,7 +48,27 @@ class AllocateRegisters:
         return interference_graph
 
     def add_pseudoregisters(self, interference_graph: intf_graph.Graph, instructions):
-        pass
+        for instr in instructions:
+            for operand in instr.operands():
+                self.add_pseudoregister(self, interference_graph, operand)
+
+    def add_pseudoregister(self, interference_graph: intf_graph.Graph, operand: assembly.Operand):
+        match operand:
+            case assembly.Immediate():
+                pass
+            case assembly.Register():
+                pass
+            case assembly.Indexed():
+                pass
+            case assembly.Pseudo(name):
+                interference_graph.add_node(name)
+            case assembly.PseudoMem():
+                # things that you access an offset into can't live in a register
+                pass
+            case assembly.Memory():
+                pass
+            case _:
+                raise Exception(f'unhandled operand type: {operand}')
 
     def make_control_flow_graph(self, instructions):
         pass
