@@ -77,87 +77,110 @@ class Instruction:
     def pretty_print(self):
         return '  ' + str(self)
 
+    def operands(self):
+        raise NotImplementedError()
+
 
 class Ret(Instruction, namedtuple('Ret', [])):
-    pass
+    def operands(self):
+        return []
 
 
 class Mov(Instruction, namedtuple('Mov', ['assembly_type', 'src', 'dst'])):
-    pass
+    def operands(self):
+        return [self.src, self.dst]
 
 
 class Movsx(Instruction, namedtuple('Movsx', ['src_type', 'dst_type', 'src', 'dst'])):
-    pass
+    def operands(self):
+        return [self.src, self.dst]
 
 
 class MovZeroExtend(Instruction, namedtuple('MovZeroExtend', ['src_type', 'dst_type', 'src', 'dst'])):
     # src_type and dst_type are assembly.AssemblyType values
-    pass
+    def operands(self):
+        return [self.src, self.dst]
 
 
 class Lea(Instruction, namedtuple('Lea', ['src', 'dst'])):
-    pass
+    def operands(self):
+        return [self.src, self.dst]
 
 
 class Push(Instruction, namedtuple('Push', ['operand'])):
-    pass
+    def operand(self):
+        return [self.operand]
 
 
 class Pop(Instruction, namedtuple('Pop', ['reg'])):
-    pass
+    def operands(self):
+        return []
 
 
 class Call(Instruction, namedtuple('Call', ['identifier'])):
-    pass
+    def operands(self):
+        return []
 
 
 class Unary(Instruction, namedtuple('Unary', ['unary_operator', 'assembly_type', 'operand'])):
-    pass
+    def operands(self):
+        return [self.operand]
 
 
 class Binary(Instruction, namedtuple('Binary', ['binary_operator', 'assembly_type', 'src', 'dst'])):
-    pass
+    def operands(self):
+        return [self.src, self.dst]
 
 
 class Cmp(Instruction, namedtuple('Cmp', ['assembly_type', 'left', 'right'])):
-    pass
+    def operands(self):
+        return [self.left, self.right]
 
 
 class Idiv(Instruction, namedtuple('Idiv', ['assembly_type', 'operand'])):
-    pass
+    def operands(self):
+        return [self.operand]
 
 
 class Div(Instruction, namedtuple('Div', ['assembly_type', 'operand'])):
-    pass
+    def operands(self):
+        return [self.operand]
 
 
 class Cdq(Instruction, namedtuple('Cdq', ['assembly_type'])):
-    pass
+    def operands(self):
+        return []
 
 
 class Jmp(Instruction, namedtuple('Jmp', ['label'])):
-    pass
+    def operands(self):
+        return []
 
 
 class JmpCC(Instruction, namedtuple('JmpCC', ['cond_code', 'label'])):
     ''' cond_code can be one of E, NE, G, GE, L, LE, A, AE, B, or BE '''
-    pass
+    def operands(self):
+        return []
 
 
 class SetCC(Instruction, namedtuple('SetCC', ['cond_code', 'operand'])):
-    pass
+    def operands(self):
+        return []
 
 
 class Label(Instruction, namedtuple('Label', ['name'])):
-    pass
+    def operands(self):
+        return []
 
 
 class Cvttsd2si(Instruction, namedtuple('Cvttsd2si', ['assembly_type', 'src', 'dst'])):
-    pass
+    def operands(self):
+        return [self.src, self.dst]
 
 
 class Cvtsi2sd(Instruction, namedtuple('Cvtsi2sd', ['assembly_type', 'src', 'dst'])):
-    pass
+    def operands(self):
+        return [self.src, self.dst]
 
 
 class UnaryOperator:
