@@ -1,14 +1,17 @@
-import intf_graph
+import assembly
 import cfg
+import intf_graph
 
-def allocate_registers(instructions, function_classifications):
-    ar = AllocateRegisters(function_classifications)
+
+def allocate_registers(instructions, function_classifications, asm_symbols):
+    ar = AllocateRegisters(function_classifications, asm_symbols)
     return ar.allocate(instructions)
 
 
 class AllocateRegisters:
-    def __init__(self, function_classifications):
+    def __init__(self, function_classifications, asm_symbols):
         self.function_classifications = function_classifications
+        self.asm_symbols = asm_symbols
 
     def allocate(self, instructions):
         interference_graph = self.build_graph(instructions)
@@ -53,22 +56,15 @@ class AllocateRegisters:
                 self.add_pseudoregister(self, interference_graph, operand)
 
     def add_pseudoregister(self, interference_graph: intf_graph.Graph, operand: assembly.Operand):
-        match operand:
-            case assembly.Immediate():
-                pass
-            case assembly.Register():
-                pass
-            case assembly.Indexed():
-                pass
-            case assembly.Pseudo(name):
-                interference_graph.add_node(name)
-            case assembly.PseudoMem():
-                # things that you access an offset into can't live in a register
-                pass
-            case assembly.Memory():
-                pass
-            case _:
-                raise Exception(f'unhandled operand type: {operand}')
+        if not isinstance(operand, assembly.Pseudo):
+            return
+
+        name = operand.name
+        entry = self.asm_symbols[name]
+        if entry.is_static:
+            return
+
+        interference_graph.add_node(name)
 
     def make_control_flow_graph(self, instructions):
         pass
