@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Union, List, Set
 
 
+import assembly
 import tacky
 
 
@@ -69,6 +70,8 @@ class BasicBlock:
                 return name
             case tacky.Constant(const):
                 return str(const)
+            case _:
+                return str(value)
 
     def get_node_id(self):
         return self.node_id
@@ -138,7 +141,7 @@ class Graph:
             self.nodes.append(node)
             self.nodes_by_id[node_id] = node
             self.max_node_id = node_id
-            if isinstance(block[0], tacky.Label):
+            if isinstance(block[0], tacky.Label) or isinstance(block[0], assembly.Label):
                 self.id_by_label[block[0].name] = node_id
 
     def add_edge(self, start, end):
