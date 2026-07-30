@@ -67,7 +67,65 @@ class AllocateRegisters:
         interference_graph.add_node(name)
 
     def make_control_flow_graph(self, instructions):
-        pass
+        blocks = self.partition_blocks(instructions)
+        graph = cfg.Graph(blocks)
+        self.add_all_edges(graph)
+        return graph
+
+    def partition_blocks(self, instructions):
+        blocks = []
+        current_block = []
+
+        for instruction in instructions:
+            match instruction:
+                case assembly.Label():
+                    # Start a new block at each label
+                    if current_block:
+                        blocks.append(current_block)
+                    current_block = [instruction]
+
+                case assembly.Ret() | assembly.Jmp() | assembly.JmpCC():
+                    # End a block at a control flow instruction
+                    current_block.append(instruction)
+                    blocks.append(current_block)
+                    current_block = []
+
+                case _:
+                    current_block.append(instruction)
+
+        if current_block:
+            blocks.append(current_block)
+
+        return block
+
+    def add_all_edges(self, graph: cfg.Graph):
+        graph.add_edge(cfg.Entry(), cfg.BlockID(0))
+
+        for node in graph.nodes:
+            if isinstance(node, cfg.EntryNode):
+                pass
+            if isinstance(node, cfg.ExitNode):
+                pass
+
+            node_id = node.node_id
+            if node_id == graph.max_node_id:
+                next_id = cfg.Exit()
+            else:
+                next_id = cfg.BlockID(node_id.id + 1)
+
+            last_instr = node.instructions[-1]
+            match last_instr:
+                case assembly.Ret():
+                    graph.add_edge(node_id, cfg.Exit())
+                case assembly.Jmp(label):
+                    target_id = graph.get_id_by_label(target)
+                    graph.add_edge(node_id, target_id)
+                case assembly.JmpCC(_, label):
+                    target_id = graph.get_id_by_label(label)
+                    graph.add_edge(node_id, target_id)
+                    graph.add_edge(node_id, next_id)
+                case _:
+                    graph.add_edge(node_id, next_id)
 
     def analyze_liveness(self, graph: cfg.Graph):
         pass
