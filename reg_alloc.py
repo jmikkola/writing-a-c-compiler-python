@@ -141,3 +141,54 @@ class AllocateRegisters:
 
     def replace_pseudoregs(self, instructions, register_map):
         pass
+
+
+# Analzye the liveness of the control flow graph
+class Liveness:
+    def analyze_liveness(self, graph: cfg.Graph):
+        nodes_in_order = graph.nodes_in_order()
+        for block in nodes_in_order:
+            block.block_annotation = set()
+
+        worklist = [n.node_id for n in nodes_in_order]
+        while worklist:
+            block_id = worklist.pop(0)
+            block = graph.nodes_by_id[block_id]
+            old_annotation = block.block_annotation
+
+            end_live_variables = self.meet(graph, block)
+            self.transfer(block, end_live_variables)
+
+            if block.block_annotation != old_annotation:
+                for predecessor_id in block.predecessors:
+                    match predecessor_id:
+                        case cfg.Entry():
+                            continue
+                        case cfg.BlockID():
+                            if predecessor_id not in worklist:
+                                worklist.append(predecessor_id)
+                        case cfg.Exit():
+                            raise Exception('block cannot have Exit as a predecessor')
+
+    def meet(self, graph: cfg.Graph, block: cfg.BasicBlock) -> set:
+        live_vars = set()
+
+        for succ_id in block.successors:
+            match succ_id:
+                case cfg.Exit():
+                    # TODO: Generalize this to whatever registers this function happens to use to
+                    # return values.
+
+                    # This doesn't try to handle callee-saved registers because they will be dealt
+                    # with in the instruction fix-up pass, if we end up using them.
+                    live_vars |= set(['RAX'])
+                case cfg.Entry():
+                    raise Exception('malformed cfg')
+                case cfg.BlockID():
+                    successor = graph.nodes_by_id[succ_id]
+                    live_vars |= successor.block_annotation
+
+        return live_vars
+
+    def transfer(self, block: cfg.BasicBlock, end_live_variables: set):
+        pass
