@@ -80,7 +80,7 @@ class Instruction:
     def operands(self):
         raise NotImplementedError()
 
-    def used(self):
+    def used(self, fnclass):
         ''' the list of operands that this instruction reads '''
         raise NotImplementedError()
 
@@ -93,7 +93,7 @@ class Ret(Instruction, namedtuple('Ret', [])):
     def operands(self):
         return []
 
-    def used(self):
+    def used(self, fnclass):
         return []
 
     def updated(self):
@@ -104,7 +104,7 @@ class Mov(Instruction, namedtuple('Mov', ['assembly_type', 'src', 'dst'])):
     def operands(self):
         return [self.src, self.dst]
 
-    def used(self):
+    def used(self, fnclass):
         return [self.src]
 
     def updated(self):
@@ -115,7 +115,7 @@ class Movsx(Instruction, namedtuple('Movsx', ['src_type', 'dst_type', 'src', 'ds
     def operands(self):
         return [self.src, self.dst]
 
-    def used(self):
+    def used(self, fnclass):
         return [self.src]
 
     def updated(self):
@@ -127,7 +127,7 @@ class MovZeroExtend(Instruction, namedtuple('MovZeroExtend', ['src_type', 'dst_t
     def operands(self):
         return [self.src, self.dst]
 
-    def used(self):
+    def used(self, fnclass):
         return [self.src]
 
     def updated(self):
@@ -138,7 +138,7 @@ class Lea(Instruction, namedtuple('Lea', ['src', 'dst'])):
     def operands(self):
         return [self.src, self.dst]
 
-    def used(self):
+    def used(self, fnclass):
         return [self.src]
 
     def updated(self):
@@ -149,7 +149,7 @@ class Push(Instruction, namedtuple('Push', ['operand'])):
     def operand(self):
         return [self.operand]
 
-    def used(self):
+    def used(self, fnclass):
         return [self.operand]
 
     def updated(self):
@@ -160,7 +160,7 @@ class Pop(Instruction, namedtuple('Pop', ['reg'])):
     def operands(self):
         return []
 
-    def used(self):
+    def used(self, fnclass):
         return []
 
     def updated(self):
@@ -171,18 +171,27 @@ class Call(Instruction, namedtuple('Call', ['identifier'])):
     def operands(self):
         return []
 
-    def used(self):
-        return []
+    def used(self, fnclass):
+        (arg_registers, _return_registers) = fnclass[self.identifier]
+        return arg_registers
 
     def updated(self):
-        return []
+        return [
+            Register('DI'),
+            Register('SI'),
+            Register('DX'),
+            Register('CX'),
+            Register('R8'),
+            Register('R9'),
+            Register('AX'),
+        ]
 
 
 class Unary(Instruction, namedtuple('Unary', ['unary_operator', 'assembly_type', 'operand'])):
     def operands(self):
         return [self.operand]
 
-    def used(self):
+    def used(self, fnclass):
         return [self.operand]
 
     def updated(self):
@@ -193,7 +202,7 @@ class Binary(Instruction, namedtuple('Binary', ['binary_operator', 'assembly_typ
     def operands(self):
         return [self.src, self.dst]
 
-    def used(self):
+    def used(self, fnclass):
         return [self.src, self.dst]
 
     def updated(self):
@@ -204,7 +213,7 @@ class Cmp(Instruction, namedtuple('Cmp', ['assembly_type', 'left', 'right'])):
     def operands(self):
         return [self.left, self.right]
 
-    def used(self):
+    def used(self, fnclass):
         return [self.src, self.dst]
 
     def updated(self):
@@ -215,7 +224,7 @@ class Idiv(Instruction, namedtuple('Idiv', ['assembly_type', 'operand'])):
     def operands(self):
         return [self.operand]
 
-    def used(self):
+    def used(self, fnclass):
         return [self.operand, Register('AX'), Register('DX')]
 
     def updated(self):
@@ -226,7 +235,7 @@ class Div(Instruction, namedtuple('Div', ['assembly_type', 'operand'])):
     def operands(self):
         return [self.operand]
 
-    def used(self):
+    def used(self, fnclass):
         return [self.operand, Register('AX'), Register('DX')]
 
     def updated(self):
@@ -237,7 +246,7 @@ class Cdq(Instruction, namedtuple('Cdq', ['assembly_type'])):
     def operands(self):
         return []
 
-    def used(self):
+    def used(self, fnclass):
         return [Register('AX')]
 
     def updated(self):
@@ -248,7 +257,7 @@ class Jmp(Instruction, namedtuple('Jmp', ['label'])):
     def operands(self):
         return []
 
-    def used(self):
+    def used(self, fnclass):
         return []
 
     def updated(self):
@@ -260,7 +269,7 @@ class JmpCC(Instruction, namedtuple('JmpCC', ['cond_code', 'label'])):
     def operands(self):
         return []
 
-    def used(self):
+    def used(self, fnclass):
         return []
 
     def updated(self):
@@ -271,7 +280,7 @@ class SetCC(Instruction, namedtuple('SetCC', ['cond_code', 'operand'])):
     def operands(self):
         return [self.operand]
 
-    def used(self):
+    def used(self, fnclass):
         return [self.operand]
 
     def updated(self):
@@ -282,7 +291,7 @@ class Label(Instruction, namedtuple('Label', ['name'])):
     def operands(self):
         return []
 
-    def used(self):
+    def used(self, fnclass):
         return []
 
     def updated(self):
@@ -293,7 +302,7 @@ class Cvttsd2si(Instruction, namedtuple('Cvttsd2si', ['assembly_type', 'src', 'd
     def operands(self):
         return [self.src, self.dst]
 
-    def used(self):
+    def used(self, fnclass):
         return [self.src]
 
     def updated(self):
@@ -304,7 +313,7 @@ class Cvtsi2sd(Instruction, namedtuple('Cvtsi2sd', ['assembly_type', 'src', 'dst
     def operands(self):
         return [self.src, self.dst]
 
-    def used(self):
+    def used(self, fnclass):
         return [self.src]
 
     def updated(self):
