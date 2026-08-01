@@ -129,7 +129,7 @@ class AllocateRegisters:
                     graph.add_edge(node_id, next_id)
 
     def analyze_liveness(self, graph: cfg.Graph):
-        pass
+        Liveness(self.function_classifications).analyze_liveness(graph)
 
     def add_edges(self, graph: cfg.Graph, interference_graph: intf_graph.Graph):
         pass
