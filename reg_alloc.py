@@ -182,7 +182,7 @@ class Liveness:
 
                     # This doesn't try to handle callee-saved registers because they will be dealt
                     # with in the instruction fix-up pass, if we end up using them.
-                    live_vars |= set(['RAX'])
+                    live_vars |= set([assembly.Register('AX')])
                 case cfg.Entry():
                     raise Exception('malformed cfg')
                 case cfg.BlockID():
