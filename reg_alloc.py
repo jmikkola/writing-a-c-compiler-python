@@ -132,7 +132,30 @@ class AllocateRegisters:
         Liveness(self.function_classifications).analyze_liveness(graph)
 
     def add_edges(self, graph: cfg.Graph, interference_graph: intf_graph.Graph):
-        pass
+        ''' add edges to the interference_graph.
+
+        This is to indicate when the registers written by an instruction would
+        interfere with the live registers (those read by later instructions),
+        so they can use the same hard register
+        '''
+        for node in graph.nodes:
+            if isinstance(node, cfg.EntryNode):
+                continue
+            if isinstance(node, cfg.ExitNode):
+                continue
+
+            for (i, instr) in enumerate(node.instructions):
+                updated = instr.updated()
+                live_registers = block.annotations[i]
+
+                for l in live_registers:
+                    is_mov = type(l) in [assembly.Mov, assembly.Movsx, assembly.MovZeroExtend]
+                    if is_mov and l == instr.src:
+                        continue
+
+                    for u in updated:
+                        if u in interference_graph and l in interference_graph and l != u:
+                            interference_graph.add_edge(l, u)
 
     def add_spill_costs(self, interference_graph: intf_graph.Graph, instructions):
         pass

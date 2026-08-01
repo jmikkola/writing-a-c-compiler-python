@@ -384,7 +384,7 @@ class Operand:
     def __ne__(self, other):
         return not (self == other)
 
-    def __hash__(self)
+    def __hash__(self):
         return hash(str(self))
 
 

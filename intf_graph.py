@@ -39,5 +39,8 @@ class Graph:
         self.get_node(a).add_neighbor(b)
         self.get_node(b).add_neighbor(a)
 
+    def __contains__(self, key):
+        return self.get_node(key) is not None
+
     def color_graph(self):
         pass
