@@ -34,12 +34,13 @@ class AllocateRegisters:
         # Add all registers besides RSP and RBP (which aren't used for expressions) and R10 and R11
         # (which are used in spilling to the stack).
         all_registers = [
-            'RAX', 'RBX', 'RCX', 'RDX', 'RDI', 'RSI',
+            'AX', 'BX', 'CX', 'DX', 'DI', 'SI',
             'R8', 'R9', 'R12', 'R13', 'R14', 'R15',
         ]
+        registers = [assembly.Register(r) for r in all_registers]
 
         interference_graph = intf_graph.Graph(nodes=[])
-        for (i, reg) in enumerate(all_registers):
+        for (i, reg) in enumerate(registers):
             # Add the node for the current register
             interference_graph.add_node(reg)
 
