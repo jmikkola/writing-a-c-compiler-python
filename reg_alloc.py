@@ -146,6 +146,9 @@ class AllocateRegisters:
 
 # Analzye the liveness of the control flow graph
 class Liveness:
+    def __init__(self, function_classifications):
+        self.function_classifications = function_classifications
+
     def analyze_liveness(self, graph: cfg.Graph):
         nodes_in_order = graph.nodes_in_order()
         for block in nodes_in_order:
@@ -157,8 +160,8 @@ class Liveness:
             block = graph.nodes_by_id[block_id]
             old_annotation = block.block_annotation
 
-            end_live_variables = self.meet(graph, block)
-            self.transfer(block, end_live_variables)
+            end_live_registers = self.meet(graph, block)
+            self.transfer(block, end_live_registers)
 
             if block.block_annotation != old_annotation:
                 for predecessor_id in block.predecessors:
@@ -191,5 +194,24 @@ class Liveness:
 
         return live_vars
 
-    def transfer(self, block: cfg.BasicBlock, end_live_variables: set):
-        pass
+    def transfer(self, block: cfg.BasicBlock, end_live_registers: set):
+        current_live_registers = end_live_registers
+
+        # iterate backwards through the instructions
+        for i in range(len(block.instructions)-1, -1, -1):
+            current_live_registers = clone(current_live_registers)
+            block.annotations[i] = current_live_registers
+
+            instr = block.instructions[i]
+            used = instr.used(self.function_classifications)
+            updated = instr.updated()
+
+            for v in updated:
+                if isinstance(v, assembly.Register):
+                    current_live_registers -= set([v])
+
+            for v in used:
+                if isinstance(v, assembly.Register):
+                    current_live_registers.add(v)
+
+        block.block_annotation = current_live_registers
