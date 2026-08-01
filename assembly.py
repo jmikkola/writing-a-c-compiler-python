@@ -378,7 +378,14 @@ class ShiftRightLogical(BinaryOperator, namedtuple('ShiftRightLogical', [])):
 
 
 class Operand:
-    pass
+    def __eq__(self, other):
+        return str(self) == str(other)
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    def __hash__(self)
+        return hash(str(self))
 
 
 class Immediate(Operand, namedtuple('Immediate', ['value'])):
