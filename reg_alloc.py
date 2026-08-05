@@ -28,20 +28,20 @@ class AllocateRegisters:
         self.asm_symbols = asm_symbols
 
     def allocate(self, instructions):
-        int_graph = self.build_graph(instructions, INT_REGISTERS)
+        int_graph = self.build_graph(instructions, INT_REGISTERS, is_double=False)
         self.add_spill_costs(int_graph, instructions)
         int_graph.color_graph()
 
-        xmm_graph = self.build_graph(instructions, XMM_REGISTERS)
+        xmm_graph = self.build_graph(instructions, XMM_REGISTERS, is_double=True)
         self.add_spill_costs(xmm_graph, instructions)
         xmm_graph.color_graph()
 
         register_map = self.create_register_map(int_graph, xmm_graph)
         return self.replace_pseudoregs(instructions, register_map)
 
-    def build_graph(self, instructions, all_registers) -> intf_graph.Graph:
+    def build_graph(self, instructions, all_registers, is_double: bool) -> intf_graph.Graph:
         interference_graph = self.base_graph(all_registers)
-        self.add_pseudoregisters(interference_graph, instructions)
+        self.add_pseudoregisters(interference_graph, instructions, is_double)
         graph = self.make_control_flow_graph(instructions)
         self.analyze_liveness(graph)
         self.add_edges(graph, interference_graph)
@@ -62,18 +62,24 @@ class AllocateRegisters:
 
         return interference_graph
 
-    def add_pseudoregisters(self, interference_graph: intf_graph.Graph, instructions):
+    def add_pseudoregisters(self, interference_graph: intf_graph.Graph, instructions, is_double: bool):
         for instr in instructions:
             for operand in instr.operands():
-                self.add_pseudoregister(self, interference_graph, operand)
+                self.add_pseudoregister(self, interference_graph, operand, is_double)
 
-    def add_pseudoregister(self, interference_graph: intf_graph.Graph, operand: assembly.Operand):
+    def add_pseudoregister(self, interference_graph: intf_graph.Graph, operand: assembly.Operand, is_double):
         if not isinstance(operand, assembly.Pseudo):
             return
 
         name = operand.name
         entry = self.asm_symbols[name]
+        assert(isinstance(entry, assembly.ObjEntry))
         if entry.is_static:
+            return
+
+        # Only add doubles if we are building the graph for doubles, and vice versa
+        type_is_double = entry.assembly_type == assembly.Double()
+        if type_is_double != is_double:
             return
 
         interference_graph.add_node(name)
