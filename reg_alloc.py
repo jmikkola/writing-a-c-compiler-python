@@ -17,15 +17,16 @@ XMM_REGISTERS = [
 ]
 
 
-def allocate_registers(instructions, function_classifications, asm_symbols):
-    ar = AllocateRegisters(function_classifications, asm_symbols)
+def allocate_registers(instructions, function_classifications, asm_symbols, aliased_variables):
+    ar = AllocateRegisters(function_classifications, asm_symbols, aliased_variables)
     return ar.allocate(instructions)
 
 
 class AllocateRegisters:
-    def __init__(self, function_classifications, asm_symbols):
+    def __init__(self, function_classifications, asm_symbols, aliased_variables):
         self.function_classifications = function_classifications
         self.asm_symbols = asm_symbols
+        self.aliased_variables = aliased_variables
 
     def allocate(self, instructions):
         int_graph = self.build_graph(instructions, INT_REGISTERS, is_double=False)
@@ -72,6 +73,9 @@ class AllocateRegisters:
             return
 
         name = operand.name
+        if name in self.aliased_variables:
+            return
+
         entry = self.asm_symbols[name]
         assert(isinstance(entry, assembly.ObjEntry))
         if entry.is_static:
