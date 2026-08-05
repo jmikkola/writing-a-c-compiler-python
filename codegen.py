@@ -936,9 +936,10 @@ class Codegen:
 
         # handle structs and unions
         classes = self.classify_type(ret_t)
-        struct_size = self.types[ret_t.tag].size
         if classes[0] == MemClass.MEMORY:
             return ([], True)
+
+        struct_size = self.types[ret_t.tag].size
 
         ret_registers = []
         ints_used = 0
@@ -991,7 +992,7 @@ class Codegen:
                             raise Exception('bug')
                     has_space_for_doubles = (doubles_used + tentative_doubles) < len(self.double_registers)
                     has_space_for_ints = (ints_used + tentative_ints) < len(self.arg_registers)
-                    if space_for_ints and space_for_doubles:
+                    if has_space_for_ints and has_space_for_doubles:
                         doubles_used += tentative_doubles
                         ints_used += tentative_ints
                         arg_registers.extend(tentative_registers)
@@ -1127,6 +1128,9 @@ class Codegen:
 
     @functools.cache
     def classify_type(self, type: syntax.Type) -> typing.List[MemClass]:
+        if type == syntax.Void():
+            return [MemClass.MEMORY]
+
         # type must be either a syntax.Union or a syntax.Struct
         # type_entry is either a StructType or a UnionType
         type_entry = self.types[type.tag]
