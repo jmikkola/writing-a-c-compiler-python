@@ -3,6 +3,20 @@ import cfg
 import intf_graph
 
 
+# All registers besides RSP and RBP (which aren't used for expressions) and R10 and R11
+# (which are used in spilling to the stack) can be used for expressions.
+INT_REGISTERS = [
+    'AX', 'BX', 'CX', 'DX', 'DI', 'SI',
+    'R8', 'R9', 'R12', 'R13', 'R14', 'R15',
+]
+
+# All XMM registers except for XMM14 and XMM15 which are used for spilling
+XMM_REGISTERS = [
+    'XMM0', 'XMM1', 'XMM2', 'XMM3', 'XMM4', 'XMM5', 'XMM6',
+    'XMM7', 'XMM8', 'XMM9', 'XMM10', 'XMM11', 'XMM12', 'XMM13',
+]
+
+
 def allocate_registers(instructions, function_classifications, asm_symbols):
     ar = AllocateRegisters(function_classifications, asm_symbols)
     return ar.allocate(instructions)
@@ -14,29 +28,26 @@ class AllocateRegisters:
         self.asm_symbols = asm_symbols
 
     def allocate(self, instructions):
-        interference_graph = self.build_graph(instructions)
+        int_graph = self.build_graph(instructions, INT_REGISTERS)
+        self.add_spill_costs(int_graph, instructions)
+        int_graph.color_graph()
 
-        self.add_spill_costs(interference_graph, instructions)
-        interference_graph.color_graph()
+        xmm_graph = self.build_graph(instructions, XMM_REGISTERS)
+        self.add_spill_costs(xmm_graph, instructions)
+        xmm_graph.color_graph()
 
-        register_map = self.create_register_map(interference_graph)
+        register_map = self.create_register_map(int_graph, xmm_graph)
         return self.replace_pseudoregs(instructions, register_map)
 
-    def build_graph(self, instructions) -> intf_graph.Graph:
-        interference_graph = self.base_graph()
+    def build_graph(self, instructions, all_registers) -> intf_graph.Graph:
+        interference_graph = self.base_graph(all_registers)
         self.add_pseudoregisters(interference_graph, instructions)
         graph = self.make_control_flow_graph(instructions)
         self.analyze_liveness(graph)
         self.add_edges(graph, interference_graph)
         return interference_graph
 
-    def base_graph(self) -> intf_graph.Graph:
-        # Add all registers besides RSP and RBP (which aren't used for expressions) and R10 and R11
-        # (which are used in spilling to the stack).
-        all_registers = [
-            'AX', 'BX', 'CX', 'DX', 'DI', 'SI',
-            'R8', 'R9', 'R12', 'R13', 'R14', 'R15',
-        ]
+    def base_graph(self, all_registers) -> intf_graph.Graph:
         registers = [assembly.Register(r) for r in all_registers]
 
         interference_graph = intf_graph.Graph(nodes=[])
@@ -160,7 +171,7 @@ class AllocateRegisters:
     def add_spill_costs(self, interference_graph: intf_graph.Graph, instructions):
         pass
 
-    def create_register_map(self, interference_graph: intf_graph.Graph):
+    def create_register_map(self, int_graph: intf_graph.Graph, xmm_graph: intf_graph.Graph):
         pass
 
     def replace_pseudoregs(self, instructions, register_map):
