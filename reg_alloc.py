@@ -17,16 +17,27 @@ XMM_REGISTERS = [
 ]
 
 
-def allocate_registers(instructions, function_classifications, asm_symbols, aliased_variables):
-    ar = AllocateRegisters(function_classifications, asm_symbols, aliased_variables)
+def allocate_registers(
+    instructions,
+    function_classifications,
+    asm_symbols,
+    aliased_variables,
+    function_name):
+    ar = AllocateRegisters(
+        function_classifications,
+        asm_symbols,
+        aliased_variables,
+        function_name
+    )
     return ar.allocate(instructions)
 
 
 class AllocateRegisters:
-    def __init__(self, function_classifications, asm_symbols, aliased_variables):
+    def __init__(self, function_classifications, asm_symbols, aliased_variables, function_name):
         self.function_classifications = function_classifications
         self.asm_symbols = asm_symbols
         self.aliased_variables = aliased_variables
+        self.function_name = function_name
 
     def allocate(self, instructions):
         int_graph = self.build_graph(instructions, INT_REGISTERS, is_double=False)
@@ -44,7 +55,7 @@ class AllocateRegisters:
         interference_graph = self.base_graph(all_registers)
         self.add_pseudoregisters(interference_graph, instructions, is_double)
         graph = self.make_control_flow_graph(instructions)
-        self.analyze_liveness(graph)
+        self.analyze_liveness(graph, is_double)
         self.add_edges(graph, interference_graph)
         return interference_graph
 
@@ -149,8 +160,9 @@ class AllocateRegisters:
                 case _:
                     graph.add_edge(node_id, next_id)
 
-    def analyze_liveness(self, graph: cfg.Graph):
-        Liveness(self.function_classifications).analyze_liveness(graph)
+    def analyze_liveness(self, graph: cfg.Graph, is_double: bool):
+        l = Liveness(self.function_classifications, self.function_name, is_double)
+        l.analyze_liveness(graph)
 
     def add_edges(self, graph: cfg.Graph, interference_graph: intf_graph.Graph):
         ''' add edges to the interference_graph.
@@ -190,8 +202,25 @@ class AllocateRegisters:
 
 # Analzye the liveness of the control flow graph
 class Liveness:
-    def __init__(self, function_classifications):
+    def __init__(self, function_classifications, function_name: str, is_double: bool):
         self.function_classifications = function_classifications
+
+        # Figure out which relevant registers the function uses for returning
+        (_arg_registers, return_registers) = function_classifications[function_name]
+        if is_double:
+            filtered_registers = [
+                r for r in return_registers
+                if r.startswith('XMM')
+            ]
+        else:
+            filtered_registers = [
+                r for r in return_registers
+                if not r.startswith('XMM')
+            ]
+        self.return_vars = set([
+            assembly.Register(r)
+            for r in filtered_registers
+        ])
 
     def analyze_liveness(self, graph: cfg.Graph):
         nodes_in_order = graph.nodes_in_order()
@@ -224,12 +253,9 @@ class Liveness:
         for succ_id in block.successors:
             match succ_id:
                 case cfg.Exit():
-                    # TODO: Generalize this to whatever registers this function happens to use to
-                    # return values.
-
                     # This doesn't try to handle callee-saved registers because they will be dealt
                     # with in the instruction fix-up pass, if we end up using them.
-                    live_vars |= set([assembly.Register('AX')])
+                    live_vars |= self.return_vars
                 case cfg.Entry():
                     raise Exception('malformed cfg')
                 case cfg.BlockID():
