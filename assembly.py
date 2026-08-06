@@ -84,6 +84,28 @@ class Instruction:
         ''' the list of operands that this instruction reads '''
         raise NotImplementedError()
 
+    def used_registers(self, fnclass):
+        ''' the list of registers and pseudoregisters that this instruction reads '''
+        used = []
+        for operand in self.used(fnclass):
+            match operand:
+                case Immediate():
+                    pass
+                case Register():
+                    used.append(operand)
+                case Indexed(base, index, _scale):
+                    used.append(Register(base))
+                    used.append(Register(index))
+                case Pseudo():
+                    used.append(operand)
+                case PseudoMem():
+                    used.append(operand)
+                case Memory(reg, _offset):
+                    used.append(Register(reg))
+                case Data():
+                    pass
+        return used
+
     def updated(self):
         ''' the list of operands that this instruction updates '''
         raise NotImplementedError()
@@ -176,6 +198,7 @@ class Call(Instruction, namedtuple('Call', ['identifier'])):
         return arg_registers
 
     def updated(self):
+        # TODO: Also include XMM registers
         return [
             Register('DI'),
             Register('SI'),
