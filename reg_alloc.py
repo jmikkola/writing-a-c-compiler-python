@@ -23,44 +23,45 @@ def allocate_registers(
     asm_symbols,
     aliased_variables,
     function_name):
-    ar = AllocateRegisters(
-        function_classifications,
-        asm_symbols,
-        aliased_variables,
-        function_name
-    )
-    return ar.allocate(instructions)
+
+    for is_double in (False, True):
+        ar = AllocateRegisters(
+            is_double,
+            function_classifications,
+            asm_symbols,
+            aliased_variables,
+            function_name
+        )
+        instructions = ar.allocate(instructions)
+    return instructions
 
 
 class AllocateRegisters:
-    def __init__(self, function_classifications, asm_symbols, aliased_variables, function_name):
+    def __init__(self, is_double, function_classifications, asm_symbols, aliased_variables, function_name):
+        self.is_double = is_double
+        self.all_registers = XMM_REGISTERS if is_double else INT_REGISTERS
         self.function_classifications = function_classifications
         self.asm_symbols = asm_symbols
         self.aliased_variables = aliased_variables
         self.function_name = function_name
 
     def allocate(self, instructions):
-        int_graph = self.build_graph(instructions, INT_REGISTERS, is_double=False)
-        self.add_spill_costs(int_graph, instructions)
-        int_graph.color_graph()
-
-        xmm_graph = self.build_graph(instructions, XMM_REGISTERS, is_double=True)
-        self.add_spill_costs(xmm_graph, instructions)
-        xmm_graph.color_graph()
-
-        register_map = self.create_register_map(int_graph, xmm_graph)
+        interference_graph = self.build_graph(instructions)
+        self.add_spill_costs(interference_graph, instructions)
+        interference_graph.color_graph()
+        register_map = self.create_register_map(interference_graph)
         return self.replace_pseudoregs(instructions, register_map)
 
-    def build_graph(self, instructions, all_registers, is_double: bool) -> intf_graph.Graph:
-        interference_graph = self.base_graph(all_registers)
-        self.add_pseudoregisters(interference_graph, instructions, is_double)
+    def build_graph(self, instructions) -> intf_graph.Graph:
+        interference_graph = self.base_graph()
+        self.add_pseudoregisters(interference_graph, instructions)
         graph = self.make_control_flow_graph(instructions)
-        self.analyze_liveness(graph, is_double)
+        self.analyze_liveness(graph)
         self.add_edges(graph, interference_graph)
         return interference_graph
 
-    def base_graph(self, all_registers) -> intf_graph.Graph:
-        registers = [assembly.Register(r) for r in all_registers]
+    def base_graph(self) -> intf_graph.Graph:
+        registers = [assembly.Register(r) for r in self.all_registers]
 
         interference_graph = intf_graph.Graph(nodes=[])
         for (i, reg) in enumerate(registers):
@@ -69,17 +70,17 @@ class AllocateRegisters:
 
             # Add neighbors
             for j in range(i):
-                neighbor = all_registers[j]
+                neighbor = registers[j]
                 interference_graph.add_edge(reg, neighbor)
 
         return interference_graph
 
-    def add_pseudoregisters(self, interference_graph: intf_graph.Graph, instructions, is_double: bool):
+    def add_pseudoregisters(self, interference_graph: intf_graph.Graph, instructions):
         for instr in instructions:
             for operand in instr.operands():
-                self.add_pseudoregister(self, interference_graph, operand, is_double)
+                self.add_pseudoregister(self, interference_graph, operand)
 
-    def add_pseudoregister(self, interference_graph: intf_graph.Graph, operand: assembly.Operand, is_double):
+    def add_pseudoregister(self, interference_graph: intf_graph.Graph, operand: assembly.Operand):
         if not isinstance(operand, assembly.Pseudo):
             return
 
@@ -94,7 +95,7 @@ class AllocateRegisters:
 
         # Only add doubles if we are building the graph for doubles, and vice versa
         type_is_double = entry.assembly_type == assembly.Double()
-        if type_is_double != is_double:
+        if type_is_double != self.is_double:
             return
 
         interference_graph.add_node(name)
@@ -160,8 +161,8 @@ class AllocateRegisters:
                 case _:
                     graph.add_edge(node_id, next_id)
 
-    def analyze_liveness(self, graph: cfg.Graph, is_double: bool):
-        l = Liveness(self.function_classifications, self.function_name, is_double)
+    def analyze_liveness(self, graph: cfg.Graph):
+        l = Liveness(self.function_classifications, self.function_name, self.is_double)
         l.analyze_liveness(graph)
 
     def add_edges(self, graph: cfg.Graph, interference_graph: intf_graph.Graph):
