@@ -178,6 +178,10 @@ class Emit:
                 operand = self.render_operand(operand, quadword)
                 self.indented(f'pushq {operand}')
 
+            case assembly.Pop(operand):
+                operand = self.render_operand(operand, quadword)
+                self.indented(f'popq {operand}')
+
             case assembly.Unary(unary_operator, assembly_type, operand):
                 operation = self.convert_unary_operator(unary_operator)
                 operand = self.render_operand(operand, assembly_type)
