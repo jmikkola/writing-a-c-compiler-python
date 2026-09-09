@@ -61,7 +61,7 @@ class AllocateRegisters:
         return interference_graph
 
     def base_graph(self) -> intf_graph.Graph:
-        registers = self.all_registers
+        registers = [assembly.Register(r) for r in self.all_registers]
 
         interference_graph = intf_graph.Graph(nodes=[])
         for (i, reg) in enumerate(registers):
@@ -98,7 +98,7 @@ class AllocateRegisters:
         if type_is_double != self.is_double:
             return
 
-        interference_graph.add_node(name)
+        interference_graph.add_node(operand)
 
     def make_control_flow_graph(self, instructions):
         blocks = self.partition_blocks(instructions)

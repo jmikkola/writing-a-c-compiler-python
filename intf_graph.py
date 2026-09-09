@@ -1,6 +1,8 @@
 from __future__ import annotations
 from dataclasses import dataclass
 
+import assembly
+
 
 @dataclass
 class Node:
@@ -10,8 +12,8 @@ class Node:
     color: int | None
     pruned: bool
 
-    def add_neighbor(self, neighbor: str):
-        assert(isinstance(neighbor, str))
+    def add_neighbor(self, neighbor: assembly.Operand):
+        assert(isinstance(neighbor, assembly.Operand))
         if neighbor in self.neighbors:
             return
         self.neighbors.append(neighbor)
@@ -22,8 +24,8 @@ class Graph:
     nodes: list
     k: int # The degree to use when coloring
 
-    def add_node(self, operand_id: str):
-        assert(isinstance(operand_id, str))
+    def add_node(self, operand_id: assembly.Operand):
+        assert(isinstance(operand_id, assembly.Operand))
         node = Node(
             operand_id=operand_id,
             neighbors=[],
@@ -33,18 +35,18 @@ class Graph:
         )
         self.nodes.append(node)
 
-    def get_node(self, operand_id: str):
-        assert(isinstance(operand_id, str))
+    def get_node(self, operand_id: assembly.Operand):
+        assert(isinstance(operand_id, assembly.Operand))
         for node in self.nodes:
             if node.operand_id == operand_id:
                 return node
 
-    def add_edge(self, a: str, b: str):
+    def add_edge(self, a: assembly.Operand, b: assembly.Operand):
         self.get_node(a).add_neighbor(b)
         self.get_node(b).add_neighbor(a)
 
-    def __contains__(self, key: str):
-        assert(isinstance(key, str))
+    def __contains__(self, key: assembly.Operand):
+        assert(isinstance(key, assembly.Operand))
         return self.get_node(key) is not None
 
     def color_graph(self):
