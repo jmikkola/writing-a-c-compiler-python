@@ -132,6 +132,9 @@ class Codegen:
             aliased_variables=aliased_vars,
             function_name=function.name,
         )
+        # Store this at the class level so that it is accessible to the code that handles the return
+        # instruction
+        self.callee_saved_registers = sorted(list(callee_saved_registers))
 
         # Generate the basic assembly
         return_in_memory = self.function_returns_in_memory(function.name)
@@ -140,17 +143,18 @@ class Codegen:
         instructions += self.gen_instructions(body)
 
         # Replace pseudo registers with stack locations
-        instructions, stack_size = self.replace_pseudo_registers(instructions, return_in_memory)
-        if stack_size % 16 != 0:
-            stack_size += 16 - (stack_size % 16)
+        instructions, bytes_for_locals = self.replace_pseudo_registers(instructions, return_in_memory)
 
+        # Add space for locals
+        stack_adjustment = self.calculate_stack_adjustment(bytes_for_locals, len(self.callee_saved_registers))
         allocate = assembly.Binary(
             assembly.Sub(),
             quadword,
-            assembly.Immediate(stack_size),
+            assembly.Immediate(stack_adjustment),
             assembly.Register('SP')
         )
-        instructions = [allocate] + instructions
+        save_callees = [assembly.Push(reg) for reg in self.callee_saved_registers]
+        instructions = [allocate] + save_callees + instructions
 
         # Fix instructions that are now invalid
         instructions = self.fix_invalid_instructions(instructions)
@@ -160,6 +164,15 @@ class Codegen:
             is_global=function.is_global,
             instructions=instructions
         )
+
+    def calculate_stack_adjustment(self, bytes_for_locals, callee_saved_count):
+        ''' calculate a size for locals that, after the callee saved registers are
+            pushed, will be aligned to 16 bytes '''
+        callee_saved_bytes = 8 * callee_saved_count
+        total_stack_bytes = callee_saved_bytes + bytes_for_locals
+        adjusted_stack_bytes = round_up(total_stack_bytes, 16)
+        stack_adjustment = adjusted_stack_bytes - callee_saved_bytes
+        return stack_adjustment
 
     def save_arguments(self, params, return_in_memory):
         ''' For simplicity, copy all parameters to the current stack frame '''
@@ -1301,9 +1314,11 @@ class Codegen:
         return instructions
 
     def gen_return(self, instr: tacky.Return) -> list:
+        # The emit pass adds the `movq %dbp, %rsp` and `popq %rbp`
+
         retval = instr.val
         if retval is None:
-            return [assembly.Ret()]
+            return self.pop_and_return()
 
         int_retvals, double_retvals, return_in_memory = self.classify_return_value(retval)
 
@@ -1341,6 +1356,14 @@ class Codegen:
                 instructions.append(assembly.Mov(double, op, assembly.Register(register)))
                 reg_index += 1
 
+        instructions += self.pop_and_return()
+        return instructions
+
+    def pop_and_return(self) -> list:
+        instructions = [
+            assembly.Pop(reg)
+            for reg in self.callee_saved_registers[::-1]
+        ]
         instructions.append(assembly.Ret())
         return instructions
 
@@ -1765,3 +1788,12 @@ def is_scalar(type: syntax.Type) -> bool:
             return False
         case _:
             return True
+
+
+def round_up(size: int, alignment: int) -> int:
+    ''' return the next smallest size that is aligned to alignment '''
+    remainder = size % alignment
+    if remainder == 0:
+        return size
+    padding = alignment - remainder
+    return size + padding
