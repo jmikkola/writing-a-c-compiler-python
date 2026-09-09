@@ -172,7 +172,7 @@ class Lea(Instruction, namedtuple('Lea', ['src', 'dst'])):
 
 
 class Push(Instruction, namedtuple('Push', ['operand'])):
-    def operand(self):
+    def operands(self):
         return [self.operand]
 
     def used(self, fnclass):

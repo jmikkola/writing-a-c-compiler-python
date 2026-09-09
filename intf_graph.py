@@ -106,7 +106,7 @@ class Graph:
         colors = set(range(1, self.k + 1))
         for neighbor_id in chosen_node.neighbors:
             neighbor = self.get_node(neighbor_id)
-            if neighbor.color is not None:
+            if neighbor.color is not None and neighbor.color in colors:
                 colors.remove(neighbor.color)
         return colors
 
