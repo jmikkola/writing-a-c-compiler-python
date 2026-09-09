@@ -49,7 +49,7 @@ class AllocateRegisters:
         interference_graph = self.build_graph(instructions)
         self.add_spill_costs(interference_graph, instructions)
         interference_graph.color_graph()
-        register_map = self.create_register_map(interference_graph)
+        register_map, callee_saved_registers = self.create_register_map(interference_graph)
         return self.replace_pseudoregs(instructions, register_map)
 
     def build_graph(self, instructions) -> intf_graph.Graph:
@@ -201,12 +201,39 @@ class AllocateRegisters:
         for instr in instructions:
             for operand in instr.operands():
                 if isinstance(operand, assembly.Pseudo):
-                    name = operand.name
-                    if name in interference_graph:
-                        interference_graph.get_node(name).spill_cost += 1
+                    if operand in interference_graph:
+                        interference_graph.get_node(operand).spill_cost += 1
 
-    def create_register_map(self, int_graph: intf_graph.Graph, xmm_graph: intf_graph.Graph):
-        pass
+    def create_register_map(self, interference_graph: intf_graph.Graph):
+        # Find out what color was given to each hard register
+        color_map = {}
+        for node in interference_graph.nodes:
+            match node.operand_id:
+                case assembly.Register(r):
+                    color_map[node.color] = r
+                case assembly.Pseudo():
+                    pass
+                case _:
+                    raise Exception(
+                        f'unexpected interference graph node id: {node.operand_id}'
+                    )
+
+        # Find out what hard register a pseudoregister will map to
+        register_map = {}
+        callee_saved_registers = set()
+        for node in interference_graph.nodes:
+            match node.operand_id:
+                case assembly.Register(r):
+                    pass
+                case assembly.Pseudo(name):
+                    if node.color is not None:
+                        hardreg = color_map[node.color]
+                        register_map[name] = hardreg
+                        if assembly.is_callee_saved(hardreg):
+                            callee_saved_registers.add(hardreg)
+
+        return (register_map, callee_saved_registers)
+
 
     def replace_pseudoregs(self, instructions, register_map):
         pass

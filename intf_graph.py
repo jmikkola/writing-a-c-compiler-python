@@ -6,7 +6,7 @@ import assembly
 
 @dataclass
 class Node:
-    operand_id: str
+    operand_id: assembly.Operand
     neighbors: list
     spill_cost: float
     color: int | None
@@ -112,4 +112,8 @@ class Graph:
 
     def _is_callee_saved(self, chosen_node: Node):
         operand_id = chosen_node.operand_id
-        return operand_id in ('BX', 'R12', 'R13', 'R14', 'R15')
+        match operand_id:
+            case assembly.Register(r):
+                return assembly.is_callee_saved(r)
+            case _:
+                return False

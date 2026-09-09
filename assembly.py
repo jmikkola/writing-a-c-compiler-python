@@ -3,6 +3,10 @@ from dataclasses import dataclass
 from typing import TypeAlias
 
 
+def is_callee_saved(register_name: str):
+    return register_name in ('BX', 'R12', 'R13', 'R14', 'R15')
+
+
 @dataclass(frozen=True)
 class Byte:
     def bytes(self):
