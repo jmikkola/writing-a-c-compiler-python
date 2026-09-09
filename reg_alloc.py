@@ -234,9 +234,88 @@ class AllocateRegisters:
 
         return (register_map, callee_saved_registers)
 
-
     def replace_pseudoregs(self, instructions, register_map):
-        pass
+        result = []
+
+        for instr in instructions:
+            match instr with:
+                case assembly.Ret():
+                    result.append(instr)
+                case assembly.Mov(a_type, src, dst):
+                    src = self._map_operand(src, register_map)
+                    dst = self._map_operand(dst, register_map)
+                    if src != dst:
+                        result.append(assembly.Mov(a_type, src, dst))
+                case assembly.Movsx(a_type, src, dst):
+                    src = self._map_operand(src, register_map)
+                    dst = self._map_operand(dst, register_map)
+                    result.append(assembly.Movsx(a_type, src, dst))
+                case assembly.MovZeroExtend(src_type, dst_type, src, dst):
+                    src = self._map_operand(src, register_map)
+                    dst = self._map_operand(dst, register_map)
+                    result.append(assembly.MovZeroExtend(src_type, dst_type, src, dst))
+                case assembly.Lea(src, dst):
+                    src = self._map_operand(src, register_map)
+                    dst = self._map_operand(dst, register_map)
+                    result.append(assembly.Lea(src, dst))
+                case assembly.Push(operand):
+                    operand = self._map_operand(operand, register_map):
+                    result.append(assembly.Push(operand))
+                case assembly.Pop(reg):
+                    reg = self._map_operand(reg, register_map)
+                    result.append(assembly.Pop(reg))
+                case assembly.Call():
+                    result.append(instr)
+                case assembly.Unary(operator, a_type, operand):
+                    operand = self._map_operand(operand, register_map):
+                    result.append(assembly.Unary(operator, a_type, operand))
+                case assembly.Binary(operator, a_type, src, dst):
+                    src = self._map_operand(src, register_map)
+                    dst = self._map_operand(dst, register_map)
+                    result.append(assembly.Binary(operator, a_type, src, dst))
+                case assembly.Cmp(a_type, left, right):
+                    left = self._map_operand(left, register_map)
+                    right = self._map_operand(right, register_map)
+                    result.append(assembly.Cmp(a_type, left, right))
+                case assembly.Idiv(a_type, operand):
+                    operand = self._map_operand(operand, register_map):
+                    result.append(assembly.Idiv(a_type, operand))
+                case assembly.Div(a_type, operand):
+                    operand = self._map_operand(operand, register_map):
+                    result.append(assembly.Div(a_type, operand))
+                case assembly.Cdq():
+                    result.append(instr)
+                case assembly.Jmp():
+                    result.append(instr)
+                case assembly.JmpCC():
+                    result.append(instr)
+                case assembly.SetCC(cond_code, operand):
+                    operand = self._map_operand(operand, register_map):
+                    result.append(assembly.SetCC(cond_code, operand))
+                case assembly.Label():
+                    result.append(instr)
+                case assembly.Cvttsd2si(a_type, src, dst):
+                    src = self._map_operand(src, register_map)
+                    dst = self._map_operand(dst, register_map)
+                    result.append(assembly.Cvttsd2si(a_type, src, dst))
+                case assembly.Cvtsi2sd(a_type, src, dst):
+                    src = self._map_operand(src, register_map)
+                    dst = self._map_operand(dst, register_map)
+                    result.append(assembly.Cvtsi2sd(a_type, src, dst))
+                case _:
+                    raise Exception(f'unhandled instruction {instr}')
+
+        return result
+
+    def _map_operand(self, operand, register_map):
+        match operand:
+            case assembly.Pseudo(name):
+                if name in register_map:
+                    return assembly.Register(register_map[name]))
+                else:
+                    return operand
+            case _:
+                return operand
 
 
 # Analzye the liveness of the control flow graph
