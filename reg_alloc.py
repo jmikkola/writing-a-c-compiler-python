@@ -154,7 +154,7 @@ class AllocateRegisters:
                 case assembly.Ret():
                     graph.add_edge(node_id, cfg.Exit())
                 case assembly.Jmp(label):
-                    target_id = graph.get_id_by_label(target)
+                    target_id = graph.get_id_by_label(target_id)
                     graph.add_edge(node_id, target_id)
                 case assembly.JmpCC(_, label):
                     target_id = graph.get_id_by_label(label)

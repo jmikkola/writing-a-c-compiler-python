@@ -242,7 +242,7 @@ class Cmp(Instruction, namedtuple('Cmp', ['assembly_type', 'left', 'right'])):
         return [self.left, self.right]
 
     def used(self, fnclass):
-        return [self.src, self.dst]
+        return [self.left, self.right]
 
     def updated(self):
         return []
