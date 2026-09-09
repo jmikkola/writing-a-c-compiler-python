@@ -274,7 +274,7 @@ class Liveness:
             block.annotations[i] = current_live_registers
 
             instr = block.instructions[i]
-            used = instr.used(self.function_classifications)
+            used = instr.used_registers(self.function_classifications)
             updated = instr.updated()
 
             for v in updated:

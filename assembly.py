@@ -198,8 +198,8 @@ class Call(Instruction, namedtuple('Call', ['identifier'])):
         return arg_registers
 
     def updated(self):
-        # TODO: Also include XMM registers
-        return [
+        xmm_registers = [Register(f'XMM{n}') for n in range(14)]
+        int_registers = [
             Register('DI'),
             Register('SI'),
             Register('DX'),
@@ -208,6 +208,7 @@ class Call(Instruction, namedtuple('Call', ['identifier'])):
             Register('R9'),
             Register('AX'),
         ]
+        return int_registers + xmm_registers
 
 
 class Unary(Instruction, namedtuple('Unary', ['unary_operator', 'assembly_type', 'operand'])):
