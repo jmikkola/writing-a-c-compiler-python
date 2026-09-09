@@ -5,11 +5,13 @@ import functools
 import struct
 import typing
 
-import labels
+import address_taken
 import assembly
-import tacky
+import labels
+import reg_alloc
 import symbol
 import syntax
+import tacky
 import typeconversion
 
 
@@ -121,10 +123,21 @@ class Codegen:
         return self.return_type_uses_memory(func_type.ret)
 
     def gen_function(self, function: tacky.Function) -> assembly.Function:
+        # Allocate registers
+        aliased_vars = address_taken.address_taken_analysis(self.symbols, function.body)
+        body, callee_saved_registers = reg_alloc.allocate_registers(
+            instructions=function.body,
+            function_classifications=self._function_classifications,
+            asm_symbols=self.asm_symbols,
+            aliased_variables=aliased_vars,
+            function_name=function.name,
+        )
+
         # Generate the basic assembly
         return_in_memory = self.function_returns_in_memory(function.name)
         instructions = self.save_arguments([tacky.Identifier(p) for p in function.params], return_in_memory)
-        instructions += self.gen_instructions(function.body)
+
+        instructions += self.gen_instructions(body)
 
         # Replace pseudo registers with stack locations
         instructions, stack_size = self.replace_pseudo_registers(instructions, return_in_memory)

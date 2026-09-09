@@ -24,6 +24,7 @@ def allocate_registers(
     aliased_variables,
     function_name):
 
+    callee_saved_registers = set()
     for is_double in (False, True):
         ar = AllocateRegisters(
             is_double,
@@ -32,8 +33,9 @@ def allocate_registers(
             aliased_variables,
             function_name
         )
-        instructions = ar.allocate(instructions)
-    return instructions
+        instructions, callee_saved = ar.allocate(instructions)
+        callee_saved_registers |= callee_saved
+    return instructions, callee_saved_registers
 
 
 class AllocateRegisters:
@@ -50,7 +52,7 @@ class AllocateRegisters:
         self.add_spill_costs(interference_graph, instructions)
         interference_graph.color_graph()
         register_map, callee_saved_registers = self.create_register_map(interference_graph)
-        return self.replace_pseudoregs(instructions, register_map)
+        return self.replace_pseudoregs(instructions, register_map), callee_saved_registers
 
     def build_graph(self, instructions) -> intf_graph.Graph:
         interference_graph = self.base_graph()
