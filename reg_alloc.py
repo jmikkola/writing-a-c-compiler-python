@@ -61,7 +61,7 @@ class AllocateRegisters:
         return interference_graph
 
     def base_graph(self) -> intf_graph.Graph:
-        registers = [assembly.Register(r) for r in self.all_registers]
+        registers = self.all_registers
 
         interference_graph = intf_graph.Graph(nodes=[])
         for (i, reg) in enumerate(registers):
@@ -192,7 +192,18 @@ class AllocateRegisters:
                             interference_graph.add_edge(l, u)
 
     def add_spill_costs(self, interference_graph: intf_graph.Graph, instructions):
-        pass
+        # Hard registers cannot be spilled, so give them an infinite cost
+        for r in self.all_registers:
+            register = assembly.Register(r)
+            interference_graph.get_node(register).spill_cost = float('inf')
+
+        # Simplest possible algorithm: count usages of each pseudoregister
+        for instr in instructions:
+            for operand in instr.operands():
+                if isinstance(operand, assembly.Pseudo):
+                    name = operand.name
+                    if name in interference_graph:
+                        interference_graph.get_node(name).spill_cost += 1
 
     def create_register_map(self, int_graph: intf_graph.Graph, xmm_graph: intf_graph.Graph):
         pass

@@ -20,7 +20,8 @@ class Node:
 class Graph:
     nodes: list
 
-    def add_node(self, operand_id):
+    def add_node(self, operand_id: str):
+        assert(isinstance(operand_id, str))
         node = Node(
             operand_id=operand_id,
             neighbors=[],
@@ -30,16 +31,18 @@ class Graph:
         )
         self.nodes.append(node)
 
-    def get_node(self, operand_id):
+    def get_node(self, operand_id: str):
+        assert(isinstance(operand_id, str))
         for node in self.nodes:
             if node.operand_id == operand_id:
                 return node
 
-    def add_edge(self, a, b):
+    def add_edge(self, a: str, b: str):
         self.get_node(a).add_neighbor(b)
         self.get_node(b).add_neighbor(a)
 
-    def __contains__(self, key):
+    def __contains__(self, key: str):
+        assert(isinstance(key, str))
         return self.get_node(key) is not None
 
     def color_graph(self):
