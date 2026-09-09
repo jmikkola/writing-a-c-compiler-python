@@ -98,7 +98,7 @@ class Graph:
     def _unpruned_neighbors(self, node: Node):
         n = 0
         for neighbor_id in node.neighbors:
-            if not self.get_node(neighbors_id).pruned:
+            if not self.get_node(neighbor_id).pruned:
                 n += 1
         return n
 

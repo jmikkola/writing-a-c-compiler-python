@@ -65,7 +65,7 @@ class AllocateRegisters:
     def base_graph(self) -> intf_graph.Graph:
         registers = [assembly.Register(r) for r in self.all_registers]
 
-        interference_graph = intf_graph.Graph(nodes=[])
+        interference_graph = intf_graph.Graph(nodes=[], k=len(registers))
         for (i, reg) in enumerate(registers):
             # Add the node for the current register
             interference_graph.add_node(reg)
@@ -80,7 +80,7 @@ class AllocateRegisters:
     def add_pseudoregisters(self, interference_graph: intf_graph.Graph, instructions):
         for instr in instructions:
             for operand in instr.operands():
-                self.add_pseudoregister(self, interference_graph, operand)
+                self.add_pseudoregister(interference_graph, operand)
 
     def add_pseudoregister(self, interference_graph: intf_graph.Graph, operand: assembly.Operand):
         if not isinstance(operand, assembly.Pseudo):
@@ -132,16 +132,16 @@ class AllocateRegisters:
         if current_block:
             blocks.append(current_block)
 
-        return block
+        return blocks
 
     def add_all_edges(self, graph: cfg.Graph):
         graph.add_edge(cfg.Entry(), cfg.BlockID(0))
 
         for node in graph.nodes:
             if isinstance(node, cfg.EntryNode):
-                pass
+                continue
             if isinstance(node, cfg.ExitNode):
-                pass
+                continue
 
             node_id = node.node_id
             if node_id == graph.max_node_id:
@@ -182,7 +182,7 @@ class AllocateRegisters:
 
             for (i, instr) in enumerate(node.instructions):
                 updated = instr.updated()
-                live_registers = block.annotations[i]
+                live_registers = node.annotations[i]
 
                 for l in live_registers:
                     is_mov = type(l) in [assembly.Mov, assembly.Movsx, assembly.MovZeroExtend]
@@ -240,7 +240,7 @@ class AllocateRegisters:
         result = []
 
         for instr in instructions:
-            match instr with:
+            match instr:
                 case assembly.Ret():
                     result.append(instr)
                 case assembly.Mov(a_type, src, dst):
@@ -261,7 +261,7 @@ class AllocateRegisters:
                     dst = self._map_operand(dst, register_map)
                     result.append(assembly.Lea(src, dst))
                 case assembly.Push(operand):
-                    operand = self._map_operand(operand, register_map):
+                    operand = self._map_operand(operand, register_map)
                     result.append(assembly.Push(operand))
                 case assembly.Pop(reg):
                     reg = self._map_operand(reg, register_map)
@@ -269,7 +269,7 @@ class AllocateRegisters:
                 case assembly.Call():
                     result.append(instr)
                 case assembly.Unary(operator, a_type, operand):
-                    operand = self._map_operand(operand, register_map):
+                    operand = self._map_operand(operand, register_map)
                     result.append(assembly.Unary(operator, a_type, operand))
                 case assembly.Binary(operator, a_type, src, dst):
                     src = self._map_operand(src, register_map)
@@ -280,10 +280,10 @@ class AllocateRegisters:
                     right = self._map_operand(right, register_map)
                     result.append(assembly.Cmp(a_type, left, right))
                 case assembly.Idiv(a_type, operand):
-                    operand = self._map_operand(operand, register_map):
+                    operand = self._map_operand(operand, register_map)
                     result.append(assembly.Idiv(a_type, operand))
                 case assembly.Div(a_type, operand):
-                    operand = self._map_operand(operand, register_map):
+                    operand = self._map_operand(operand, register_map)
                     result.append(assembly.Div(a_type, operand))
                 case assembly.Cdq():
                     result.append(instr)
@@ -292,7 +292,7 @@ class AllocateRegisters:
                 case assembly.JmpCC():
                     result.append(instr)
                 case assembly.SetCC(cond_code, operand):
-                    operand = self._map_operand(operand, register_map):
+                    operand = self._map_operand(operand, register_map)
                     result.append(assembly.SetCC(cond_code, operand))
                 case assembly.Label():
                     result.append(instr)
@@ -313,7 +313,7 @@ class AllocateRegisters:
         match operand:
             case assembly.Pseudo(name):
                 if name in register_map:
-                    return assembly.Register(register_map[name]))
+                    return assembly.Register(register_map[name])
                 else:
                     return operand
             case _:
@@ -389,7 +389,8 @@ class Liveness:
 
         # iterate backwards through the instructions
         for i in range(len(block.instructions)-1, -1, -1):
-            current_live_registers = clone(current_live_registers)
+            # Clone a new set of live registers
+            current_live_registers = set(r for r in current_live_registers)
             block.annotations[i] = current_live_registers
 
             instr = block.instructions[i]

@@ -123,10 +123,17 @@ class Codegen:
         return self.return_type_uses_memory(func_type.ret)
 
     def gen_function(self, function: tacky.Function) -> assembly.Function:
+
+        # Generate the basic assembly
+        return_in_memory = self.function_returns_in_memory(function.name)
+        instructions = self.save_arguments([tacky.Identifier(p) for p in function.params], return_in_memory)
+
+        generated_instructions = self.gen_instructions(function.body)
+
         # Allocate registers
         aliased_vars = address_taken.address_taken_analysis(self.symbols, function.body)
-        body, callee_saved_registers = reg_alloc.allocate_registers(
-            instructions=function.body,
+        optimized_instructions, callee_saved_registers = reg_alloc.allocate_registers(
+            instructions=generated_instructions,
             function_classifications=self._function_classifications,
             asm_symbols=self.asm_symbols,
             aliased_variables=aliased_vars,
@@ -136,11 +143,7 @@ class Codegen:
         # instruction
         self.callee_saved_registers = sorted(list(callee_saved_registers))
 
-        # Generate the basic assembly
-        return_in_memory = self.function_returns_in_memory(function.name)
-        instructions = self.save_arguments([tacky.Identifier(p) for p in function.params], return_in_memory)
-
-        instructions += self.gen_instructions(body)
+        instructions += optimized_instructions
 
         # Replace pseudo registers with stack locations
         instructions, bytes_for_locals = self.replace_pseudo_registers(instructions, return_in_memory)
@@ -291,7 +294,11 @@ class Codegen:
     def fix_invalid_instruction(self, instr):
         match instr:
             case assembly.Ret():
-                return [instr]
+                pops = [
+                    assembly.Pop(reg)
+                    for reg in self.callee_saved_registers[::-1]
+                ]
+                return pops + [instr]
             case assembly.Mov():
                 return self.fix_mov(instr)
             case assembly.Movsx():
@@ -940,8 +947,6 @@ class Codegen:
             match attrs:
                 case symbol.FuncAttr():
                     classifications[name] = self.classify_function(sym.type)
-                    print(f'classified function {name}')
-                    print('  ', classifications[name])
                 case _:
                     # Ignore non-functions
                     pass
@@ -1318,7 +1323,7 @@ class Codegen:
 
         retval = instr.val
         if retval is None:
-            return self.pop_and_return()
+            return [assembly.Ret()]
 
         int_retvals, double_retvals, return_in_memory = self.classify_return_value(retval)
 
@@ -1356,14 +1361,6 @@ class Codegen:
                 instructions.append(assembly.Mov(double, op, assembly.Register(register)))
                 reg_index += 1
 
-        instructions += self.pop_and_return()
-        return instructions
-
-    def pop_and_return(self) -> list:
-        instructions = [
-            assembly.Pop(reg)
-            for reg in self.callee_saved_registers[::-1]
-        ]
         instructions.append(assembly.Ret())
         return instructions
 
