@@ -398,11 +398,9 @@ class Liveness:
             updated = instr.updated()
 
             for v in updated:
-                if isinstance(v, assembly.Register):
-                    current_live_registers -= set([v])
+                current_live_registers -= set([v])
 
             for v in used:
-                if isinstance(v, assembly.Register):
-                    current_live_registers.add(v)
+                current_live_registers.add(v)
 
         block.block_annotation = current_live_registers

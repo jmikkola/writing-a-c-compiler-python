@@ -42,6 +42,8 @@ class Graph:
                 return node
 
     def add_edge(self, a: assembly.Operand, b: assembly.Operand):
+        assert(isinstance(a, assembly.Operand))
+        assert(isinstance(b, assembly.Operand))
         self.get_node(a).add_neighbor(b)
         self.get_node(b).add_neighbor(a)
 
