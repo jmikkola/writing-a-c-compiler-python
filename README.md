@@ -1,6 +1,8 @@
 This implements the extra credit from the compiler.
 
-So far, this completes chapter 19 including the extra credit.
+So far, this completes chapter 20 part 1.
+
+All extra credit features are implemented.
 
 # Running
 
