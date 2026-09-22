@@ -17,6 +17,7 @@ class Register(namedtuple('Register', ['byte', 'dword', 'qword'])):
 
 REGISTERS = {
     'AX': Register('%al', '%eax', '%rax'),
+    'BX': Register('%bl', '%ebx', '%rbx'),
     'CX': Register('%cl', '%ecx', '%rcx'),
     'DX': Register('%dl', '%edx', '%rdx'),
     'DI': Register('%dil', '%edi', '%rdi'),
@@ -30,7 +31,7 @@ REGISTERS = {
     'R12': Register('%r12b', '%r12d', '%r12'),
     'R13': Register('%r13b', '%r13d', '%r13'),
     'R14': Register('%r14b', '%r14d', '%r14'),
-    'R15': Register('%r15b', '%r15d', '%r14'),
+    'R15': Register('%r15b', '%r15d', '%r15'),
 }
 
 

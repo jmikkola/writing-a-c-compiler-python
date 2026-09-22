@@ -65,7 +65,7 @@ class AllocateRegisters:
     def base_graph(self) -> intf_graph.Graph:
         registers = [assembly.Register(r) for r in self.all_registers]
 
-        interference_graph = intf_graph.Graph(nodes=[], k=len(registers))
+        interference_graph = intf_graph.Graph(k=len(registers))
         for (i, reg) in enumerate(registers):
             # Add the node for the current register
             interference_graph.add_node(reg)
@@ -185,7 +185,7 @@ class AllocateRegisters:
                 live_registers = node.annotations[i]
 
                 for l in live_registers:
-                    is_mov = type(l) in [assembly.Mov, assembly.Movsx, assembly.MovZeroExtend]
+                    is_mov = type(instr) in [assembly.Mov, assembly.Movsx, assembly.MovZeroExtend]
                     if is_mov and l == instr.src:
                         continue
 
@@ -248,10 +248,10 @@ class AllocateRegisters:
                     dst = self._map_operand(dst, register_map)
                     if src != dst:
                         result.append(assembly.Mov(a_type, src, dst))
-                case assembly.Movsx(a_type, src, dst):
+                case assembly.Movsx(src_type, dst_type, src, dst):
                     src = self._map_operand(src, register_map)
                     dst = self._map_operand(dst, register_map)
-                    result.append(assembly.Movsx(a_type, src, dst))
+                    result.append(assembly.Movsx(src_type, dst_type, src, dst))
                 case assembly.MovZeroExtend(src_type, dst_type, src, dst):
                     src = self._map_operand(src, register_map)
                     dst = self._map_operand(dst, register_map)
@@ -389,18 +389,14 @@ class Liveness:
 
         # iterate backwards through the instructions
         for i in range(len(block.instructions)-1, -1, -1):
-            # Clone a new set of live registers
-            current_live_registers = set(r for r in current_live_registers)
+            # Record the registers live after this instruction
             block.annotations[i] = current_live_registers
 
             instr = block.instructions[i]
             used = instr.used_registers(self.function_classifications)
             updated = instr.updated()
 
-            for v in updated:
-                current_live_registers -= set([v])
-
-            for v in used:
-                current_live_registers.add(v)
+            # Build a new set so the annotation stored above isn't mutated
+            current_live_registers = (current_live_registers - set(updated)) | set(used)
 
         block.block_annotation = current_live_registers

@@ -126,14 +126,14 @@ class Codegen:
 
         # Generate the basic assembly
         return_in_memory = self.function_returns_in_memory(function.name)
-        instructions = self.save_arguments([tacky.Identifier(p) for p in function.params], return_in_memory)
+        unoptimized_instructions = self.save_arguments([tacky.Identifier(p) for p in function.params], return_in_memory)
 
-        generated_instructions = self.gen_instructions(function.body)
+        unoptimized_instructions += self.gen_instructions(function.body)
 
         # Allocate registers
         aliased_vars = address_taken.address_taken_analysis(self.symbols, function.body)
-        optimized_instructions, callee_saved_registers = reg_alloc.allocate_registers(
-            instructions=generated_instructions,
+        instructions, callee_saved_registers = reg_alloc.allocate_registers(
+            instructions=unoptimized_instructions,
             function_classifications=self._function_classifications,
             asm_symbols=self.asm_symbols,
             aliased_variables=aliased_vars,
@@ -142,8 +142,6 @@ class Codegen:
         # Store this at the class level so that it is accessible to the code that handles the return
         # instruction
         self.callee_saved_registers = sorted(list(callee_saved_registers))
-
-        instructions += optimized_instructions
 
         # Replace pseudo registers with stack locations
         instructions, bytes_for_locals = self.replace_pseudo_registers(instructions, return_in_memory)
@@ -156,7 +154,10 @@ class Codegen:
             assembly.Immediate(stack_adjustment),
             assembly.Register('SP')
         )
-        save_callees = [assembly.Push(reg) for reg in self.callee_saved_registers]
+        save_callees = [
+            assembly.Push(assembly.Register(reg))
+            for reg in self.callee_saved_registers
+        ]
         instructions = [allocate] + save_callees + instructions
 
         # Fix instructions that are now invalid
@@ -295,7 +296,7 @@ class Codegen:
         match instr:
             case assembly.Ret():
                 pops = [
-                    assembly.Pop(reg)
+                    assembly.Pop(assembly.Register(reg))
                     for reg in self.callee_saved_registers[::-1]
                 ]
                 return pops + [instr]
@@ -946,11 +947,22 @@ class Codegen:
             attrs = sym.attrs
             match attrs:
                 case symbol.FuncAttr():
-                    classifications[name] = self.classify_function(sym.type)
+                    # Functions with incomplete struct or union types can't be
+                    # defined or called, so they never need a classification
+                    func_types = [sym.type.ret] + sym.type.params
+                    if all(self.is_complete_or_void(t) for t in func_types):
+                        classifications[name] = self.classify_function(sym.type)
                 case _:
                     # Ignore non-functions
                     pass
         return classifications
+
+    def is_complete_or_void(self, t: syntax.Type) -> bool:
+        match t:
+            case syntax.Struct(tag) | syntax.Union(tag):
+                return tag in self.types
+            case _:
+                return True
 
     def classify_function(self, t):
         assert(isinstance(t, syntax.Func))
@@ -1005,28 +1017,20 @@ class Codegen:
                 # A struct or union type
                 classes = self.classify_type(t)
                 if classes[0] != MemClass.MEMORY:
-                    tentative_registers = []
-                    tentative_ints = 0
-                    tentative_doubles = 0
-                    for c in classes:
-                        if c == MemClass.SSE:
-                            tentative_registers.append(
-                                self.double_registers[doubles_used + tentative_doubles]
-                            )
-                            tentative_doubles += 1
-                        elif c == MemClass.INTEGER:
-                            tentative_registers.append(
-                                self.arg_registers[ints_used + tentative_ints]
-                            )
-                            tentative_ints += 1
-                        else:
-                            raise Exception('bug')
-                    has_space_for_doubles = (doubles_used + tentative_doubles) < len(self.double_registers)
-                    has_space_for_ints = (ints_used + tentative_ints) < len(self.arg_registers)
+                    tentative_ints = classes.count(MemClass.INTEGER)
+                    tentative_doubles = classes.count(MemClass.SSE)
+                    if tentative_ints + tentative_doubles != len(classes):
+                        raise Exception('bug')
+                    has_space_for_doubles = (doubles_used + tentative_doubles) <= len(self.double_registers)
+                    has_space_for_ints = (ints_used + tentative_ints) <= len(self.arg_registers)
                     if has_space_for_ints and has_space_for_doubles:
-                        doubles_used += tentative_doubles
-                        ints_used += tentative_ints
-                        arg_registers.extend(tentative_registers)
+                        for c in classes:
+                            if c == MemClass.SSE:
+                                arg_registers.append(self.double_registers[doubles_used])
+                                doubles_used += 1
+                            else:
+                                arg_registers.append(self.arg_registers[ints_used])
+                                ints_used += 1
 
         return arg_registers
 

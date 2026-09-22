@@ -18,14 +18,26 @@ class Node:
             return
         self.neighbors.append(neighbor)
 
+    def pretty_print(self):
+        lines = [
+            str(self.operand_id),
+            f'  spill_cost={self.spill_cost} color={self.color} pruned={self.pruned}',
+            f'  neighbors={self.neighbors}',
+        ]
+        return '\n'.join(lines)
 
-@dataclass
+
 class Graph:
-    nodes: list
-    k: int # The degree to use when coloring
+    # k is the degree to use when coloring
+    def __init__(self, k: int):
+        self.nodes = []
+        self.nodes_by_id = dict()
+        self.k = k
 
     def add_node(self, operand_id: assembly.Operand):
         assert(isinstance(operand_id, assembly.Operand))
+        if operand_id in self.nodes_by_id:
+            return
         node = Node(
             operand_id=operand_id,
             neighbors=[],
@@ -34,12 +46,11 @@ class Graph:
             pruned=False,
         )
         self.nodes.append(node)
+        self.nodes_by_id[operand_id] = node
 
     def get_node(self, operand_id: assembly.Operand):
         assert(isinstance(operand_id, assembly.Operand))
-        for node in self.nodes:
-            if node.operand_id == operand_id:
-                return node
+        return self.nodes_by_id.get(operand_id)
 
     def add_edge(self, a: assembly.Operand, b: assembly.Operand):
         assert(isinstance(a, assembly.Operand))
@@ -49,7 +60,15 @@ class Graph:
 
     def __contains__(self, key: assembly.Operand):
         assert(isinstance(key, assembly.Operand))
-        return self.get_node(key) is not None
+        return key in self.nodes_by_id
+
+    def pretty_print(self):
+        header = f'Graph(k={self.k})'
+        lines = [header] + [
+            node.pretty_print()
+            for node in self.nodes
+        ]
+        return '\n'.join(lines)
 
     def color_graph(self):
         remaining = self._unpruned_nodes()

@@ -108,6 +108,15 @@ class Instruction:
                     used.append(Register(reg))
                 case Data():
                     pass
+
+        # Writing to a memory operand reads the registers in its address
+        for operand in self.updated():
+            match operand:
+                case Indexed(base, index, _scale):
+                    used.append(Register(base))
+                    used.append(Register(index))
+                case Memory(reg, _offset):
+                    used.append(Register(reg))
         return used
 
     def updated(self):
@@ -199,7 +208,7 @@ class Call(Instruction, namedtuple('Call', ['identifier'])):
 
     def used(self, fnclass):
         (arg_registers, _return_registers) = fnclass[self.identifier]
-        return arg_registers
+        return [Register(r) for r in arg_registers]
 
     def updated(self):
         xmm_registers = [Register(f'XMM{n}') for n in range(14)]
