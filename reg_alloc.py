@@ -137,8 +137,22 @@ class AllocateRegisters:
         # (meaning that it can then be pruned), return False
         return significant_neighbors < self.k
 
-    def george_test(self, interference_graph, src, dst):
-        pass
+    def george_test(self, interference_graph, hardreg, pseudoreg):
+        assert(isinstance(hardreg, assembly.Register))
+        assert(isinstance(pseudoreg, assembly.Pseudo))
+
+        pseudo_node = interference_graph.get_node(pseudoreg)
+        for node_id in pseudo_node.neighbors:
+            if interference_graph.are_neighbors(node_id, hardreg):
+                continue
+
+            neighbor_node = interference_graph.get_node(node_id)
+            if len(neighbor_node.neighbors) < self.k:
+                continue
+
+            return False
+
+        return True
 
     def rewrite_coalesced(self, instructions, coalesced_regs):
         pass
