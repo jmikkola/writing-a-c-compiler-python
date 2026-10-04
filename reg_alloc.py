@@ -111,7 +111,7 @@ class AllocateRegisters:
         if isinstance(src, assembly.Register):
             return self.george_test(interference_graph, src, dst)
         if isinstance(dst, assembly.Register):
-            return self.george_test(interference_graph, src, dst)
+            return self.george_test(interference_graph, dst, src)
         return False
 
     def briggs_test(self, interference_graph, x, y):
@@ -205,8 +205,9 @@ class AllocateRegisters:
                     new_instructions.append(instr)
                 case assembly.JmpCC():
                     new_instructions.append(instr)
-                case assembly.SetCC():
-                    new_instructions.append(instr)
+                case assembly.SetCC(cond_code, operand):
+                    operand = coalesced_regs.find(operand)
+                    new_instructions.append(assembly.SetCC(cond_code, operand))
                 case assembly.Label():
                     new_instructions.append(instr)
                 case assembly.Cvttsd2si(a_type, src, dst):
