@@ -79,7 +79,7 @@ class AllocateRegisters:
             match instr:
                 case assembly.Mov(a_type, src, dst):
                     src = coalesced_regs.find(src)
-                    dst = color_graph.find(dst)
+                    dst = coalesced_regs.find(dst)
 
                     if src not in graph or dst not in graph:
                         continue
