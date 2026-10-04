@@ -20,9 +20,10 @@ class Node:
 
     def remove_neighbor(self, neighbor: assembly.Operand):
         assert(isinstance(neighbor, assembly.Operand))
-        if neighbor not in self.neighbors:
-            return
-        self.neighbors.remove(neighbor)
+        self.neighbors = [
+            n for n in self.neighbors
+            if n != neighbor
+        ]
 
     def pretty_print(self):
         lines = [
@@ -61,6 +62,7 @@ class Graph:
     def remove_node(self, operand_id: assembly.Operand):
         assert(isinstance(operand_id, assembly.Operand))
         node = self.nodes_by_id[operand_id]
+        assert(node.neighbors == [])
         del self.nodes_by_id[operand_id]
         self.nodes.remove(node)
 
