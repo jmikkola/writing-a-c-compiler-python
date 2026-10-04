@@ -70,6 +70,9 @@ class Graph:
         ]
         return '\n'.join(lines)
 
+    def merge_nodes(self, to_merge, to_keep):
+        pass
+
     def color_graph(self):
         remaining = self._unpruned_nodes()
         if not remaining:

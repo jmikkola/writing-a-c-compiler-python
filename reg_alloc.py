@@ -1,5 +1,6 @@
 import assembly
 import cfg
+import disjoint_set
 import intf_graph
 
 
@@ -71,6 +72,39 @@ class AllocateRegisters:
         return interference_graph
 
     def coalesce(self, interference_graph, instructions):
+        coalesced_regs = disjoint_set.DisjointSet()
+
+        for instr in instructions:
+            match instr:
+                case assembly.Mov(src, dst):
+                    src = coalesced_regs.find(src)
+                    dst = color_graph.find(dst)
+
+                    if src not in graph or dst not in graph:
+                        continue
+                    if src == dst:
+                        continue
+                    if self.are_neighbors(interference_graph, src, dst):
+                        continue
+                    if not self.conservative_coalesceable(interference_graph, src, dst):
+                        continue
+
+                    if isinstance(src, assembly.Register):
+                        to_keep = src
+                        to_merge = dst
+                    else:
+                        to_keep = dst
+                        to_merge = src
+
+                    coalesced_regs.union(to_merge, to_keep)
+                    interference_graph.merge_nodes(to_merge, to_keep)
+
+                case _:
+                    continue
+
+        return (coalesced_regs, not coalesced_regs.is_empty())
+
+    def conservative_coalesceable(self, interference_graph, src, dst):
         pass
 
     def rewrite_coalesced(self, instructions, coalesced_regs):
