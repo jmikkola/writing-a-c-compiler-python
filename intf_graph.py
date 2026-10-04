@@ -18,6 +18,12 @@ class Node:
             return
         self.neighbors.append(neighbor)
 
+    def remove_neighbor(self, neighbor: assembly.Operand):
+        assert(isinstance(neighbor, assembly.Operand))
+        if neighbor not in self.neighbors:
+            return
+        self.neighbors.remove(neighbor)
+
     def pretty_print(self):
         lines = [
             str(self.operand_id),
@@ -52,11 +58,21 @@ class Graph:
         assert(isinstance(operand_id, assembly.Operand))
         return self.nodes_by_id.get(operand_id)
 
+    def remove_node(self, operand_id: assembly.Operand):
+        assert(isinstance(operand_id, assembly.Operand))
+        del self.nodes_by_id[operand_id]
+
     def add_edge(self, a: assembly.Operand, b: assembly.Operand):
         assert(isinstance(a, assembly.Operand))
         assert(isinstance(b, assembly.Operand))
         self.get_node(a).add_neighbor(b)
         self.get_node(b).add_neighbor(a)
+
+    def remove_edge(self, a: assembly.Operand, b: assembly.Operand):
+        assert(isinstance(a, assembly.Operand))
+        assert(isinstance(b, assembly.Operand))
+        self.get_node(a).remove_neighbor(b)
+        self.get_node(b).remove_neighbor(a)
 
     def __contains__(self, key: assembly.Operand):
         assert(isinstance(key, assembly.Operand))
@@ -70,8 +86,16 @@ class Graph:
         ]
         return '\n'.join(lines)
 
-    def merge_nodes(self, to_merge, to_keep):
-        pass
+    def merge_nodes(self, to_merge: assembly.Operand, to_keep: assembly.Operand):
+        assert(isinstance(to_merge, assembly.Operand))
+        assert(isinstance(to_keep, assembly.Operand))
+
+        node_to_remove = self.get_node(to_merge)
+        for neighbor in node_to_remove.neighbors:
+            self.add_edge(to_keep, neighbor)
+            self.remove_edge(to_merge, neighbor)
+
+        self.remove_node(to_merge)
 
     def color_graph(self):
         remaining = self._unpruned_nodes()
