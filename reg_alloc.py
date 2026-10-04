@@ -48,7 +48,15 @@ class AllocateRegisters:
         self.function_name = function_name
 
     def allocate(self, instructions):
-        interference_graph = self.build_graph(instructions)
+        # Register coalescing pass
+        while True:
+            interference_graph = self.build_graph(instructions)
+            coalesced_regs, made_changes = self.coalesce(interference_graph, instructions)
+            if not made_changes:
+                break
+            instructions = self.rewrite_coalesced(instructions, coalesced_regs)
+
+        # Register allocation pass
         self.add_spill_costs(interference_graph, instructions)
         interference_graph.color_graph()
         register_map, callee_saved_registers = self.create_register_map(interference_graph)
@@ -61,6 +69,12 @@ class AllocateRegisters:
         self.analyze_liveness(graph)
         self.add_edges(graph, interference_graph)
         return interference_graph
+
+    def coalesce(self, interference_graph, instructions):
+        pass
+
+    def rewrite_coalesced(self, instructions, coalesced_regs):
+        pass
 
     def base_graph(self) -> intf_graph.Graph:
         registers = [assembly.Register(r) for r in self.all_registers]
