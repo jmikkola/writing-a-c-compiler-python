@@ -77,7 +77,7 @@ class AllocateRegisters:
 
         for instr in instructions:
             match instr:
-                case assembly.Mov(src, dst):
+                case assembly.Mov(a_type, src, dst):
                     src = coalesced_regs.find(src)
                     dst = color_graph.find(dst)
 
@@ -155,7 +155,70 @@ class AllocateRegisters:
         return True
 
     def rewrite_coalesced(self, instructions, coalesced_regs):
-        pass
+        new_instructions = []
+        for instr in instructions:
+            match instr:
+                case assembly.Mov(a_type, src, dst):
+                    src = coalesced_regs.find(src)
+                    dst = coalesced_regs.find(dst)
+                    if src != dst:
+                        new_instructions.append(assembly.Mov(a_type, src, dst))
+                case assembly.Ret():
+                    new_instructions.append(instr)
+                case assembly.Movsx(src_type, dst_type, src, dst):
+                    src = coalesced_regs.find(src)
+                    dst = coalesced_regs.find(dst)
+                    new_instructions.append(assembly.Movsx(src_type, dst_type, src, dst))
+                case assembly.MovZeroExtend(src_type, dst_type, src, dst):
+                    src = coalesced_regs.find(src)
+                    dst = coalesced_regs.find(dst)
+                    new_instructions.append(assembly.MovZeroExtend(src_type, dst_type, src, dst))
+                case assembly.Lea(src, dst):
+                    src = coalesced_regs.find(src)
+                    dst = coalesced_regs.find(dst)
+                    new_instructions.append(assembly.Lea(src, dst))
+                case assembly.Push(operand):
+                    operand = coalesced_regs.find(operand)
+                    new_instructions.append(assembly.Push(operand))
+                case assembly.Call():
+                    new_instructions.append(instr)
+                case assembly.Unary(uop, a_type, operand):
+                    operand = coalesced_regs.find(operand)
+                    new_instructions.append(assembly.Unary(uop, a_type, operand))
+                case assembly.Binary(bop, a_type, src, dst):
+                    src = coalesced_regs.find(src)
+                    dst = coalesced_regs.find(dst)
+                    new_instructions.append(assembly.Binary(bop, a_type, src, dst))
+                case assembly.Cmp(a_type, left, right):
+                    left = coalesced_regs.find(left)
+                    right = coalesced_regs.find(right)
+                    new_instructions.append(assembly.Cmp(a_type, left, right))
+                case assembly.Idiv(a_type, operand):
+                    operand = coalesced_regs.find(operand)
+                    new_instructions.append(assembly.Idiv(a_type, operand))
+                case assembly.Div(a_type, operand):
+                    operand = coalesced_regs.find(operand)
+                    new_instructions.append(assembly.Div(a_type, operand))
+                case assembly.Cdq():
+                    new_instructions.append(instr)
+                case assembly.Jmp():
+                    new_instructions.append(instr)
+                case assembly.JmpCC():
+                    new_instructions.append(instr)
+                case assembly.SetCC():
+                    new_instructions.append(instr)
+                case assembly.Label():
+                    new_instructions.append(instr)
+                case assembly.Cvttsd2si(a_type, src, dst):
+                    src = coalesced_regs.find(src)
+                    dst = coalesced_regs.find(dst)
+                    new_instructions.append(assembly.Cvttsd2si(a_type, src, dst))
+                case assembly.Cvtsi2sd(a_type, src, dst):
+                    src = coalesced_regs.find(src)
+                    dst = coalesced_regs.find(dst)
+                    new_instructions.append(assembly.Cvtsi2sd(a_type, src, dst))
+                case _:
+                    raise Exception(f'unhandled instruction {instr}')
 
     def base_graph(self) -> intf_graph.Graph:
         registers = [assembly.Register(r) for r in self.all_registers]
