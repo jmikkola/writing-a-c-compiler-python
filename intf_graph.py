@@ -60,7 +60,9 @@ class Graph:
 
     def remove_node(self, operand_id: assembly.Operand):
         assert(isinstance(operand_id, assembly.Operand))
+        node = self.nodes_by_id[operand_id]
         del self.nodes_by_id[operand_id]
+        self.nodes.remove(node)
 
     def add_edge(self, a: assembly.Operand, b: assembly.Operand):
         assert(isinstance(a, assembly.Operand))

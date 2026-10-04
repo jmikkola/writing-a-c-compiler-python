@@ -81,11 +81,11 @@ class AllocateRegisters:
                     src = coalesced_regs.find(src)
                     dst = coalesced_regs.find(dst)
 
-                    if src not in graph or dst not in graph:
+                    if src not in interference_graph or dst not in interference_graph:
                         continue
                     if src == dst:
                         continue
-                    if self.are_neighbors(interference_graph, src, dst):
+                    if interference_graph.are_neighbors(src, dst):
                         continue
                     if not self.conservative_coalesceable(interference_graph, src, dst):
                         continue
@@ -121,7 +121,7 @@ class AllocateRegisters:
         y_node = interference_graph.get_node(y)
 
         # Count neighbors that might not be easy to prune
-        combined_neighbors = set(x_node.neighbors) + set(y_node.neighbors)
+        combined_neighbors = set(x_node.neighbors) | set(y_node.neighbors)
         for node_id in combined_neighbors:
             neighbor = interference_graph.get_node(node_id)
             degree = len(neighbor.neighbors)
@@ -219,6 +219,8 @@ class AllocateRegisters:
                     new_instructions.append(assembly.Cvtsi2sd(a_type, src, dst))
                 case _:
                     raise Exception(f'unhandled instruction {instr}')
+
+        return new_instructions
 
     def base_graph(self) -> intf_graph.Graph:
         registers = [assembly.Register(r) for r in self.all_registers]
