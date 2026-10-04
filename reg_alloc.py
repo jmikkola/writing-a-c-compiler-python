@@ -105,6 +105,18 @@ class AllocateRegisters:
         return (coalesced_regs, not coalesced_regs.is_empty())
 
     def conservative_coalesceable(self, interference_graph, src, dst):
+        if self.briggs_test(interference_graph, src, dst):
+            return True
+        if isinstance(src, assembly.Register):
+            return self.george_test(interference_graph, src, dst)
+        if isinstance(dst, assembly.Register):
+            return self.george_test(interference_graph, src, dst)
+        return False
+
+    def briggs_test(self, interference_graph, src, dst):
+        pass
+
+    def george_test(self, interference_graph, src, dst):
         pass
 
     def rewrite_coalesced(self, instructions, coalesced_regs):
