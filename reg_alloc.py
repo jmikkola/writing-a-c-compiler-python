@@ -43,6 +43,7 @@ class AllocateRegisters:
     def __init__(self, is_double, function_classifications, asm_symbols, aliased_variables, function_name):
         self.is_double = is_double
         self.all_registers = XMM_REGISTERS if is_double else INT_REGISTERS
+        self.k = len(self.all_registers)
         self.function_classifications = function_classifications
         self.asm_symbols = asm_symbols
         self.aliased_variables = aliased_variables
@@ -113,8 +114,28 @@ class AllocateRegisters:
             return self.george_test(interference_graph, src, dst)
         return False
 
-    def briggs_test(self, interference_graph, src, dst):
-        pass
+    def briggs_test(self, interference_graph, x, y):
+        significant_neighbors = 0
+
+        x_node = interference_graph.get_node(x)
+        y_node = interference_graph.get_node(y)
+
+        # Count neighbors that might not be easy to prune
+        combined_neighbors = set(x_node.neighbors) + set(y_node.neighbors)
+        for node_id in combined_neighbors:
+            neighbor = interference_graph.get_node(node_id)
+            degree = len(neighbor.neighbors)
+            if (interference_graph.are_neighbors(node_id, x) and
+                interference_graph.are_neighbors(node_id, y)):
+                # Account for cases when combining the two nodes will reduce the degree of this
+                # neighbor by one
+                degree -= 1
+            if degree >= self.k:
+                significant_neighbors += 1
+
+        # If we aren't certain that, after pruning, this node will have fewer than k neighbors
+        # (meaning that it can then be pruned), return False
+        return significant_neighbors < self.k
 
     def george_test(self, interference_graph, src, dst):
         pass

@@ -74,6 +74,14 @@ class Graph:
         self.get_node(a).remove_neighbor(b)
         self.get_node(b).remove_neighbor(a)
 
+    def are_neighbors(self, a: assembly.Operand, b: assembly.Operand):
+        assert(isinstance(a, assembly.Operand))
+        assert(isinstance(b, assembly.Operand))
+        node = self.get_node(a)
+        if not node:
+            return False
+        return b in node.neighbors
+
     def __contains__(self, key: assembly.Operand):
         assert(isinstance(key, assembly.Operand))
         return key in self.nodes_by_id
