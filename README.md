@@ -1,8 +1,6 @@
-This implements the extra credit from the compiler.
+This is complete implementation of the compiler described in the Writing a C Compiler book.
 
-So far, this completes chapter 20 part 1.
-
-All extra credit features are implemented.
+This implements the extra credit from the book.
 
 # Running
 
